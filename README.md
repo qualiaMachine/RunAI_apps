@@ -14,14 +14,6 @@ budgets, terms & conditions, archival scans, and other records. Processes
 document archives (TIFF and PDF) into structured JSON for downstream
 systematic analysis.
 
-- **Hybrid pipeline:** digital PDFs get instant text extraction; scanned
-  pages fall back to VLM OCR (Qwen3-VL-32B-Instruct)
-- **Batch mode:** async concurrent processing with resume support for
-  large-scale runs
-- **Interactive mode:** Streamlit UI for PoC demos and format exploration
-- Outputs structured JSON (award details, budget line items, regulatory
-  citations, key-value pairs, tables)
-
 **Status:** PoC — testing on sample documents from DoIT imaging service.
 
 ### [RAG Chat (`rag_app/`)](rag_app/README.md)
