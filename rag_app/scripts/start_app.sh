@@ -4,14 +4,14 @@
 #
 # Usage (RunAI Workspace):
 #   Command:   bash
-#   Arguments: -c "bash /home/jovyan/work/KohakuRAG_UI/scripts/start_app.sh"
+#   Arguments: -c "bash /home/jovyan/work/RunAI_apps/rag_app/scripts/start_app.sh"
 #
 # The script uses the repo already cloned on the personal PVC from Step 0.
 # No GitHub download needed — the code is on the shared filesystem.
 set -euo pipefail
 
 # Where Step 0 cloned the repo (personal workspace PVC)
-REPO_DIR="${APP_REPO_DIR:-/home/jovyan/work/KohakuRAG_UI}"
+REPO_DIR="${APP_REPO_DIR:-/home/jovyan/work/RunAI_apps}"
 
 if [[ ! -d "$REPO_DIR" ]]; then
     echo "[start_app] ERROR: Repo not found at ${REPO_DIR}"

@@ -47,7 +47,7 @@ In the RunAI UI: **Workloads** > **New Workload** > **Workspace**
 ### Arguments (copy-paste)
 
 ```
--c "pip install uv && rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED && curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz | tar xz -C /tmp && mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI && cd /tmp/KohakuRAG_UI && uv pip install --system httpx pymupdf Pillow && jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''"
+-c "pip install uv && rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED && curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && mv /tmp/RunAI_apps-main /tmp/RunAI_apps && cd /tmp/RunAI_apps && uv pip install --system httpx pymupdf Pillow && jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''"
 ```
 
 **Environment variables:**
@@ -77,7 +77,7 @@ In the RunAI UI: **Workloads** > **New Workload** > **Workspace**
 Open a terminal in the Jupyter workspace:
 
 ```bash
-cd /tmp/KohakuRAG_UI
+cd /tmp/RunAI_apps
 
 # Process all PDFs — award notices
 python ocr_app/scripts/batch_extract.py \

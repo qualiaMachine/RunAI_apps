@@ -49,7 +49,7 @@ In the RunAI UI: **Workloads** > **New Workload** > **Inference**
 **Arguments** (copy-paste this entire block):
 
 ```
--c "pip install uv && curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz | tar xz -C /tmp && mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI && cd /tmp/KohakuRAG_UI && uv pip install --system fastapi uvicorn sentence-transformers && python3 rag_app/scripts/reranker_server.py"
+-c "pip install uv && curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && mv /tmp/RunAI_apps-main /tmp/RunAI_apps && cd /tmp/RunAI_apps && uv pip install --system fastapi uvicorn sentence-transformers && python3 rag_app/scripts/reranker_server.py"
 ```
 
 > **Same pattern as the embedding server.** Downloads the repo tarball,
@@ -213,10 +213,10 @@ runai submit wattbot-reranker \
   --port 8082 \
   --command -- /bin/bash -c \
     'pip install uv && \
-     curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz \
+     curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz \
        | tar xz -C /tmp && \
-     mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI && \
-     cd /tmp/KohakuRAG_UI && \
+     mv /tmp/RunAI_apps-main /tmp/RunAI_apps && \
+     cd /tmp/RunAI_apps && \
      uv pip install --system fastapi uvicorn sentence-transformers && \
      python3 rag_app/scripts/reranker_server.py'
 ```

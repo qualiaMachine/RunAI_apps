@@ -27,7 +27,7 @@ The cluster has three storage areas:
 └── pdfs/                                   # cached source PDFs
 
 /home/jovyan/work/                          ← personal, read-write
-├── KohakuRAG_UI/                           # git repo (cloned in Step 0)
+├── RunAI_apps/                           # git repo (cloned in Step 0)
 │   ├── app.py                              # Streamlit app
 │   ├── data/
 │   │   ├── metadata.csv                    # document URLs
@@ -70,7 +70,7 @@ In the RunAI UI, these are exposed as:
 | Vector index (`wattbot_jinav4.db`) | `/wattbot-data/embeddings/` | ~130 MB | Setup Workspace (on PPVC) |
 | Parsed corpus (JSON) | `/wattbot-data/corpus/` | ~50 MB | Setup Workspace (on PPVC) |
 | Cached PDFs | `/wattbot-data/pdfs/` | ~200 MB | Setup Workspace (on PPVC) |
-| Git repo clone | `/home/jovyan/work/KohakuRAG_UI/` | ~50 MB | Setup Workspace |
+| Git repo clone | `/home/jovyan/work/RunAI_apps/` | ~50 MB | Setup Workspace |
 | Python packages + cache | `/home/jovyan/work/.cache/` | Varies | Setup Workspace |
 
 ---

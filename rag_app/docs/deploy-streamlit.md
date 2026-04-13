@@ -44,7 +44,7 @@ In the RunAI UI: **Workloads** > **New Workload** > **Workspace**
 | Field | Value |
 |-------|-------|
 | **Command** | `bash` |
-| **Arguments** | `-c "pip install uv && rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED && git clone -b claude/ocr-vlm-application-hqgf2 --depth 1 https://github.com/qualiaMachine/KohakuRAG_UI.git /tmp/KohakuRAG_UI && cd /tmp/KohakuRAG_UI && mkdir -p /tmp/vectordb && cp /wattbot-data/embeddings/wattbot_jinav4.db /tmp/vectordb/ && ln -sf /wattbot-data/corpus rag_app/data/corpus && uv pip install --system streamlit openai httpx 'numpy<2' python-dotenv && uv pip install --system rag_app/vendor/KohakuVault rag_app/vendor/KohakuRAG && python -m streamlit run rag_app/app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false --server.baseUrlPath=\$STREAMLIT_BASE_PATH"` |
+| **Arguments** | `-c "pip install uv && rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED && git clone -b main --depth 1 https://github.com/qualiaMachine/RunAI_apps.git /tmp/RunAI_apps && cd /tmp/RunAI_apps && mkdir -p /tmp/vectordb && cp /wattbot-data/embeddings/wattbot_jinav4.db /tmp/vectordb/ && ln -sf /wattbot-data/corpus rag_app/data/corpus && uv pip install --system streamlit openai httpx 'numpy<2' python-dotenv && uv pip install --system rag_app/vendor/KohakuVault rag_app/vendor/KohakuRAG && python -m streamlit run rag_app/app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false --server.baseUrlPath=\$STREAMLIT_BASE_PATH"` |
 | **Working directory** | *(leave empty)* |
 
 > **What the command does:**
@@ -65,7 +65,7 @@ In the RunAI UI: **Workloads** > **New Workload** > **Workspace**
 > vectors** and no local retrieval. The app auto-discovers the copied DB
 > at `/tmp/vectordb/wattbot_jinav4.db`.
 >
-> **Using a different branch?** Replace `claude/ocr-vlm-application-hqgf2` in the `git clone` command
+> **Using a different branch?** Replace `main` in the `git clone` command
 > with the desired branch name.
 
 **Environment variables:**

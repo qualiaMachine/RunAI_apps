@@ -86,7 +86,7 @@
 #   Image:           vllm/vllm-openai:latest  (has Python 3, pip)
 #   Container port:  8090
 #   Command:         bash
-#   Arguments:       -c "pip install uv && curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz | tar xz -C /tmp && mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI && cd /tmp/KohakuRAG_UI && uv pip install --system fastapi uvicorn python-multipart httpx pymupdf Pillow && python3 ocr_app/scripts/ocr_server.py"
+#   Arguments:       -c "pip install uv && curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && mv /tmp/RunAI_apps-main /tmp/RunAI_apps && cd /tmp/RunAI_apps && uv pip install --system fastapi uvicorn python-multipart httpx pymupdf Pillow && python3 ocr_app/scripts/ocr_server.py"
 #   Env:             LLM_BASE_URL=http://qwen2-5--vl--7b--instruct.runai-<project>.svc.cluster.local/v1
 #                    VLM_MODEL=Qwen/Qwen2.5-VL-7B-Instruct
 #                    OCR_PORT=8090
@@ -107,10 +107,10 @@
 #     --port 8090 \
 #     --command -- /bin/bash -c \
 #       "pip install uv && \
-#        curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz \
+#        curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz \
 #          | tar xz -C /tmp && \
-#        mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI && \
-#        cd /tmp/KohakuRAG_UI && \
+#        mv /tmp/RunAI_apps-main /tmp/RunAI_apps && \
+#        cd /tmp/RunAI_apps && \
 #        uv pip install --system fastapi uvicorn python-multipart httpx pymupdf Pillow && \
 #        python3 ocr_app/scripts/ocr_server.py"
 
@@ -123,7 +123,7 @@
 #   Image:           nvcr.io/nvidia/pytorch:25.02-py3
 #   Tool:            Custom URL -> "streamlit" -> port 8501
 #   Command:         bash
-#   Arguments:       -c "pip install uv && rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED && curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz | tar xz -C /tmp && mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI && cd /tmp/KohakuRAG_UI && uv pip install --system streamlit httpx Pillow python-dotenv && python -m streamlit run ocr_app/app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false --server.baseUrlPath=$STREAMLIT_BASE_PATH"
+#   Arguments:       -c "pip install uv && rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED && curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && mv /tmp/RunAI_apps-main /tmp/RunAI_apps && cd /tmp/RunAI_apps && uv pip install --system streamlit httpx Pillow python-dotenv && python -m streamlit run ocr_app/app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false --server.baseUrlPath=$STREAMLIT_BASE_PATH"
 #   Env:             OCR_SERVICE_URL=http://ocr-extract.runai-<project>.svc.cluster.local
 #                    STREAMLIT_BASE_PATH=/<project>/<workspace-name>/proxy/8501
 #   GPU:             0 (none)
