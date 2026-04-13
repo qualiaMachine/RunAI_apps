@@ -1,0 +1,255 @@
+# ============================================================================
+# RunAI Job Definitions for WattBot RAG System
+#
+# Architecture:
+#   ┌─────────────────────┐
+#   │   Streamlit App     │  (Workspace, CPU only)
+#   │   Port 8501         │
+#   └──┬──────┬───────┬───┘
+#      │      │       │ HTTP (internal cluster DNS)
+#      ▼      ▼       ▼
+#   ┌──────┐ ┌──────┐ ┌──────────┐
+#   │ vLLM │ │Embed │ │ Reranker │
+#   │ 8000 │ │ 8080 │ │   8082   │
+#   │GPU80%│ │GPU10%│ │ GPU 10%  │
+#   └──────┘ └──────┘ └──────────┘
+#
+# All 4 services on 1.00 GPU (fractional allocation).
+# vLLM gets a full GPU since LLM inference is the bottleneck.
+# Reranker is optional — system works without it.
+#
+# NOTE: These are reference configs. Adapt image names, PVC names, and
+# resource fractions to your cluster. You can also create these via the
+# RunAI UI instead of CLI.
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# Job 1: vLLM LLM Server (Inference workload)
+# ---------------------------------------------------------------------------
+# Uses the official vllm/vllm-openai image with a Custom inference type.
+# Do NOT use RunAI's "Model: from Hugging Face" type — it's a black box
+# that crashes without logs. Custom type gives full control.
+#
+# RunAI UI settings:
+#   Inference type:  Custom
+#   Name:            wattbot-chat
+#   Image:           vllm/vllm-openai:latest (custom image)
+#   Container port:  8000
+#   Command:         (leave empty — image default)
+#   Arguments:       --model OpenSciLM/Llama-3.1_OpenScholar-8B --quantization bitsandbytes --load-format bitsandbytes --dtype auto
+#   Env:             HF_HOME=/models/.cache/huggingface
+#                    HF_HUB_CACHE=/models/.cache/huggingface
+#                    HF_HUB_OFFLINE=1
+#   GPU:             0.80 (fractional)
+#   CPU:             4
+#   Memory:          16Gi
+#   Data volume:     shared-models -> /models
+#
+# CLI equivalent (if not using the UI):
+#   runai submit wattbot-chat \
+#     --type inference \
+#     --image vllm/vllm-openai:latest \
+#     --gpu 0.80 \
+#     --cpu 4 \
+#     --memory 16Gi \
+#     --pvc shared-models:/models \
+#     --env HF_HOME=/models/.cache/huggingface \
+#     --env HF_HUB_CACHE=/models/.cache/huggingface \
+#     --env HF_HUB_OFFLINE=1 \
+#     --port 8000 \
+#     -- --model OpenSciLM/Llama-3.1_OpenScholar-8B \
+#       --quantization bitsandbytes \
+#       --load-format bitsandbytes \
+#       --dtype auto
+#
+# Startup time: 5-10 min (first deploy, image pull ~15 GB) / 2-3 min (cached)
+#
+# IMPORTANT: Choose quantization based on your GPU VRAM:
+#   - 80GB (A100): --dtype bfloat16 (no quantization needed for 7B)
+#   - 40GB (A6000): --dtype bfloat16
+#   - 24GB (L4/4090): --quantization awq or --quantization gptq
+#   - 16GB: --quantization awq --max-model-len 4096
+#
+# ALTERNATIVE MODEL: OpenScholar 8B (scientific synthesis, Llama 3.1 8B fine-tune)
+#   Replace --model with: --model OpenSciLM/Llama-3.1_OpenScholar-8B
+#   Same VRAM requirements as Qwen 7B. Download first:
+#     python /models/provision_shared_models.py download OpenSciLM/Llama-3.1_OpenScholar-8B
+
+# ---------------------------------------------------------------------------
+# Job 2: Embedding Server (Inference workload)
+# ---------------------------------------------------------------------------
+# Serves Jina V4 embeddings via FastAPI.
+# Uses the same vllm/vllm-openai image as the vLLM server — one image for
+# both services means fewer image pulls and less node storage.
+#
+# IMPORTANT: The embedding server only needs kohakurag/embeddings.py (pure
+# Python). Do NOT pip-install vendor/KohakuVault or vendor/KohakuRAG — the
+# KohakuRAG package __init__.py imports kohakuvault (a Rust extension) which
+# triggers a slow Rust/maturin build that will fail in most container images.
+# The embedding_server.py script loads embeddings.py directly via importlib.
+#
+# NOTE on the vLLM image:
+#   - Uses `python3` (not `python`) — there is no `python` alias
+#   - Does not include `git` — use `curl` tarball instead of `git clone`
+#   - Has `curl`, `pip`, PyTorch, and CUDA pre-installed
+#
+# ---------------------------------------------------------------------------
+# Pre-deploy testing (run locally before submitting to RunAI)
+# ---------------------------------------------------------------------------
+# These steps catch import errors, missing dependencies, and startup crashes
+# BEFORE you waste time on a 5-min container deploy cycle.
+#
+# Step 1: Test the startup command locally (any machine with Python 3.10+):
+#
+#   rm -rf /tmp/KohakuRAG_UI && \
+#   curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/<your-branch>.tar.gz \
+#     | tar xz -C /tmp && \
+#   mv /tmp/KohakuRAG_UI-<your-branch> /tmp/KohakuRAG_UI && \
+#   cd /tmp/KohakuRAG_UI && \
+#   uv pip install --system fastapi uvicorn httpx numpy \
+#     sentence-transformers 'transformers>=4.42,<5' accelerate && \
+#   python3 rag_app/scripts/embedding_server.py
+#
+#   Expected output: "[embedding_server] Model loaded in Xs. Serving on 0.0.0.0:8080"
+#   The server should start without import errors. Ctrl+C to stop.
+#
+# Step 2: Smoke-test the /health endpoint (in a second terminal):
+#
+#   curl http://localhost:8080/health
+#   # Expected: {"status":"ok"}
+#
+# Step 3 (optional): Test an actual embedding call:
+#
+#   curl -X POST http://localhost:8080/embed \
+#     -H "Content-Type: application/json" \
+#     -d '{"texts": ["hello world"]}'
+#   # Expected: {"embeddings":[[...]], "dimension":1024, "count":1, ...}
+#
+# Only proceed to RunAI deployment once all steps pass locally.
+# ---------------------------------------------------------------------------
+#
+# RunAI UI settings:
+#   Inference type:  Custom
+#   Name:            wattbot-embedding
+#   Image:           vllm/vllm-openai:latest (same image as vLLM server)
+#   Container port:  8080
+#   Command:         bash
+#   Arguments:       -c "pip install uv && curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz | tar xz -C /tmp && mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI && cd /tmp/KohakuRAG_UI && uv pip install --system fastapi uvicorn httpx numpy sentence-transformers 'transformers>=4.42,<5' accelerate && python3 rag_app/scripts/embedding_server.py"
+#   Env:             HF_HOME=/models/.cache/huggingface
+#                    EMBEDDING_MODEL=jinaai/jina-embeddings-v4
+#                    EMBEDDING_DIM=1024
+#                    EMBEDDING_TASK=retrieval
+#   GPU:             0.10 (fractional)
+#   CPU:             2
+#   Memory:          8Gi
+#   Data volume:     shared-models -> /models
+#
+# CLI equivalent:
+#   runai submit wattbot-embedding \
+#     --type inference \
+#     --image vllm/vllm-openai:latest \
+#     --gpu 0.50 \
+#     --cpu 2 \
+#     --memory 8Gi \
+#     --pvc shared-models:/models \
+#     --env HF_HOME=/models/.cache/huggingface \
+#     --env EMBEDDING_MODEL=jinaai/jina-embeddings-v4 \
+#     --env EMBEDDING_DIM=1024 \
+#     --env EMBEDDING_TASK=retrieval \
+#     --port 8080 \
+#     --command -- /bin/bash -c \
+#       "pip install uv && \
+#        curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz \
+#          | tar xz -C /tmp && \
+#        mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI && \
+#        cd /tmp/KohakuRAG_UI && \
+#        uv pip install --system fastapi uvicorn httpx numpy \
+#          sentence-transformers 'transformers>=4.42,<5' accelerate && \
+#        python3 rag_app/scripts/embedding_server.py"
+
+# ---------------------------------------------------------------------------
+# Job 3: Reranker Server (Inference workload, optional)
+# ---------------------------------------------------------------------------
+# Serves cross-encoder reranking via FastAPI. Same image as other services.
+# Small GPU footprint — BGE reranker uses ~0.5 GB VRAM.
+#
+# NO repo download needed — the server script is written inline via heredoc.
+# Same idea as vLLM: pick container, set model via env var, done.
+#
+# The system works without this job. When RERANKER_SERVICE_URL is not set,
+# the Streamlit app simply skips cross-encoder reranking.
+#
+# Pre-requisite: Download the reranker model to the shared PVC:
+#   python3 -c "from huggingface_hub import snapshot_download; snapshot_download('BAAI/bge-reranker-v2-m3', cache_dir='/models/.cache/huggingface')"
+#
+# RunAI UI settings:
+#   Inference type:  Custom
+#   Name:            wattbot-reranker
+#   Image:           vllm/vllm-openai:latest
+#   Container port:  8082
+#   Command:         bash
+#   Arguments:       -c "pip install uv && curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz | tar xz -C /tmp && mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI && cd /tmp/KohakuRAG_UI && uv pip install --system fastapi uvicorn sentence-transformers && python3 rag_app/scripts/reranker_server.py"
+#   Env:             HF_HOME=/models/.cache/huggingface
+#                    RERANKER_MODEL=BAAI/bge-reranker-v2-m3
+#   GPU:             0.10 (fractional)
+#   CPU:             2
+#   Memory:          4Gi
+#   Data volume:     shared-models -> /models
+#
+# See docs/runai/deploy-reranker.md for full CLI equivalent and copy-paste
+# arguments string.
+#
+# Model options (set RERANKER_MODEL env var):
+#   - BAAI/bge-reranker-v2-m3        (small, fast, ~0.5 GB)
+#   - BAAI/bge-reranker-large        (better quality, ~1.3 GB)
+#   - OpenSciLM/OpenScholar_Reranker (science-tuned, ~1.2 GB)
+
+# ---------------------------------------------------------------------------
+# Job 4: Streamlit App (Workspace, CPU only)
+# ---------------------------------------------------------------------------
+# The UI layer. Connects to vLLM and embedding services via internal DNS.
+#
+# NOTE: This is a Workspace (not Inference) because Workspaces provide
+# browser-accessible proxy URLs. Inference workloads use Knative serving
+# which requires wildcard DNS that most clusters don't expose externally.
+#
+# Proven working config (NGC PyTorch image):
+#
+# RunAI UI settings:
+#   Workload type:   Workspace
+#   Name:            wattbot-app
+#   Image:           nvcr.io/nvidia/pytorch:25.02-py3
+#   Tool:            Custom URL -> "streamlit" -> port 8501
+#   Command:         bash
+#   Arguments:       -c "pip install uv && rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED && git clone -b claude/ocr-vlm-application-hqgf2 --depth 1 https://github.com/qualiaMachine/KohakuRAG_UI.git /tmp/KohakuRAG_UI && cd /tmp/KohakuRAG_UI && ln -sf /wattbot-data/embeddings rag_app/data/embeddings && ln -sf /wattbot-data/corpus rag_app/data/corpus && uv pip install --system streamlit openai httpx numpy python-dotenv && uv pip install --system rag_app/vendor/KohakuVault rag_app/vendor/KohakuRAG && python -m streamlit run rag_app/app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false --server.baseUrlPath=\$STREAMLIT_BASE_PATH"
+#   Env:             RAG_MODE=remote
+#                    VLLM_BASE_URL=http://wattbot-chat.runai-<project>.svc.cluster.local/v1
+#                    EMBEDDING_SERVICE_URL=http://wattbot-embedding.runai-<project>.svc.cluster.local
+#                    RERANKER_SERVICE_URL=http://wattbot-reranker.runai-<project>.svc.cluster.local
+#                    STREAMLIT_BASE_PATH=/<project>/<workspace-name>/proxy/8501
+#
+#                    # --- Model & KB selection (optional) ---
+#                    # PVC model listing (shows what's cached on shared volume):
+#                    SHARED_MODELS_PATH=/models/.cache/huggingface
+#                    # Extra KB scan dirs (usually not needed — volumes auto-discovered):
+#                    # VECTOR_DB_DIRS=/extra-corpus/embeddings
+#                    # Multiple vLLM servers (only if running >1 vLLM pod):
+#                    # VLLM_ENDPOINTS=openscholar=http://wattbot-chat.runai-<project>.svc.cluster.local/v1,qwen=http://wattbot-qwen.runai-<project>.svc.cluster.local/v1
+#
+#   NOTE: Inference workloads use Knative (envoy). You MUST use the FQDN
+#         (workload.runai-project.svc.cluster.local) on port 80 (no port
+#         number). Short names like wattbot-chat:8000 return envoy 404.
+#   GPU:             0 (none)
+#   CPU:             1
+#   Memory:          2Gi
+#   Data volumes:    wattbot-data -> /wattbot-data
+#                    shared-models -> /models  (optional, for PVC model listing)
+#
+#   To add another researcher's corpus, attach their PVC as a data volume:
+#     e.g. climate-corpus -> /climate-corpus
+#   The app auto-discovers any /<volume>/embeddings/*.db files.
+#
+#   rm -f EXTERNALLY-MANAGED removes the Debian PEP 668 marker that
+#   blocks uv pip install --system. Safe in ephemeral containers.
+#
+# Access URL: https://<cluster-host>/<project>/<workspace-name>/proxy/8501/

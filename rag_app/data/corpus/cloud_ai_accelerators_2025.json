@@ -1,0 +1,224 @@
+{
+  "document_id": "cloud_ai_accelerators_2025",
+  "title": "Cloud AI Accelerator Specifications: Intel Gaudi, AWS Trainium and Inferentia, and Emerging AI Chips for Energy-Efficient AI",
+  "text": "The Intel Gaudi 2, released in 2022, is equipped with 96GB of HBM2e memory and provides 2.45 TB/s of memory bandwidth. The Gaudi 2 has a thermal design power (TDP) of 600W. In terms of compute performance, the Gaudi 2 delivers approximately 600 TFLOPS of BF16 performance for matrix operations and an estimated 1,200 TOPS of FP8 performance. The Gaudi 2 contains 24 Tensor Processor Cores (TPCs) and is manufactured on TSMC's 7nm process. A key differentiator of the Gaudi 2 is its integrated networking, featuring 24 100 GbE RDMA ports built directly into the chip, eliminating the need for external network interface cards. The Gaudi 2 is available on AWS through DL1 instances and on the Intel Developer Cloud. It is designed specifically for transformer model training and inference workloads. Intel claims that the Gaudi 2 offers approximately 40% better price-performance than the NVIDIA A100 for training tasks.\nThe Intel Gaudi 3, released in 2024, represents a significant generational leap with 128GB of HBM2e memory and 3.7 TB/s of memory bandwidth. The Gaudi 3 has a TDP of 900W. Compute performance reaches approximately 1,835 TFLOPS for BF16 operations and approximately 3,670 TFLOPS for FP8 operations. The Gaudi 3 features 64 Tensor Processor Cores, a substantial increase from the 24 TPCs in Gaudi 2. It is manufactured on TSMC's 5nm process. Networking is upgraded to 24 200 GbE RDMA ports, doubling the per-port bandwidth of Gaudi 2. Intel reports that Gaudi 3 delivers 2x the training throughput of Gaudi 2 and 4x the inference throughput for large language models. The Gaudi 3 is positioned as competitive with the NVIDIA H100 on price-performance for many AI workloads.\nAWS Trainium, released in 2022, is a custom silicon chip designed by AWS Annapurna Labs specifically for machine learning training. The first-generation Trainium (v1) features 32GB of HBM2 memory per chip and delivers approximately 210 TFLOPS of BF16/FP16 performance. The estimated TDP is approximately 200W per chip. Trainium chips are available through trn1 instances on AWS, with the trn1.32xlarge instance providing 16 Trainium chips and approximately 512GB of total HBM memory. The 2nd generation NeuronLink interconnect provides 384 GB/s of chip-to-chip bandwidth. Training workflows are supported through the AWS Neuron SDK, which is optimized for PyTorch. AWS claims that Trainium offers up to 50% lower cost compared to comparable GPU instances for supported model architectures.\nAWS Trainium2, released in 2024, is the second-generation custom training chip from AWS Annapurna Labs. It delivers a 4x performance improvement over the first-generation Trainium. The estimated BF16 performance is approximately 840 TFLOPS per chip. Each Trainium2 chip is expected to have 64-96GB of HBM2e memory, with an estimated TDP of 300-400W. Trainium2 chips are available through trn2 instances on AWS. The UltraServer configuration interconnects 64 Trainium2 chips for large-scale training. Trainium2 is designed for training models with up to hundreds of billions of parameters. AWS claims up to 65% better price-performance compared to the NVIDIA H100 for training workloads.\nAWS Inferentia2, released in 2022, is a custom chip optimized specifically for machine learning inference. Each Inferentia2 chip features 32GB of HBM2e memory and delivers approximately 190 TFLOPS of BF16/FP16 performance and approximately 380 TOPS of INT8 performance. The estimated TDP is approximately 110W, making it one of the most power-efficient AI accelerators available. Inferentia2 chips are available through inf2 instances on AWS, with the inf2.48xlarge instance providing 12 Inferentia2 chips and 384GB of total HBM memory. The NeuronLink interconnect provides 384 GB/s of chip-to-chip bandwidth. AWS claims that Inferentia2 offers up to 50% better price-performance and up to 40% better energy efficiency compared to comparable GPU instances for inference workloads. Inferentia2 is particularly optimized for transformer model serving.\nThe Cerebras CS-3, released in 2024, takes a radically different approach to AI hardware with its Wafer-Scale Engine 3 (WSE-3). The WSE-3 integrates 900,000 AI cores on a single wafer-scale chip, manufactured on TSMC's 4nm process. Instead of using HBM, the CS-3 features 44GB of on-chip SRAM with an extraordinary on-chip memory bandwidth of 21 PB/s. The estimated FP16 performance for the full wafer is approximately 125 PFLOPS. The total system power consumption is approximately 23 kW. The CS-3 is designed for training extremely large models without requiring model parallelism, as all model weights are kept on-chip, avoiding the GPU memory wall problem. The MemoryX external memory system provides up to 1.5 TB of storage per system, while SwarmX fabric enables connecting up to 2,048 CS-3 systems for massive-scale training.\nThe SambaNova SN40L, released in 2023, uses a reconfigurable dataflow architecture that differs fundamentally from traditional GPU and TPU designs. The SN40L features 64GB of HBM memory and is designed for both training and inference workloads. The estimated TDP is approximately 300W. SambaNova provides a full-stack AI platform called SambaNova Suite, and the SN40L supports Composition of Experts (CoE), a technique that runs multiple specialized models efficiently on the same hardware. The SN40L is available both as a cloud service and as an on-premises appliance.\nWhen comparing energy efficiency across cloud AI accelerators, significant differences emerge based on design priorities. AWS Inferentia2 is among the most energy-efficient accelerators for inference at approximately 110W TDP, while the Google TPU v5e achieves similar efficiency at approximately 100W for inference workloads. The NVIDIA H100 delivers the highest absolute performance but also consumes the most power at 700W TDP. AWS Trainium2 offers competitive performance at a lower power envelope than the H100, estimated at 300-400W. The Intel Gaudi 3 operates at 900W TDP but its integrated networking reduces total system power by eliminating the need for separate network cards and switches. The Cerebras CS-3 consumes 23 kW per system but handles workloads that would otherwise require many individual GPUs, potentially offering better total energy efficiency for very large models.",
+  "metadata": {
+    "type": "spec_sheet",
+    "year": "2025",
+    "autogenerated": true
+  },
+  "sections": [
+    {
+      "title": "Intel Gaudi 2 (2022)",
+      "paragraphs": [
+        {
+          "text": "The Intel Gaudi 2, released in 2022, is equipped with 96GB of HBM2e memory and provides 2.45 TB/s of memory bandwidth. The Gaudi 2 has a thermal design power (TDP) of 600W.",
+          "sentences": [
+            {"text": "The Intel Gaudi 2, released in 2022, is equipped with 96GB of HBM2e memory and provides 2.45 TB/s of memory bandwidth.", "metadata": {}},
+            {"text": "The Gaudi 2 has a thermal design power (TDP) of 600W.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "In terms of compute performance, the Gaudi 2 delivers approximately 600 TFLOPS of BF16 performance for matrix operations and an estimated 1,200 TOPS of FP8 performance. The Gaudi 2 contains 24 Tensor Processor Cores (TPCs) and is manufactured on TSMC's 7nm process.",
+          "sentences": [
+            {"text": "In terms of compute performance, the Gaudi 2 delivers approximately 600 TFLOPS of BF16 performance for matrix operations and an estimated 1,200 TOPS of FP8 performance.", "metadata": {}},
+            {"text": "The Gaudi 2 contains 24 Tensor Processor Cores (TPCs) and is manufactured on TSMC's 7nm process.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "A key differentiator of the Gaudi 2 is its integrated networking, featuring 24 100 GbE RDMA ports built directly into the chip, eliminating the need for external network interface cards. The Gaudi 2 is available on AWS through DL1 instances and on the Intel Developer Cloud. It is designed specifically for transformer model training and inference workloads. Intel claims that the Gaudi 2 offers approximately 40% better price-performance than the NVIDIA A100 for training tasks.",
+          "sentences": [
+            {"text": "A key differentiator of the Gaudi 2 is its integrated networking, featuring 24 100 GbE RDMA ports built directly into the chip, eliminating the need for external network interface cards.", "metadata": {}},
+            {"text": "The Gaudi 2 is available on AWS through DL1 instances and on the Intel Developer Cloud.", "metadata": {}},
+            {"text": "It is designed specifically for transformer model training and inference workloads.", "metadata": {}},
+            {"text": "Intel claims that the Gaudi 2 offers approximately 40% better price-performance than the NVIDIA A100 for training tasks.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "Intel Gaudi 3 (2024)",
+      "paragraphs": [
+        {
+          "text": "The Intel Gaudi 3, released in 2024, represents a significant generational leap with 128GB of HBM2e memory and 3.7 TB/s of memory bandwidth. The Gaudi 3 has a TDP of 900W.",
+          "sentences": [
+            {"text": "The Intel Gaudi 3, released in 2024, represents a significant generational leap with 128GB of HBM2e memory and 3.7 TB/s of memory bandwidth.", "metadata": {}},
+            {"text": "The Gaudi 3 has a TDP of 900W.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "Compute performance reaches approximately 1,835 TFLOPS for BF16 operations and approximately 3,670 TFLOPS for FP8 operations. The Gaudi 3 features 64 Tensor Processor Cores, a substantial increase from the 24 TPCs in Gaudi 2. It is manufactured on TSMC's 5nm process.",
+          "sentences": [
+            {"text": "Compute performance reaches approximately 1,835 TFLOPS for BF16 operations and approximately 3,670 TFLOPS for FP8 operations.", "metadata": {}},
+            {"text": "The Gaudi 3 features 64 Tensor Processor Cores, a substantial increase from the 24 TPCs in Gaudi 2.", "metadata": {}},
+            {"text": "It is manufactured on TSMC's 5nm process.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "Networking is upgraded to 24 200 GbE RDMA ports, doubling the per-port bandwidth of Gaudi 2. Intel reports that Gaudi 3 delivers 2x the training throughput of Gaudi 2 and 4x the inference throughput for large language models. The Gaudi 3 is positioned as competitive with the NVIDIA H100 on price-performance for many AI workloads.",
+          "sentences": [
+            {"text": "Networking is upgraded to 24 200 GbE RDMA ports, doubling the per-port bandwidth of Gaudi 2.", "metadata": {}},
+            {"text": "Intel reports that Gaudi 3 delivers 2x the training throughput of Gaudi 2 and 4x the inference throughput for large language models.", "metadata": {}},
+            {"text": "The Gaudi 3 is positioned as competitive with the NVIDIA H100 on price-performance for many AI workloads.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "AWS Trainium (2022)",
+      "paragraphs": [
+        {
+          "text": "AWS Trainium, released in 2022, is a custom silicon chip designed by AWS Annapurna Labs specifically for machine learning training. The first-generation Trainium (v1) features 32GB of HBM2 memory per chip and delivers approximately 210 TFLOPS of BF16/FP16 performance. The estimated TDP is approximately 200W per chip.",
+          "sentences": [
+            {"text": "AWS Trainium, released in 2022, is a custom silicon chip designed by AWS Annapurna Labs specifically for machine learning training.", "metadata": {}},
+            {"text": "The first-generation Trainium (v1) features 32GB of HBM2 memory per chip and delivers approximately 210 TFLOPS of BF16/FP16 performance.", "metadata": {}},
+            {"text": "The estimated TDP is approximately 200W per chip.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "Trainium chips are available through trn1 instances on AWS, with the trn1.32xlarge instance providing 16 Trainium chips and approximately 512GB of total HBM memory. The 2nd generation NeuronLink interconnect provides 384 GB/s of chip-to-chip bandwidth. Training workflows are supported through the AWS Neuron SDK, which is optimized for PyTorch. AWS claims that Trainium offers up to 50% lower cost compared to comparable GPU instances for supported model architectures.",
+          "sentences": [
+            {"text": "Trainium chips are available through trn1 instances on AWS, with the trn1.32xlarge instance providing 16 Trainium chips and approximately 512GB of total HBM memory.", "metadata": {}},
+            {"text": "The 2nd generation NeuronLink interconnect provides 384 GB/s of chip-to-chip bandwidth.", "metadata": {}},
+            {"text": "Training workflows are supported through the AWS Neuron SDK, which is optimized for PyTorch.", "metadata": {}},
+            {"text": "AWS claims that Trainium offers up to 50% lower cost compared to comparable GPU instances for supported model architectures.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "AWS Trainium2 (2024)",
+      "paragraphs": [
+        {
+          "text": "AWS Trainium2, released in 2024, is the second-generation custom training chip from AWS Annapurna Labs. It delivers a 4x performance improvement over the first-generation Trainium. The estimated BF16 performance is approximately 840 TFLOPS per chip. Each Trainium2 chip is expected to have 64-96GB of HBM2e memory, with an estimated TDP of 300-400W.",
+          "sentences": [
+            {"text": "AWS Trainium2, released in 2024, is the second-generation custom training chip from AWS Annapurna Labs.", "metadata": {}},
+            {"text": "It delivers a 4x performance improvement over the first-generation Trainium.", "metadata": {}},
+            {"text": "The estimated BF16 performance is approximately 840 TFLOPS per chip.", "metadata": {}},
+            {"text": "Each Trainium2 chip is expected to have 64-96GB of HBM2e memory, with an estimated TDP of 300-400W.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "Trainium2 chips are available through trn2 instances on AWS. The UltraServer configuration interconnects 64 Trainium2 chips for large-scale training. Trainium2 is designed for training models with up to hundreds of billions of parameters. AWS claims up to 65% better price-performance compared to the NVIDIA H100 for training workloads.",
+          "sentences": [
+            {"text": "Trainium2 chips are available through trn2 instances on AWS.", "metadata": {}},
+            {"text": "The UltraServer configuration interconnects 64 Trainium2 chips for large-scale training.", "metadata": {}},
+            {"text": "Trainium2 is designed for training models with up to hundreds of billions of parameters.", "metadata": {}},
+            {"text": "AWS claims up to 65% better price-performance compared to the NVIDIA H100 for training workloads.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "AWS Inferentia2 (2022)",
+      "paragraphs": [
+        {
+          "text": "AWS Inferentia2, released in 2022, is a custom chip optimized specifically for machine learning inference. Each Inferentia2 chip features 32GB of HBM2e memory and delivers approximately 190 TFLOPS of BF16/FP16 performance and approximately 380 TOPS of INT8 performance. The estimated TDP is approximately 110W, making it one of the most power-efficient AI accelerators available.",
+          "sentences": [
+            {"text": "AWS Inferentia2, released in 2022, is a custom chip optimized specifically for machine learning inference.", "metadata": {}},
+            {"text": "Each Inferentia2 chip features 32GB of HBM2e memory and delivers approximately 190 TFLOPS of BF16/FP16 performance and approximately 380 TOPS of INT8 performance.", "metadata": {}},
+            {"text": "The estimated TDP is approximately 110W, making it one of the most power-efficient AI accelerators available.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "Inferentia2 chips are available through inf2 instances on AWS, with the inf2.48xlarge instance providing 12 Inferentia2 chips and 384GB of total HBM memory. The NeuronLink interconnect provides 384 GB/s of chip-to-chip bandwidth. AWS claims that Inferentia2 offers up to 50% better price-performance and up to 40% better energy efficiency compared to comparable GPU instances for inference workloads. Inferentia2 is particularly optimized for transformer model serving.",
+          "sentences": [
+            {"text": "Inferentia2 chips are available through inf2 instances on AWS, with the inf2.48xlarge instance providing 12 Inferentia2 chips and 384GB of total HBM memory.", "metadata": {}},
+            {"text": "The NeuronLink interconnect provides 384 GB/s of chip-to-chip bandwidth.", "metadata": {}},
+            {"text": "AWS claims that Inferentia2 offers up to 50% better price-performance and up to 40% better energy efficiency compared to comparable GPU instances for inference workloads.", "metadata": {}},
+            {"text": "Inferentia2 is particularly optimized for transformer model serving.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "Cerebras CS-3 (2024)",
+      "paragraphs": [
+        {
+          "text": "The Cerebras CS-3, released in 2024, takes a radically different approach to AI hardware with its Wafer-Scale Engine 3 (WSE-3). The WSE-3 integrates 900,000 AI cores on a single wafer-scale chip, manufactured on TSMC's 4nm process. Instead of using HBM, the CS-3 features 44GB of on-chip SRAM with an extraordinary on-chip memory bandwidth of 21 PB/s.",
+          "sentences": [
+            {"text": "The Cerebras CS-3, released in 2024, takes a radically different approach to AI hardware with its Wafer-Scale Engine 3 (WSE-3).", "metadata": {}},
+            {"text": "The WSE-3 integrates 900,000 AI cores on a single wafer-scale chip, manufactured on TSMC's 4nm process.", "metadata": {}},
+            {"text": "Instead of using HBM, the CS-3 features 44GB of on-chip SRAM with an extraordinary on-chip memory bandwidth of 21 PB/s.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "The estimated FP16 performance for the full wafer is approximately 125 PFLOPS. The total system power consumption is approximately 23 kW. The CS-3 is designed for training extremely large models without requiring model parallelism, as all model weights are kept on-chip, avoiding the GPU memory wall problem. The MemoryX external memory system provides up to 1.5 TB of storage per system, while SwarmX fabric enables connecting up to 2,048 CS-3 systems for massive-scale training.",
+          "sentences": [
+            {"text": "The estimated FP16 performance for the full wafer is approximately 125 PFLOPS.", "metadata": {}},
+            {"text": "The total system power consumption is approximately 23 kW.", "metadata": {}},
+            {"text": "The CS-3 is designed for training extremely large models without requiring model parallelism, as all model weights are kept on-chip, avoiding the GPU memory wall problem.", "metadata": {}},
+            {"text": "The MemoryX external memory system provides up to 1.5 TB of storage per system, while SwarmX fabric enables connecting up to 2,048 CS-3 systems for massive-scale training.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "SambaNova SN40L (2023)",
+      "paragraphs": [
+        {
+          "text": "The SambaNova SN40L, released in 2023, uses a reconfigurable dataflow architecture that differs fundamentally from traditional GPU and TPU designs. The SN40L features 64GB of HBM memory and is designed for both training and inference workloads. The estimated TDP is approximately 300W.",
+          "sentences": [
+            {"text": "The SambaNova SN40L, released in 2023, uses a reconfigurable dataflow architecture that differs fundamentally from traditional GPU and TPU designs.", "metadata": {}},
+            {"text": "The SN40L features 64GB of HBM memory and is designed for both training and inference workloads.", "metadata": {}},
+            {"text": "The estimated TDP is approximately 300W.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "SambaNova provides a full-stack AI platform called SambaNova Suite, and the SN40L supports Composition of Experts (CoE), a technique that runs multiple specialized models efficiently on the same hardware. The SN40L is available both as a cloud service and as an on-premises appliance.",
+          "sentences": [
+            {"text": "SambaNova provides a full-stack AI platform called SambaNova Suite, and the SN40L supports Composition of Experts (CoE), a technique that runs multiple specialized models efficiently on the same hardware.", "metadata": {}},
+            {"text": "The SN40L is available both as a cloud service and as an on-premises appliance.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "Energy Efficiency Comparison Across Cloud Accelerators",
+      "paragraphs": [
+        {
+          "text": "When comparing energy efficiency across cloud AI accelerators, significant differences emerge based on design priorities. AWS Inferentia2 is among the most energy-efficient accelerators for inference at approximately 110W TDP, while the Google TPU v5e achieves similar efficiency at approximately 100W for inference workloads. The NVIDIA H100 delivers the highest absolute performance but also consumes the most power at 700W TDP.",
+          "sentences": [
+            {"text": "When comparing energy efficiency across cloud AI accelerators, significant differences emerge based on design priorities.", "metadata": {}},
+            {"text": "AWS Inferentia2 is among the most energy-efficient accelerators for inference at approximately 110W TDP, while the Google TPU v5e achieves similar efficiency at approximately 100W for inference workloads.", "metadata": {}},
+            {"text": "The NVIDIA H100 delivers the highest absolute performance but also consumes the most power at 700W TDP.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "AWS Trainium2 offers competitive performance at a lower power envelope than the H100, estimated at 300-400W. The Intel Gaudi 3 operates at 900W TDP but its integrated networking reduces total system power by eliminating the need for separate network cards and switches. The Cerebras CS-3 consumes 23 kW per system but handles workloads that would otherwise require many individual GPUs, potentially offering better total energy efficiency for very large models.",
+          "sentences": [
+            {"text": "AWS Trainium2 offers competitive performance at a lower power envelope than the H100, estimated at 300-400W.", "metadata": {}},
+            {"text": "The Intel Gaudi 3 operates at 900W TDP but its integrated networking reduces total system power by eliminating the need for separate network cards and switches.", "metadata": {}},
+            {"text": "The Cerebras CS-3 consumes 23 kW per system but handles workloads that would otherwise require many individual GPUs, potentially offering better total energy efficiency for very large models.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    }
+  ]
+}

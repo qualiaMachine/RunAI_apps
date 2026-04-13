@@ -1,0 +1,8 @@
+# Requirements for the Streamlit app pod in remote mode.
+# No torch/GPU dependencies — LLM and embeddings are served by separate pods.
+
+streamlit
+openai          # vLLM client (OpenAI-compatible API)
+httpx           # Embedding server client
+numpy
+python-dotenv

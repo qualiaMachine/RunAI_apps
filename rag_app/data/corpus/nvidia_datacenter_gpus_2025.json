@@ -1,0 +1,179 @@
+{
+  "document_id": "nvidia_datacenter_gpus_2025",
+  "title": "NVIDIA Datacenter GPU Specifications: A100, H100, and H200 Technical Comparison for AI Workloads",
+  "text": "The NVIDIA A100 GPU, based on the Ampere architecture and released in 2020, is equipped with 80GB of HBM2e memory and provides 2 TB/s of memory bandwidth. The A100 has a thermal design power (TDP) of 400W in the SXM4 form factor and 300W in the PCIe form factor. In terms of compute performance, the A100 delivers 312 TFLOPS of FP16 Tensor performance with sparsity and 312 TFLOPS of BF16 Tensor performance with sparsity. For TF32 Tensor operations, the A100 achieves 156 TFLOPS with sparsity, while standard FP32 performance is 19.5 TFLOPS. The A100 provides 9.7 TFLOPS of FP64 performance and 19.5 TFLOPS of FP64 Tensor performance. For integer workloads, the A100 delivers 624 TOPS of INT8 Tensor performance with sparsity. The A100 contains 6,912 CUDA cores and 432 third-generation Tensor Cores. Interconnect capabilities include NVLink at 600 GB/s and PCIe Gen4. The A100 is manufactured on TSMC's 7nm process, with a die size of 826mm² and 54.2 billion transistors. The energy efficiency of the A100 is approximately 0.78 TFLOPS per watt for FP16 dense compute on the SXM form factor. During typical inference workloads, the A100 draws between 200W and 300W depending on GPU utilization levels. An A100 GPU running inference at 250W for 24 hours consumes approximately 6 kWh of electricity. Common cloud instances featuring the A100 include AWS p4d, Azure NC A100, and GCP A2.\nThe NVIDIA H100 GPU, based on the Hopper architecture and released in 2022, features 80GB of HBM3 memory with 3.35 TB/s of memory bandwidth, representing a 67.5% increase in memory bandwidth over the A100. The H100 has a TDP of 700W in the SXM5 form factor and 350W in the PCIe form factor. The H100 delivers 1,979 TFLOPS of FP16 Tensor performance with sparsity and 989 TFLOPS of FP16 Tensor performance for dense workloads. BF16 Tensor performance matches at 1,979 TFLOPS with sparsity. The H100 introduces FP8 Tensor support, achieving 3,958 TFLOPS with sparsity and 1,979 TFLOPS for dense FP8 workloads. TF32 Tensor performance reaches 989 TFLOPS with sparsity, while standard FP32 performance is 67 TFLOPS. The H100 provides 34 TFLOPS of FP64 performance and 67 TFLOPS of FP64 Tensor performance. INT8 Tensor performance reaches 3,958 TOPS with sparsity. The H100 contains 16,896 CUDA cores and 528 fourth-generation Tensor Cores. Interconnect capabilities include NVLink at 900 GB/s and PCIe Gen5. The H100 is manufactured on TSMC's 4nm process, with a die size of 814mm² and 80 billion transistors. The energy efficiency of the H100 is approximately 1.41 TFLOPS per watt for FP16 dense compute on the SXM form factor, representing a 1.8x improvement over the A100. The H100 features a Transformer Engine with native FP8 support, which is specifically optimized for transformer-based AI models. An H100 GPU running at full load for 24 hours at 700W consumes approximately 16.8 kWh of electricity. Common cloud instances featuring the H100 include AWS p5, Azure NC H100, and GCP A3.\nThe NVIDIA H200 GPU, released in 2024, is based on the same Hopper architecture as the H100 but features significantly upgraded memory. The H200 is equipped with 141GB of HBM3e memory and provides 4.8 TB/s of memory bandwidth, representing 1.4x more bandwidth than the H100. The H200 has a TDP of 700W in the SXM5 form factor. Since the H200 uses the same compute architecture as the H100, it delivers identical TFLOPS numbers across all precision formats. The key advantage of the H200 is its 76% more memory capacity compared to the H100 (141GB vs 80GB) and 43% more memory bandwidth. The H200 is particularly beneficial for large model inference workloads where memory capacity is the primary bottleneck. For inference energy efficiency, the H200 offers improvements over the H100 because fewer GPUs are needed to host large models, reducing total system power consumption. For example, a model that requires two H100 GPUs may fit on a single H200 GPU, effectively halving the GPU power consumption for that workload. Common cloud instances featuring the H200 include AWS p5e and GCP A3 Ultra.\nWhen comparing the three datacenter GPUs across key metrics, several trends in performance per watt emerge. The A100 achieves approximately 0.78 TFLOPS/W for FP16 dense compute (SXM), while the H100 achieves approximately 1.41 TFLOPS/W for FP16 dense compute (SXM), and the H200 maintains the same compute efficiency as the H100 but improves memory bandwidth per watt. In terms of memory capacity, the progression goes from 80GB HBM2e (A100) to 80GB HBM3 (H100) to 141GB HBM3e (H200). Memory bandwidth increases from 2 TB/s (A100) to 3.35 TB/s (H100) to 4.8 TB/s (H200), representing a 2.4x improvement from A100 to H200. Generational improvements in energy efficiency have been substantial: the H100 delivers approximately 3.2x the FP16 dense performance of the A100 while only increasing TDP by 1.75x (from 400W to 700W), resulting in a net 1.8x improvement in performance per watt. The introduction of FP8 precision in the H100 further improves effective energy efficiency for inference workloads by enabling higher throughput at the same power level. For training workloads, the A100 typically draws 300-400W, the H100 draws 500-700W, and the H200 draws 500-700W. For inference workloads, the A100 typically draws 200-300W, the H100 draws 300-500W, and the H200 draws 300-500W. Cost efficiency trends show that while the H100 and H200 have higher absolute power consumption, the performance per dollar and performance per watt improvements mean that fewer GPUs are needed for equivalent workloads, reducing total datacenter energy consumption. A datacenter operator replacing eight A100 GPUs with four H100 GPUs for an inference workload would achieve higher throughput while reducing total GPU power consumption from approximately 2,400W to 2,000W.",
+  "metadata": {
+    "type": "spec_sheet",
+    "year": "2025",
+    "autogenerated": true
+  },
+  "sections": [
+    {
+      "title": "NVIDIA A100 (Ampere Architecture, 2020)",
+      "paragraphs": [
+        {
+          "text": "The NVIDIA A100 GPU, based on the Ampere architecture and released in 2020, is equipped with 80GB of HBM2e memory and provides 2 TB/s of memory bandwidth. The A100 has a thermal design power (TDP) of 400W in the SXM4 form factor and 300W in the PCIe form factor.",
+          "sentences": [
+            {"text": "The NVIDIA A100 GPU, based on the Ampere architecture and released in 2020, is equipped with 80GB of HBM2e memory and provides 2 TB/s of memory bandwidth.", "metadata": {}},
+            {"text": "The A100 has a thermal design power (TDP) of 400W in the SXM4 form factor and 300W in the PCIe form factor.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "In terms of compute performance, the A100 delivers 312 TFLOPS of FP16 Tensor performance with sparsity and 312 TFLOPS of BF16 Tensor performance with sparsity. For TF32 Tensor operations, the A100 achieves 156 TFLOPS with sparsity, while standard FP32 performance is 19.5 TFLOPS. The A100 provides 9.7 TFLOPS of FP64 performance and 19.5 TFLOPS of FP64 Tensor performance. For integer workloads, the A100 delivers 624 TOPS of INT8 Tensor performance with sparsity.",
+          "sentences": [
+            {"text": "In terms of compute performance, the A100 delivers 312 TFLOPS of FP16 Tensor performance with sparsity and 312 TFLOPS of BF16 Tensor performance with sparsity.", "metadata": {}},
+            {"text": "For TF32 Tensor operations, the A100 achieves 156 TFLOPS with sparsity, while standard FP32 performance is 19.5 TFLOPS.", "metadata": {}},
+            {"text": "The A100 provides 9.7 TFLOPS of FP64 performance and 19.5 TFLOPS of FP64 Tensor performance.", "metadata": {}},
+            {"text": "For integer workloads, the A100 delivers 624 TOPS of INT8 Tensor performance with sparsity.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "The A100 contains 6,912 CUDA cores and 432 third-generation Tensor Cores. Interconnect capabilities include NVLink at 600 GB/s and PCIe Gen4. The A100 is manufactured on TSMC's 7nm process, with a die size of 826mm² and 54.2 billion transistors.",
+          "sentences": [
+            {"text": "The A100 contains 6,912 CUDA cores and 432 third-generation Tensor Cores.", "metadata": {}},
+            {"text": "Interconnect capabilities include NVLink at 600 GB/s and PCIe Gen4.", "metadata": {}},
+            {"text": "The A100 is manufactured on TSMC's 7nm process, with a die size of 826mm² and 54.2 billion transistors.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "The energy efficiency of the A100 is approximately 0.78 TFLOPS per watt for FP16 dense compute on the SXM form factor. During typical inference workloads, the A100 draws between 200W and 300W depending on GPU utilization levels. An A100 GPU running inference at 250W for 24 hours consumes approximately 6 kWh of electricity. Common cloud instances featuring the A100 include AWS p4d, Azure NC A100, and GCP A2.",
+          "sentences": [
+            {"text": "The energy efficiency of the A100 is approximately 0.78 TFLOPS per watt for FP16 dense compute on the SXM form factor.", "metadata": {}},
+            {"text": "During typical inference workloads, the A100 draws between 200W and 300W depending on GPU utilization levels.", "metadata": {}},
+            {"text": "An A100 GPU running inference at 250W for 24 hours consumes approximately 6 kWh of electricity.", "metadata": {}},
+            {"text": "Common cloud instances featuring the A100 include AWS p4d, Azure NC A100, and GCP A2.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "NVIDIA H100 (Hopper Architecture, 2022)",
+      "paragraphs": [
+        {
+          "text": "The NVIDIA H100 GPU, based on the Hopper architecture and released in 2022, features 80GB of HBM3 memory with 3.35 TB/s of memory bandwidth, representing a 67.5% increase in memory bandwidth over the A100. The H100 has a TDP of 700W in the SXM5 form factor and 350W in the PCIe form factor.",
+          "sentences": [
+            {"text": "The NVIDIA H100 GPU, based on the Hopper architecture and released in 2022, features 80GB of HBM3 memory with 3.35 TB/s of memory bandwidth, representing a 67.5% increase in memory bandwidth over the A100.", "metadata": {}},
+            {"text": "The H100 has a TDP of 700W in the SXM5 form factor and 350W in the PCIe form factor.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "The H100 delivers 1,979 TFLOPS of FP16 Tensor performance with sparsity and 989 TFLOPS of FP16 Tensor performance for dense workloads. BF16 Tensor performance matches at 1,979 TFLOPS with sparsity. The H100 introduces FP8 Tensor support, achieving 3,958 TFLOPS with sparsity and 1,979 TFLOPS for dense FP8 workloads. TF32 Tensor performance reaches 989 TFLOPS with sparsity, while standard FP32 performance is 67 TFLOPS. The H100 provides 34 TFLOPS of FP64 performance and 67 TFLOPS of FP64 Tensor performance. INT8 Tensor performance reaches 3,958 TOPS with sparsity.",
+          "sentences": [
+            {"text": "The H100 delivers 1,979 TFLOPS of FP16 Tensor performance with sparsity and 989 TFLOPS of FP16 Tensor performance for dense workloads.", "metadata": {}},
+            {"text": "BF16 Tensor performance matches at 1,979 TFLOPS with sparsity.", "metadata": {}},
+            {"text": "The H100 introduces FP8 Tensor support, achieving 3,958 TFLOPS with sparsity and 1,979 TFLOPS for dense FP8 workloads.", "metadata": {}},
+            {"text": "TF32 Tensor performance reaches 989 TFLOPS with sparsity, while standard FP32 performance is 67 TFLOPS.", "metadata": {}},
+            {"text": "The H100 provides 34 TFLOPS of FP64 performance and 67 TFLOPS of FP64 Tensor performance.", "metadata": {}},
+            {"text": "INT8 Tensor performance reaches 3,958 TOPS with sparsity.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "The H100 contains 16,896 CUDA cores and 528 fourth-generation Tensor Cores. Interconnect capabilities include NVLink at 900 GB/s and PCIe Gen5. The H100 is manufactured on TSMC's 4nm process, with a die size of 814mm² and 80 billion transistors.",
+          "sentences": [
+            {"text": "The H100 contains 16,896 CUDA cores and 528 fourth-generation Tensor Cores.", "metadata": {}},
+            {"text": "Interconnect capabilities include NVLink at 900 GB/s and PCIe Gen5.", "metadata": {}},
+            {"text": "The H100 is manufactured on TSMC's 4nm process, with a die size of 814mm² and 80 billion transistors.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "The energy efficiency of the H100 is approximately 1.41 TFLOPS per watt for FP16 dense compute on the SXM form factor, representing a 1.8x improvement over the A100. The H100 features a Transformer Engine with native FP8 support, which is specifically optimized for transformer-based AI models. An H100 GPU running at full load for 24 hours at 700W consumes approximately 16.8 kWh of electricity. Common cloud instances featuring the H100 include AWS p5, Azure NC H100, and GCP A3.",
+          "sentences": [
+            {"text": "The energy efficiency of the H100 is approximately 1.41 TFLOPS per watt for FP16 dense compute on the SXM form factor, representing a 1.8x improvement over the A100.", "metadata": {}},
+            {"text": "The H100 features a Transformer Engine with native FP8 support, which is specifically optimized for transformer-based AI models.", "metadata": {}},
+            {"text": "An H100 GPU running at full load for 24 hours at 700W consumes approximately 16.8 kWh of electricity.", "metadata": {}},
+            {"text": "Common cloud instances featuring the H100 include AWS p5, Azure NC H100, and GCP A3.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "NVIDIA H200 (Hopper Architecture, 2024)",
+      "paragraphs": [
+        {
+          "text": "The NVIDIA H200 GPU, released in 2024, is based on the same Hopper architecture as the H100 but features significantly upgraded memory. The H200 is equipped with 141GB of HBM3e memory and provides 4.8 TB/s of memory bandwidth, representing 1.4x more bandwidth than the H100. The H200 has a TDP of 700W in the SXM5 form factor.",
+          "sentences": [
+            {"text": "The NVIDIA H200 GPU, released in 2024, is based on the same Hopper architecture as the H100 but features significantly upgraded memory.", "metadata": {}},
+            {"text": "The H200 is equipped with 141GB of HBM3e memory and provides 4.8 TB/s of memory bandwidth, representing 1.4x more bandwidth than the H100.", "metadata": {}},
+            {"text": "The H200 has a TDP of 700W in the SXM5 form factor.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "Since the H200 uses the same compute architecture as the H100, it delivers identical TFLOPS numbers across all precision formats. The key advantage of the H200 is its 76% more memory capacity compared to the H100 (141GB vs 80GB) and 43% more memory bandwidth. The H200 is particularly beneficial for large model inference workloads where memory capacity is the primary bottleneck.",
+          "sentences": [
+            {"text": "Since the H200 uses the same compute architecture as the H100, it delivers identical TFLOPS numbers across all precision formats.", "metadata": {}},
+            {"text": "The key advantage of the H200 is its 76% more memory capacity compared to the H100 (141GB vs 80GB) and 43% more memory bandwidth.", "metadata": {}},
+            {"text": "The H200 is particularly beneficial for large model inference workloads where memory capacity is the primary bottleneck.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "For inference energy efficiency, the H200 offers improvements over the H100 because fewer GPUs are needed to host large models, reducing total system power consumption. For example, a model that requires two H100 GPUs may fit on a single H200 GPU, effectively halving the GPU power consumption for that workload. Common cloud instances featuring the H200 include AWS p5e and GCP A3 Ultra.",
+          "sentences": [
+            {"text": "For inference energy efficiency, the H200 offers improvements over the H100 because fewer GPUs are needed to host large models, reducing total system power consumption.", "metadata": {}},
+            {"text": "For example, a model that requires two H100 GPUs may fit on a single H200 GPU, effectively halving the GPU power consumption for that workload.", "metadata": {}},
+            {"text": "Common cloud instances featuring the H200 include AWS p5e and GCP A3 Ultra.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "Cross-Generation Performance and Energy Efficiency Comparison",
+      "paragraphs": [
+        {
+          "text": "When comparing the three datacenter GPUs across key metrics, several trends in performance per watt emerge. The A100 achieves approximately 0.78 TFLOPS/W for FP16 dense compute (SXM), while the H100 achieves approximately 1.41 TFLOPS/W for FP16 dense compute (SXM), and the H200 maintains the same compute efficiency as the H100 but improves memory bandwidth per watt.",
+          "sentences": [
+            {"text": "When comparing the three datacenter GPUs across key metrics, several trends in performance per watt emerge.", "metadata": {}},
+            {"text": "The A100 achieves approximately 0.78 TFLOPS/W for FP16 dense compute (SXM), while the H100 achieves approximately 1.41 TFLOPS/W for FP16 dense compute (SXM), and the H200 maintains the same compute efficiency as the H100 but improves memory bandwidth per watt.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "In terms of memory capacity, the progression goes from 80GB HBM2e (A100) to 80GB HBM3 (H100) to 141GB HBM3e (H200). Memory bandwidth increases from 2 TB/s (A100) to 3.35 TB/s (H100) to 4.8 TB/s (H200), representing a 2.4x improvement from A100 to H200.",
+          "sentences": [
+            {"text": "In terms of memory capacity, the progression goes from 80GB HBM2e (A100) to 80GB HBM3 (H100) to 141GB HBM3e (H200).", "metadata": {}},
+            {"text": "Memory bandwidth increases from 2 TB/s (A100) to 3.35 TB/s (H100) to 4.8 TB/s (H200), representing a 2.4x improvement from A100 to H200.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "Generational improvements in energy efficiency have been substantial: the H100 delivers approximately 3.2x the FP16 dense performance of the A100 while only increasing TDP by 1.75x (from 400W to 700W), resulting in a net 1.8x improvement in performance per watt. The introduction of FP8 precision in the H100 further improves effective energy efficiency for inference workloads by enabling higher throughput at the same power level.",
+          "sentences": [
+            {"text": "Generational improvements in energy efficiency have been substantial: the H100 delivers approximately 3.2x the FP16 dense performance of the A100 while only increasing TDP by 1.75x (from 400W to 700W), resulting in a net 1.8x improvement in performance per watt.", "metadata": {}},
+            {"text": "The introduction of FP8 precision in the H100 further improves effective energy efficiency for inference workloads by enabling higher throughput at the same power level.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "For training workloads, the A100 typically draws 300-400W, the H100 draws 500-700W, and the H200 draws 500-700W. For inference workloads, the A100 typically draws 200-300W, the H100 draws 300-500W, and the H200 draws 300-500W.",
+          "sentences": [
+            {"text": "For training workloads, the A100 typically draws 300-400W, the H100 draws 500-700W, and the H200 draws 500-700W.", "metadata": {}},
+            {"text": "For inference workloads, the A100 typically draws 200-300W, the H100 draws 300-500W, and the H200 draws 300-500W.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "Cost efficiency trends show that while the H100 and H200 have higher absolute power consumption, the performance per dollar and performance per watt improvements mean that fewer GPUs are needed for equivalent workloads, reducing total datacenter energy consumption. A datacenter operator replacing eight A100 GPUs with four H100 GPUs for an inference workload would achieve higher throughput while reducing total GPU power consumption from approximately 2,400W to 2,000W.",
+          "sentences": [
+            {"text": "Cost efficiency trends show that while the H100 and H200 have higher absolute power consumption, the performance per dollar and performance per watt improvements mean that fewer GPUs are needed for equivalent workloads, reducing total datacenter energy consumption.", "metadata": {}},
+            {"text": "A datacenter operator replacing eight A100 GPUs with four H100 GPUs for an inference workload would achieve higher throughput while reducing total GPU power consumption from approximately 2,400W to 2,000W.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    }
+  ]
+}

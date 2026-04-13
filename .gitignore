@@ -1,0 +1,81 @@
+# Git ignore for KohakuRAG_UI
+
+# Environment files (contain secrets!)
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test dataset (secret — not committed to repo)
+data/test_solutions.csv
+data/embeddings/
+data/corpus/
+data/pdfs/
+
+# Experiment outputs (large, machine-specific)
+artifacts/raw_pdfs/
+
+# Artifacts -- ignore everything EXCEPT specific result files
+# Step 1: ignore everything under artifacts
+artifacts/*
+# Step 2: un-ignore the directories we need
+!artifacts/experiments/
+!artifacts/plots/
+!artifacts/results_matrix*.csv
+!artifacts/profile_mapping.json
+# Step 3: inside experiments/, allow env directories (Bedrock, PowerEdge, GB10, ...)
+artifacts/experiments/*
+!artifacts/experiments/*/
+# Step 4: allow datafile directories inside env dirs (train_QA, test_solutions, ...)
+artifacts/experiments/*/*
+!artifacts/experiments/*/*/
+# Step 5: allow experiment name directories inside datafile dirs
+artifacts/experiments/*/*/*
+!artifacts/experiments/*/*/*/
+# Step 6: inside each experiment dir, only keep summary.json, submission.csv, and result chunks
+artifacts/experiments/*/*/*/*
+!artifacts/experiments/*/*/*/summary.json
+!artifacts/experiments/*/*/*/submission.csv
+!artifacts/experiments/*/*/*/results_chunk_*.json
+# Step 7: inside plots/, only keep .png (including env sub-folders)
+artifacts/plots/*
+!artifacts/plots/*.png
+!artifacts/plots/*/
+artifacts/plots/*/*
+!artifacts/plots/*/*.png
+!artifacts/plots/*/*/
+artifacts/plots/*/*/*
+!artifacts/plots/*/*/*.png
+
+# Vector databases are derived (built from data/corpus/) and too large for GitHub (>100MB).
+# Each machine rebuilds via: cd vendor/KohakuRAG && kogine run scripts/wattbot_build_index.py ...
+*.db
+*.sqlite
+
+# Logs
+*.log
+logs/
+
+# AWS
+.aws/
+
+# Jupyter
+.ipynb_checkpoints/

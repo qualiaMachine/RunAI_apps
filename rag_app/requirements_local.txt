@@ -1,0 +1,41 @@
+ipykernel
+jupyterlab
+
+# Local HF inference (core)
+# NOTE: bare "torch" installs CPU-only from PyPI. For GPU support, use a
+# platform-specific requirements file (e.g. local_requirements_gb10.txt)
+# that adds --extra-index-url for the correct CUDA wheel index.
+torch
+torchvision
+transformers>=4.42,<5  # Jina V4 model code incompatible with transformers 5.x
+accelerate
+huggingface_hub
+safetensors
+sentence-transformers # local embedding
+einops              # Jina V4 model (trust_remote_code)
+peft                # adapter support
+
+# Tokenizers / model-specific utilities (common)
+sentencepiece
+protobuf
+
+# App deps (only if not already included elsewhere)
+streamlit
+python-dotenv
+jupyter-server-proxy
+
+# Quantization
+bitsandbytes
+
+# PDF download and parsing (for auto-fetching corpus from metadata URLs)
+httpx
+pypdf>=6.2.0
+pymupdf
+
+# Plotting / analysis
+matplotlib
+scikit-learn
+
+# KohakuEngine (config runner for indexing scripts)
+kohaku-engine==0.0.2
+

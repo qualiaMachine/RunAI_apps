@@ -1,0 +1,81 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "kohakuvault"
+version = "0.8.0"
+description = "SQLite-backed KV store (Rust+PyO3) with vector search, auto-packing, and efficient array storage"
+authors = [
+    { name = "KohakuVault Contributors" }
+]
+license = { text = "Apache-2.0" }
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.22",
+]
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Rust",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.optional-dependencies]
+dev = [
+    "maturin>=1.0,<2.0",
+    "black>=25.0.0",
+    "pytest>=9.0",
+    "pytest-cov>=7.0.0",
+    "pytest-asyncio>=1.0.0",
+]
+test = [
+    "pytest>=9.0",
+    "pytest-cov>=7.0.0",
+    "pytest-asyncio>=1.0.0",
+]
+
+[tool.maturin]
+# Python source is in src/kohakuvault
+python-source = "src"
+# The Rust extension module name
+module-name = "kohakuvault._kvault"
+# Include Python files in the wheel
+include = ["src/kohakuvault/**/*.py", "src/kohakuvault/**/*.pyi", "src/kohakuvault/py.typed"]
+
+# Setuptools configuration for package discovery (helps with editable installs)
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["kohakuvault*"]
+
+[tool.setuptools.package-data]
+kohakuvault = ["py.typed", "*.pyi", "*.pyd", "*.so", "*.dylib"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312", "py313"]
+include = '\.pyi?$'
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--cov=kohakuvault",
+    "--cov-report=term-missing",
+]

@@ -1,0 +1,199 @@
+{
+  "document_id": "nvidia_blackwell_specs_2025",
+  "title": "NVIDIA Blackwell Architecture Specifications: B200, GB200, GB300, and GB10 for Next-Generation AI Computing",
+  "text": "The NVIDIA B200 GPU, based on the Blackwell architecture and announced in 2024, features 192GB of HBM3e memory and delivers 8 TB/s of memory bandwidth. The B200 has a thermal design power (TDP) of 1000W and requires liquid cooling. For FP16 Tensor operations, the B200 achieves approximately 2,250 TFLOPS dense and approximately 4,500 TFLOPS with sparsity. For FP8 Tensor operations, the B200 delivers approximately 4,500 TFLOPS dense and approximately 9,000 TFLOPS with sparsity. The B200 introduces FP4 Tensor support, achieving approximately 9,000 TFLOPS dense and approximately 18,000 TFLOPS with sparsity. The B200 incorporates a second-generation Transformer Engine optimized for large language model workloads. The B200 is manufactured on TSMC's 5nm process and contains 208 billion transistors in a two-die design connected by a high-bandwidth on-package interconnect. NVLink 5.0 provides 1,800 GB/s of interconnect bandwidth per GPU. The B200 delivers up to 4x the inference performance of the H100 for large language model workloads. In terms of energy efficiency, the B200 achieves up to 25x better inference energy efficiency compared to the H100 for LLM workloads at scale, making it a transformative improvement in performance per watt for AI inference.\nThe NVIDIA GB200 Grace Blackwell Superchip, announced in 2024, combines two B200 GPUs with one Grace ARM CPU on a single platform. The GB200 provides 384GB of total HBM3e GPU memory, with 192GB per GPU, plus 480GB of LPDDR5X CPU memory on the Grace processor. The combined TDP of the full GB200 superchip is approximately 2,700W. Each B200 GPU in the GB200 is connected via NVLink at 1,800 GB/s per GPU. The Grace CPU features 72 ARM Neoverse V2 cores designed for high-throughput server workloads. The GB200 is designed for both training and inference at scale, providing a balanced compute platform with high memory capacity. The GB200 NVL72 configuration places 72 Blackwell GPUs in a single rack, providing 13.5 TB of total HBM3e memory. The GB200 NVL72 delivers up to 30x the inference speedup compared to an H100 HGX system for large language model workloads. A single GB200 NVL72 rack consumes approximately 120 kW of power, but its massive throughput means the energy per token generated is dramatically lower than equivalent H100-based systems. For a 1.8 trillion parameter mixture-of-experts model, the GB200 NVL72 can deliver real-time inference that would require significantly more H100 GPUs and correspondingly more total energy.\nThe NVIDIA GB300, also known as the Grace Blackwell Ultra, announced in 2025, pairs two B300 GPUs with one Grace CPU. Each B300 GPU in the GB300 provides 288GB of HBM3e memory, for a total of 576GB of GPU memory per superchip, representing 50% more memory per GPU than the GB200 configuration. The GB300 features enhanced memory bandwidth over the GB200. The estimated TDP for the full GB300 superchip is approximately 2,900W. FP4 performance of the B300 GPU exceeds that of the B200 due to architectural improvements in the Blackwell Ultra design. The GB300 is specifically designed for trillion-parameter model training and inference, where the increased memory capacity enables larger model shards per GPU and reduces inter-GPU communication overhead. Expected availability for the GB300 is mid-2025.\nThe NVIDIA GB10, the hardware platform for Project DIGITS announced in 2025, is a desktop and edge AI supercomputer designed for AI researchers and developers. The GB10 combines one Blackwell GPU and one Grace CPU on a single chip in a compact desktop form factor. It provides 128GB of unified LPDDR5X memory shared between the GPU and CPU, eliminating the need for separate memory pools. The GB10 delivers up to 1 PFLOPS of AI performance at FP4 precision. The TDP of the GB10 is approximately 100-150W, making it suitable for desktop deployment without specialized cooling infrastructure. The GB10 can run AI models with up to 200 billion parameters locally, enabling researchers to prototype and fine-tune models without cloud access. Two GB10 units can be connected via NVLink to support models with up to 405 billion parameters, such as Meta's Llama 3.1 405B. The GB10 is priced at approximately $3,000, making it accessible to individual researchers and small teams. Compared to cloud-based GPU inference, the GB10 enables local inference at approximately 100W versus cloud-based inference that requires additional network overhead, cooling infrastructure, and transmission losses.\nThe Blackwell architecture introduces several key innovations that improve performance and energy efficiency for AI workloads. The second-generation Transformer Engine builds on the first-generation engine introduced in Hopper, providing optimized dataflow for transformer-based model architectures. FP4 precision support is new in the Blackwell architecture, enabling 2x the compute density compared to FP8 with minimal accuracy loss for inference workloads, effectively doubling throughput per watt. The Blackwell architecture includes a hardware decompression engine that can decompress data at line rate, reducing memory bandwidth requirements for compressed model weights and activations. A dedicated RAS (Reliability, Availability, Serviceability) engine provides hardware-level monitoring and error correction, which is critical for large-scale deployments where GPU failures can be costly. Secure AI features protect model weights and inference data in multi-tenant environments. NVLink 5.0 provides 1,800 GB/s of bandwidth per GPU, enabling efficient multi-GPU scaling for both training and inference.\nComparing the Blackwell generation to its predecessors reveals dramatic improvements in energy efficiency. The B200 delivers up to 4x the inference throughput of the H100 while achieving up to 25x better energy efficiency for LLM inference at scale, because the higher throughput enables completion of workloads in less time with fewer GPUs. The GB200 NVL72 delivers 30x the inference performance of an H100 HGX system, with a significant reduction in total energy consumed per token generated. The GB10 enables local inference at approximately 100W, compared to cloud-based inference using datacenter GPUs that may consume 300-700W per GPU plus cooling and networking overhead. Blackwell's FP4 support enables 2x the compute density compared to FP8, with minimal accuracy loss for inference tasks, effectively doubling the useful work performed per watt of power consumed. When measured at the system level, a GB200 NVL72 rack performing LLM inference consumes roughly 120 kW but can serve the same workload that would require multiple H100 HGX racks consuming a combined 200-300 kW, representing a 40-60% reduction in total energy for equivalent throughput.",
+  "metadata": {
+    "type": "spec_sheet",
+    "year": "2025",
+    "autogenerated": true
+  },
+  "sections": [
+    {
+      "title": "NVIDIA B200 (Blackwell Architecture, 2024)",
+      "paragraphs": [
+        {
+          "text": "The NVIDIA B200 GPU, based on the Blackwell architecture and announced in 2024, features 192GB of HBM3e memory and delivers 8 TB/s of memory bandwidth. The B200 has a thermal design power (TDP) of 1000W and requires liquid cooling.",
+          "sentences": [
+            {"text": "The NVIDIA B200 GPU, based on the Blackwell architecture and announced in 2024, features 192GB of HBM3e memory and delivers 8 TB/s of memory bandwidth.", "metadata": {}},
+            {"text": "The B200 has a thermal design power (TDP) of 1000W and requires liquid cooling.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "For FP16 Tensor operations, the B200 achieves approximately 2,250 TFLOPS dense and approximately 4,500 TFLOPS with sparsity. For FP8 Tensor operations, the B200 delivers approximately 4,500 TFLOPS dense and approximately 9,000 TFLOPS with sparsity. The B200 introduces FP4 Tensor support, achieving approximately 9,000 TFLOPS dense and approximately 18,000 TFLOPS with sparsity.",
+          "sentences": [
+            {"text": "For FP16 Tensor operations, the B200 achieves approximately 2,250 TFLOPS dense and approximately 4,500 TFLOPS with sparsity.", "metadata": {}},
+            {"text": "For FP8 Tensor operations, the B200 delivers approximately 4,500 TFLOPS dense and approximately 9,000 TFLOPS with sparsity.", "metadata": {}},
+            {"text": "The B200 introduces FP4 Tensor support, achieving approximately 9,000 TFLOPS dense and approximately 18,000 TFLOPS with sparsity.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "The B200 incorporates a second-generation Transformer Engine optimized for large language model workloads. The B200 is manufactured on TSMC's 5nm process and contains 208 billion transistors in a two-die design connected by a high-bandwidth on-package interconnect. NVLink 5.0 provides 1,800 GB/s of interconnect bandwidth per GPU.",
+          "sentences": [
+            {"text": "The B200 incorporates a second-generation Transformer Engine optimized for large language model workloads.", "metadata": {}},
+            {"text": "The B200 is manufactured on TSMC's 5nm process and contains 208 billion transistors in a two-die design connected by a high-bandwidth on-package interconnect.", "metadata": {}},
+            {"text": "NVLink 5.0 provides 1,800 GB/s of interconnect bandwidth per GPU.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "The B200 delivers up to 4x the inference performance of the H100 for large language model workloads. In terms of energy efficiency, the B200 achieves up to 25x better inference energy efficiency compared to the H100 for LLM workloads at scale, making it a transformative improvement in performance per watt for AI inference.",
+          "sentences": [
+            {"text": "The B200 delivers up to 4x the inference performance of the H100 for large language model workloads.", "metadata": {}},
+            {"text": "In terms of energy efficiency, the B200 achieves up to 25x better inference energy efficiency compared to the H100 for LLM workloads at scale, making it a transformative improvement in performance per watt for AI inference.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "NVIDIA GB200 (Grace Blackwell Superchip, 2024)",
+      "paragraphs": [
+        {
+          "text": "The NVIDIA GB200 Grace Blackwell Superchip, announced in 2024, combines two B200 GPUs with one Grace ARM CPU on a single platform. The GB200 provides 384GB of total HBM3e GPU memory, with 192GB per GPU, plus 480GB of LPDDR5X CPU memory on the Grace processor. The combined TDP of the full GB200 superchip is approximately 2,700W.",
+          "sentences": [
+            {"text": "The NVIDIA GB200 Grace Blackwell Superchip, announced in 2024, combines two B200 GPUs with one Grace ARM CPU on a single platform.", "metadata": {}},
+            {"text": "The GB200 provides 384GB of total HBM3e GPU memory, with 192GB per GPU, plus 480GB of LPDDR5X CPU memory on the Grace processor.", "metadata": {}},
+            {"text": "The combined TDP of the full GB200 superchip is approximately 2,700W.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "Each B200 GPU in the GB200 is connected via NVLink at 1,800 GB/s per GPU. The Grace CPU features 72 ARM Neoverse V2 cores designed for high-throughput server workloads. The GB200 is designed for both training and inference at scale, providing a balanced compute platform with high memory capacity.",
+          "sentences": [
+            {"text": "Each B200 GPU in the GB200 is connected via NVLink at 1,800 GB/s per GPU.", "metadata": {}},
+            {"text": "The Grace CPU features 72 ARM Neoverse V2 cores designed for high-throughput server workloads.", "metadata": {}},
+            {"text": "The GB200 is designed for both training and inference at scale, providing a balanced compute platform with high memory capacity.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "The GB200 NVL72 configuration places 72 Blackwell GPUs in a single rack, providing 13.5 TB of total HBM3e memory. The GB200 NVL72 delivers up to 30x the inference speedup compared to an H100 HGX system for large language model workloads. A single GB200 NVL72 rack consumes approximately 120 kW of power, but its massive throughput means the energy per token generated is dramatically lower than equivalent H100-based systems. For a 1.8 trillion parameter mixture-of-experts model, the GB200 NVL72 can deliver real-time inference that would require significantly more H100 GPUs and correspondingly more total energy.",
+          "sentences": [
+            {"text": "The GB200 NVL72 configuration places 72 Blackwell GPUs in a single rack, providing 13.5 TB of total HBM3e memory.", "metadata": {}},
+            {"text": "The GB200 NVL72 delivers up to 30x the inference speedup compared to an H100 HGX system for large language model workloads.", "metadata": {}},
+            {"text": "A single GB200 NVL72 rack consumes approximately 120 kW of power, but its massive throughput means the energy per token generated is dramatically lower than equivalent H100-based systems.", "metadata": {}},
+            {"text": "For a 1.8 trillion parameter mixture-of-experts model, the GB200 NVL72 can deliver real-time inference that would require significantly more H100 GPUs and correspondingly more total energy.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "NVIDIA GB300 (Grace Blackwell Ultra, 2025)",
+      "paragraphs": [
+        {
+          "text": "The NVIDIA GB300, also known as the Grace Blackwell Ultra, announced in 2025, pairs two B300 GPUs with one Grace CPU. Each B300 GPU in the GB300 provides 288GB of HBM3e memory, for a total of 576GB of GPU memory per superchip, representing 50% more memory per GPU than the GB200 configuration. The GB300 features enhanced memory bandwidth over the GB200.",
+          "sentences": [
+            {"text": "The NVIDIA GB300, also known as the Grace Blackwell Ultra, announced in 2025, pairs two B300 GPUs with one Grace CPU.", "metadata": {}},
+            {"text": "Each B300 GPU in the GB300 provides 288GB of HBM3e memory, for a total of 576GB of GPU memory per superchip, representing 50% more memory per GPU than the GB200 configuration.", "metadata": {}},
+            {"text": "The GB300 features enhanced memory bandwidth over the GB200.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "The estimated TDP for the full GB300 superchip is approximately 2,900W. FP4 performance of the B300 GPU exceeds that of the B200 due to architectural improvements in the Blackwell Ultra design. The GB300 is specifically designed for trillion-parameter model training and inference, where the increased memory capacity enables larger model shards per GPU and reduces inter-GPU communication overhead. Expected availability for the GB300 is mid-2025.",
+          "sentences": [
+            {"text": "The estimated TDP for the full GB300 superchip is approximately 2,900W.", "metadata": {}},
+            {"text": "FP4 performance of the B300 GPU exceeds that of the B200 due to architectural improvements in the Blackwell Ultra design.", "metadata": {}},
+            {"text": "The GB300 is specifically designed for trillion-parameter model training and inference, where the increased memory capacity enables larger model shards per GPU and reduces inter-GPU communication overhead.", "metadata": {}},
+            {"text": "Expected availability for the GB300 is mid-2025.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "NVIDIA GB10 (Project DIGITS, 2025)",
+      "paragraphs": [
+        {
+          "text": "The NVIDIA GB10, the hardware platform for Project DIGITS announced in 2025, is a desktop and edge AI supercomputer designed for AI researchers and developers. The GB10 combines one Blackwell GPU and one Grace CPU on a single chip in a compact desktop form factor. It provides 128GB of unified LPDDR5X memory shared between the GPU and CPU, eliminating the need for separate memory pools.",
+          "sentences": [
+            {"text": "The NVIDIA GB10, the hardware platform for Project DIGITS announced in 2025, is a desktop and edge AI supercomputer designed for AI researchers and developers.", "metadata": {}},
+            {"text": "The GB10 combines one Blackwell GPU and one Grace CPU on a single chip in a compact desktop form factor.", "metadata": {}},
+            {"text": "It provides 128GB of unified LPDDR5X memory shared between the GPU and CPU, eliminating the need for separate memory pools.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "The GB10 delivers up to 1 PFLOPS of AI performance at FP4 precision. The TDP of the GB10 is approximately 100-150W, making it suitable for desktop deployment without specialized cooling infrastructure. The GB10 can run AI models with up to 200 billion parameters locally, enabling researchers to prototype and fine-tune models without cloud access.",
+          "sentences": [
+            {"text": "The GB10 delivers up to 1 PFLOPS of AI performance at FP4 precision.", "metadata": {}},
+            {"text": "The TDP of the GB10 is approximately 100-150W, making it suitable for desktop deployment without specialized cooling infrastructure.", "metadata": {}},
+            {"text": "The GB10 can run AI models with up to 200 billion parameters locally, enabling researchers to prototype and fine-tune models without cloud access.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "Two GB10 units can be connected via NVLink to support models with up to 405 billion parameters, such as Meta's Llama 3.1 405B. The GB10 is priced at approximately $3,000, making it accessible to individual researchers and small teams. Compared to cloud-based GPU inference, the GB10 enables local inference at approximately 100W versus cloud-based inference that requires additional network overhead, cooling infrastructure, and transmission losses.",
+          "sentences": [
+            {"text": "Two GB10 units can be connected via NVLink to support models with up to 405 billion parameters, such as Meta's Llama 3.1 405B.", "metadata": {}},
+            {"text": "The GB10 is priced at approximately $3,000, making it accessible to individual researchers and small teams.", "metadata": {}},
+            {"text": "Compared to cloud-based GPU inference, the GB10 enables local inference at approximately 100W versus cloud-based inference that requires additional network overhead, cooling infrastructure, and transmission losses.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "Blackwell Architecture Innovations",
+      "paragraphs": [
+        {
+          "text": "The Blackwell architecture introduces several key innovations that improve performance and energy efficiency for AI workloads. The second-generation Transformer Engine builds on the first-generation engine introduced in Hopper, providing optimized dataflow for transformer-based model architectures. FP4 precision support is new in the Blackwell architecture, enabling 2x the compute density compared to FP8 with minimal accuracy loss for inference workloads, effectively doubling throughput per watt.",
+          "sentences": [
+            {"text": "The Blackwell architecture introduces several key innovations that improve performance and energy efficiency for AI workloads.", "metadata": {}},
+            {"text": "The second-generation Transformer Engine builds on the first-generation engine introduced in Hopper, providing optimized dataflow for transformer-based model architectures.", "metadata": {}},
+            {"text": "FP4 precision support is new in the Blackwell architecture, enabling 2x the compute density compared to FP8 with minimal accuracy loss for inference workloads, effectively doubling throughput per watt.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "The Blackwell architecture includes a hardware decompression engine that can decompress data at line rate, reducing memory bandwidth requirements for compressed model weights and activations. A dedicated RAS (Reliability, Availability, Serviceability) engine provides hardware-level monitoring and error correction, which is critical for large-scale deployments where GPU failures can be costly. Secure AI features protect model weights and inference data in multi-tenant environments. NVLink 5.0 provides 1,800 GB/s of bandwidth per GPU, enabling efficient multi-GPU scaling for both training and inference.",
+          "sentences": [
+            {"text": "The Blackwell architecture includes a hardware decompression engine that can decompress data at line rate, reducing memory bandwidth requirements for compressed model weights and activations.", "metadata": {}},
+            {"text": "A dedicated RAS (Reliability, Availability, Serviceability) engine provides hardware-level monitoring and error correction, which is critical for large-scale deployments where GPU failures can be costly.", "metadata": {}},
+            {"text": "Secure AI features protect model weights and inference data in multi-tenant environments.", "metadata": {}},
+            {"text": "NVLink 5.0 provides 1,800 GB/s of bandwidth per GPU, enabling efficient multi-GPU scaling for both training and inference.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "title": "Blackwell Energy Efficiency Comparison",
+      "paragraphs": [
+        {
+          "text": "Comparing the Blackwell generation to its predecessors reveals dramatic improvements in energy efficiency. The B200 delivers up to 4x the inference throughput of the H100 while achieving up to 25x better energy efficiency for LLM inference at scale, because the higher throughput enables completion of workloads in less time with fewer GPUs. The GB200 NVL72 delivers 30x the inference performance of an H100 HGX system, with a significant reduction in total energy consumed per token generated.",
+          "sentences": [
+            {"text": "Comparing the Blackwell generation to its predecessors reveals dramatic improvements in energy efficiency.", "metadata": {}},
+            {"text": "The B200 delivers up to 4x the inference throughput of the H100 while achieving up to 25x better energy efficiency for LLM inference at scale, because the higher throughput enables completion of workloads in less time with fewer GPUs.", "metadata": {}},
+            {"text": "The GB200 NVL72 delivers 30x the inference performance of an H100 HGX system, with a significant reduction in total energy consumed per token generated.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "The GB10 enables local inference at approximately 100W, compared to cloud-based inference using datacenter GPUs that may consume 300-700W per GPU plus cooling and networking overhead. Blackwell's FP4 support enables 2x the compute density compared to FP8, with minimal accuracy loss for inference tasks, effectively doubling the useful work performed per watt of power consumed.",
+          "sentences": [
+            {"text": "The GB10 enables local inference at approximately 100W, compared to cloud-based inference using datacenter GPUs that may consume 300-700W per GPU plus cooling and networking overhead.", "metadata": {}},
+            {"text": "Blackwell's FP4 support enables 2x the compute density compared to FP8, with minimal accuracy loss for inference tasks, effectively doubling the useful work performed per watt of power consumed.", "metadata": {}}
+          ],
+          "metadata": {}
+        },
+        {
+          "text": "When measured at the system level, a GB200 NVL72 rack performing LLM inference consumes roughly 120 kW but can serve the same workload that would require multiple H100 HGX racks consuming a combined 200-300 kW, representing a 40-60% reduction in total energy for equivalent throughput.",
+          "sentences": [
+            {"text": "When measured at the system level, a GB200 NVL72 rack performing LLM inference consumes roughly 120 kW but can serve the same workload that would require multiple H100 HGX racks consuming a combined 200-300 kW, representing a 40-60% reduction in total energy for equivalent throughput.", "metadata": {}}
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    }
+  ]
+}

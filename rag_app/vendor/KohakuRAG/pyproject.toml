@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kohaku-rag"
+version = "0.0.1"
+description = "Simple RAG system for WattBot 2025"
+authors = [
+    { name = "Shih-Ying Yeh(KohakuBlueLeaf)", email = "apolloyeh0123@gmail.com" },
+]
+license = { text = "Apache-2.0" }
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.22",
+    "httpx>=0.27.0",
+    "kohakuvault>=0.7.1",
+    "openai>=2.8.0",
+]
+urls = { "Homepage" = "https://github.com/KohakuBlueleaf/KohakuRAG" }
+
+[project.optional-dependencies]
+# Jina V4 model may pull einops via trust_remote_code; include explicitly
+# so offline installs work.
+embeddings = [
+    "einops",
+]
+local = [
+    "torch",
+    "transformers>=4.42,<5",
+    "Pillow>=12.0.0",
+    "sentence-transformers",
+    "accelerate",
+    "torchvision",
+    "peft",
+]
+pdf = [
+    "pypdf>=6.2.0",
+    "pymupdf>=1.25.0",
+]
+plotting = [
+    "matplotlib",
+    "scikit-learn",
+]
+openrouter = [
+    "openrouter",
+]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
