@@ -15,7 +15,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 echo "============================================"
-echo " KohakuRAG_UI — PowerEdge Pod Setup"
+echo " RunAI_apps — PowerEdge Pod Setup"
 echo "============================================"
 echo ""
 echo "Repo root:  $REPO_ROOT"

@@ -101,11 +101,11 @@
 #
 # Step 1: Test the startup command locally (any machine with Python 3.10+):
 #
-#   rm -rf /tmp/KohakuRAG_UI && \
-#   curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/<your-branch>.tar.gz \
+#   rm -rf /tmp/RunAI_apps && \
+#   curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/<your-branch>.tar.gz \
 #     | tar xz -C /tmp && \
-#   mv /tmp/KohakuRAG_UI-<your-branch> /tmp/KohakuRAG_UI && \
-#   cd /tmp/KohakuRAG_UI && \
+#   mv /tmp/RunAI_apps-<your-branch> /tmp/RunAI_apps && \
+#   cd /tmp/RunAI_apps && \
 #   uv pip install --system fastapi uvicorn httpx numpy \
 #     sentence-transformers 'transformers>=4.42,<5' accelerate && \
 #   python3 rag_app/scripts/embedding_server.py
@@ -134,7 +134,7 @@
 #   Image:           vllm/vllm-openai:latest (same image as vLLM server)
 #   Container port:  8080
 #   Command:         bash
-#   Arguments:       -c "pip install uv && curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz | tar xz -C /tmp && mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI && cd /tmp/KohakuRAG_UI && uv pip install --system fastapi uvicorn httpx numpy sentence-transformers 'transformers>=4.42,<5' accelerate && python3 rag_app/scripts/embedding_server.py"
+#   Arguments:       -c "pip install uv && curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && mv /tmp/RunAI_apps-main /tmp/RunAI_apps && cd /tmp/RunAI_apps && uv pip install --system fastapi uvicorn httpx numpy sentence-transformers 'transformers>=4.42,<5' accelerate && python3 rag_app/scripts/embedding_server.py"
 #   Env:             HF_HOME=/models/.cache/huggingface
 #                    EMBEDDING_MODEL=jinaai/jina-embeddings-v4
 #                    EMBEDDING_DIM=1024
@@ -159,10 +159,10 @@
 #     --port 8080 \
 #     --command -- /bin/bash -c \
 #       "pip install uv && \
-#        curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz \
+#        curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz \
 #          | tar xz -C /tmp && \
-#        mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI && \
-#        cd /tmp/KohakuRAG_UI && \
+#        mv /tmp/RunAI_apps-main /tmp/RunAI_apps && \
+#        cd /tmp/RunAI_apps && \
 #        uv pip install --system fastapi uvicorn httpx numpy \
 #          sentence-transformers 'transformers>=4.42,<5' accelerate && \
 #        python3 rag_app/scripts/embedding_server.py"
@@ -188,7 +188,7 @@
 #   Image:           vllm/vllm-openai:latest
 #   Container port:  8082
 #   Command:         bash
-#   Arguments:       -c "pip install uv && curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz | tar xz -C /tmp && mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI && cd /tmp/KohakuRAG_UI && uv pip install --system fastapi uvicorn sentence-transformers && python3 rag_app/scripts/reranker_server.py"
+#   Arguments:       -c "pip install uv && curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && mv /tmp/RunAI_apps-main /tmp/RunAI_apps && cd /tmp/RunAI_apps && uv pip install --system fastapi uvicorn sentence-transformers && python3 rag_app/scripts/reranker_server.py"
 #   Env:             HF_HOME=/models/.cache/huggingface
 #                    RERANKER_MODEL=BAAI/bge-reranker-v2-m3
 #   GPU:             0.10 (fractional)
@@ -221,7 +221,7 @@
 #   Image:           nvcr.io/nvidia/pytorch:25.02-py3
 #   Tool:            Custom URL -> "streamlit" -> port 8501
 #   Command:         bash
-#   Arguments:       -c "pip install uv && rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED && git clone -b claude/ocr-vlm-application-hqgf2 --depth 1 https://github.com/qualiaMachine/KohakuRAG_UI.git /tmp/KohakuRAG_UI && cd /tmp/KohakuRAG_UI && ln -sf /wattbot-data/embeddings rag_app/data/embeddings && ln -sf /wattbot-data/corpus rag_app/data/corpus && uv pip install --system streamlit openai httpx numpy python-dotenv && uv pip install --system rag_app/vendor/KohakuVault rag_app/vendor/KohakuRAG && python -m streamlit run rag_app/app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false --server.baseUrlPath=\$STREAMLIT_BASE_PATH"
+#   Arguments:       -c "pip install uv && rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED && git clone --depth 1 https://github.com/qualiaMachine/RunAI_apps.git /tmp/RunAI_apps && cd /tmp/RunAI_apps && ln -sf /wattbot-data/embeddings rag_app/data/embeddings && ln -sf /wattbot-data/corpus rag_app/data/corpus && uv pip install --system streamlit openai httpx numpy python-dotenv && uv pip install --system rag_app/vendor/KohakuVault rag_app/vendor/KohakuRAG && python -m streamlit run rag_app/app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false --server.baseUrlPath=\$STREAMLIT_BASE_PATH"
 #   Env:             RAG_MODE=remote
 #                    VLLM_BASE_URL=http://wattbot-chat.runai-<project>.svc.cluster.local/v1
 #                    EMBEDDING_SERVICE_URL=http://wattbot-embedding.runai-<project>.svc.cluster.local

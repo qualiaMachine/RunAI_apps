@@ -1,7 +1,6 @@
 # Setup & Test Workspace (`ocr-setup`)
 
-> **Step 1** in the [deployment guide](README.md). Comes after
-> [Setup Data Volumes](setup-data-volumes.md) (Step 0).
+> **Step 1** in the [deployment guide](README.md).
 
 ## What this workspace does
 
@@ -20,7 +19,7 @@ inference deployment needed at this stage. You're working directly with
 the pipeline code so you can see and tweak everything.
 
 A **test notebook** is included at
-`/tmp/KohakuRAG_UI/ocr_app/notebooks/test_extraction_pipeline.ipynb` —
+`/tmp/RunAI_apps/ocr_app/notebooks/test_extraction_pipeline.ipynb` —
 this is the recommended starting point.
 
 Once you're satisfied with the output, move on to:
@@ -79,7 +78,7 @@ Add Jupyter for browser access:
 ### Arguments (copy-paste)
 
 ```
--c "pip install --no-cache-dir transformers huggingface_hub accelerate httpx pymupdf Pillow fastapi uvicorn python-multipart streamlit python-dotenv qwen-vl-utils matplotlib bitsandbytes; curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz | tar xz -C /tmp; mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI 2>/dev/null; ln -sf /tmp/KohakuRAG_UI /ocr/repo; jupyter-lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/ocr"
+-c "pip install --no-cache-dir transformers huggingface_hub accelerate httpx pymupdf Pillow fastapi uvicorn python-multipart streamlit python-dotenv qwen-vl-utils matplotlib bitsandbytes; curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp; mv /tmp/RunAI_apps-main /tmp/RunAI_apps 2>/dev/null; ln -sf /tmp/RunAI_apps /ocr/repo; jupyter-lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/ocr"
 ```
 
 > **`--ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME}`** is

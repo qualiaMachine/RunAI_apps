@@ -205,10 +205,10 @@ echo "HF_HUB_OFFLINE=$HF_HUB_OFFLINE"  # should be 1
 cd /home/jovyan/work
 
 # If re-running setup, delete the old clone first (PPVC data is safe):
-# rm -rf KohakuRAG_UI
+# rm -rf RunAI_apps
 
-git clone https://github.com/qualiaMachine/KohakuRAG_UI.git
-cd KohakuRAG_UI
+git clone https://github.com/qualiaMachine/RunAI_apps.git
+cd RunAI_apps
 
 # Switch to a specific branch if needed (default is master)
 # git checkout <branch-name>
@@ -272,7 +272,7 @@ once, processes all figures, and is unloaded when the script finishes.
 > at `/tmp` for HF metadata — `HF_HUB_OFFLINE=1` stays set.
 
 ```bash
-cd /home/jovyan/work/KohakuRAG_UI
+cd /home/jovyan/work/RunAI_apps
 
 # Create directories on the PPVC
 mkdir -p /wattbot-data/embeddings
@@ -324,7 +324,7 @@ notebook** and select the **wattbot** kernel we registered in Step 0d
 ```python
 import os, sys
 
-REPO = "/home/jovyan/work/KohakuRAG_UI"
+REPO = "/home/jovyan/work/RunAI_apps"
 os.chdir(REPO)
 sys.path.insert(0, f"{REPO}/rag_app/vendor/KohakuRAG/src")
 # HF_HOME and HF_HUB_OFFLINE are already set via workspace env vars (step 0a).
@@ -373,7 +373,7 @@ catches issues that are much easier to debug here than across 3 separate
 Inference jobs.
 
 ```bash
-cd /home/jovyan/work/KohakuRAG_UI
+cd /home/jovyan/work/RunAI_apps
 source .venv/bin/activate
 
 streamlit run rag_app/app.py \
@@ -424,9 +424,9 @@ workspace and run the following:
 cd /home/jovyan/work
 
 # Remove old clone (symlinks in data/ point to PPVC, so PDFs are safe)
-rm -rf KohakuRAG_UI
-git clone https://github.com/qualiaMachine/KohakuRAG_UI.git
-cd KohakuRAG_UI
+rm -rf RunAI_apps
+git clone https://github.com/qualiaMachine/RunAI_apps.git
+cd RunAI_apps
 
 # Switch to a specific branch if needed (default is master)
 # git checkout <branch-name>

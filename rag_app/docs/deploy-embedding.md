@@ -56,15 +56,15 @@ tarball and installs dependencies at startup.
 | Field | Value |
 |-------|-------|
 | **Command** | `bash` |
-| **Arguments** | `-c "pip install uv && curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz | tar xz -C /tmp && mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI && cd /tmp/KohakuRAG_UI && uv pip install --system fastapi uvicorn httpx numpy sentence-transformers 'transformers>=4.42,<5' accelerate huggingface_hub peft && python3 rag_app/scripts/embedding_server.py"` |
+| **Arguments** | `-c "pip install uv && curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && mv /tmp/RunAI_apps-main /tmp/RunAI_apps && cd /tmp/RunAI_apps && uv pip install --system fastapi uvicorn httpx numpy sentence-transformers 'transformers>=4.42,<5' accelerate huggingface_hub peft && python3 rag_app/scripts/embedding_server.py"` |
 | **Working directory** | *(leave empty)* |
 
-> **Using a different branch?** Replace `claude/ocr-vlm-application-hqgf2`
+> **Using a different branch?** Replace `main`
 > in the URL and the `mv` target with your branch name. GitHub converts
 > `/` → `-` in tarball directory names:
 > ```
 > # URL:  .../refs/heads/claude/my-feature.tar.gz   (slashes OK)
-> # mv:   KohakuRAG_UI-claude-my-feature            (slashes become dashes)
+> # mv:   RunAI_apps-claude-my-feature            (slashes become dashes)
 > ```
 >
 > **Why `curl` tarball instead of `git clone`?** The vLLM image
@@ -159,11 +159,11 @@ BEFORE you waste time on a 5-min container deploy cycle.
 ### Step 1: Test the startup command locally (any machine with Python 3.10+)
 
 ```bash
-rm -rf /tmp/KohakuRAG_UI && \
-curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/<your-branch>.tar.gz \
+rm -rf /tmp/RunAI_apps && \
+curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/<your-branch>.tar.gz \
   | tar xz -C /tmp && \
-mv /tmp/KohakuRAG_UI-<your-branch> /tmp/KohakuRAG_UI && \
-cd /tmp/KohakuRAG_UI && \
+mv /tmp/RunAI_apps-<your-branch> /tmp/RunAI_apps && \
+cd /tmp/RunAI_apps && \
 uv pip install --system fastapi uvicorn httpx numpy \
   sentence-transformers 'transformers>=4.42,<5' accelerate && \
 python3 rag_app/scripts/embedding_server.py
@@ -207,10 +207,10 @@ runai submit wattbot-embedding \
   --port 8080 \
   --command -- /bin/bash -c \
     "pip install uv && \
-     curl -sL https://github.com/qualiaMachine/KohakuRAG_UI/archive/refs/heads/claude/ocr-vlm-application-hqgf2.tar.gz \
+     curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz \
        | tar xz -C /tmp && \
-     mv /tmp/KohakuRAG_UI-claude-ocr-vlm-application-hqgf2 /tmp/KohakuRAG_UI && \
-     cd /tmp/KohakuRAG_UI && \
+     mv /tmp/RunAI_apps-main /tmp/RunAI_apps && \
+     cd /tmp/RunAI_apps && \
      uv pip install --system fastapi uvicorn httpx numpy \
        sentence-transformers 'transformers>=4.42,<5' accelerate && \
      python3 rag_app/scripts/embedding_server.py"

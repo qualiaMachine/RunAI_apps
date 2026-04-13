@@ -1368,7 +1368,7 @@ def init_shared_only() -> tuple[JinaV4EmbeddingModel, KVaultNodeStore, ImageStor
 _PPVC_DB_CANDIDATES = [
     "/tmp/vectordb/wattbot_jinav4.db",  # RunAI startup copies DB here
     "/wattbot-data/embeddings/wattbot_jinav4.db",
-    "/home/jovyan/work/KohakuRAG_UI/data/embeddings/wattbot_jinav4.db",
+    "/home/jovyan/work/RunAI_apps/data/embeddings/wattbot_jinav4.db",
     "/home/jovyan/work/wattbot-data/embeddings/wattbot_jinav4.db",
 ]
 

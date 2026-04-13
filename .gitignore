@@ -1,4 +1,4 @@
-# Git ignore for KohakuRAG_UI
+# Git ignore for RunAI_apps
 
 # Environment files (contain secrets!)
 .env
@@ -66,7 +66,7 @@ artifacts/plots/*/*/*
 !artifacts/plots/*/*/*.png
 
 # Vector databases are derived (built from data/corpus/) and too large for GitHub (>100MB).
-# Each machine rebuilds via: cd vendor/KohakuRAG && kogine run scripts/wattbot_build_index.py ...
+# Each machine rebuilds via: cd rag_app/vendor/KohakuRAG && kogine run scripts/wattbot_build_index.py ...
 *.db
 *.sqlite
 
