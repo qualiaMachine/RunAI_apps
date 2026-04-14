@@ -14,7 +14,10 @@ to understand document structure visually:
 - Every page (digital or scanned) is rendered as an image
 - The VLM sees layout, tables, signatures, watermarks, and annotations
 - PDF hyperlinks are extracted from metadata and passed as additional context
-- Produces structured JSON matching the grant admin schema
+- Per-page continuation flags detect content spanning page boundaries
+- Produces structured JSON (grant admin or library/archival schema)
+- Optional pass 2 adds document-level metadata and summary (text-only, no images)
+- Extraction prompt is saved in output for reproducibility
 
 | Workload | Type | What it does | GPU | Port |
 |----------|------|-------------|-----|------|
