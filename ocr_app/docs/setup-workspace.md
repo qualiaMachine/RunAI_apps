@@ -9,11 +9,10 @@ iterate on the extraction pipeline before deploying anything else:
 
 1. Connect to the shared vLLM endpoint (no local model loading)
 2. Upload sample documents
-3. Walk through the test notebook cell by cell — render pages, send to
+3. Walk through a test notebook cell by cell — render pages, send to
    VLM via 3-page sliding window, inspect JSON output
-4. Experiment with different prompts (grant admin or library/archival)
-5. Run batch extraction with two-pass pipeline (per-page + doc-level synthesis)
-6. Test the Streamlit app from this workspace (optional)
+4. Run batch extraction with two-pass pipeline (per-page + doc-level synthesis)
+5. Test the Streamlit app from this workspace (optional)
 
 By default the workspace runs in **remote mode** — it calls the shared
 vLLM endpoint at `qwen3--vl--32b--instruct-awq.runai-shared-models` via
@@ -24,9 +23,27 @@ If the shared endpoint is down or you want to experiment offline, set
 `VLM_MODE = "local"` in the notebook to load the model directly — this
 requires GPU on the workspace (25% fraction with AWQ, 75% with bf16).
 
-A **test notebook** is included at
-`/tmp/RunAI_apps/ocr_app/notebooks/test_extraction_pipeline.ipynb` —
-this is the recommended starting point.
+## Pick the right notebook for your use case
+
+Two parallel notebooks ship with the repo — same pipeline architecture,
+different schemas tuned to each document type:
+
+| If you're processing... | Use this notebook |
+|-------------------------|-------------------|
+| **Grant administration docs** — award notices, budgets, RSP terms, research proposals, forms with stakeholders/addresses | `/tmp/RunAI_apps/ocr_app/notebooks/test_extraction_pipeline.ipynb` |
+| **Library / archival materials** — books, manuscripts, sheet music, newspapers, maps, multilingual scans, materials needing bibliographic metadata | `/tmp/RunAI_apps/ocr_app/notebooks/library_extraction_pipeline.ipynb` |
+
+The two notebooks share:
+- Remote vs local VLM mode toggle
+- 3-page sliding window extraction
+- Two-pass pipeline (per-page + document-level synthesis)
+- Code-driven cross-page content merging
+- Audit file (`*_extracted.jsonl`) + consolidated final file (`*_final.json`)
+
+They differ in:
+- Per-page prompt and JSON schema (grant admin vs library/archival)
+- Assembly function (stakeholders/addresses/narratives vs bibliographic/body_text/marginalia/stamps)
+- Synthesis prompt (award metadata vs catalog metadata)
 
 ---
 
@@ -163,8 +180,10 @@ no model loading):
 ## Using the workspace
 
 1. **Upload sample docs** to `/ocr/` using Jupyter's file upload button
-2. **Open the test notebook** at `repo/ocr_app/notebooks/test_extraction_pipeline.ipynb`
-3. **Work through it cell by cell** — everything runs from the notebook:
+2. **Open the notebook for your use case** (see table above):
+   - Grant admin: `repo/ocr_app/notebooks/test_extraction_pipeline.ipynb`
+   - Library/archival: `repo/ocr_app/notebooks/library_extraction_pipeline.ipynb`
+3. **Work through it cell by cell** — both notebooks follow the same flow:
 
 | Step | What it does |
 |------|-------------|
@@ -172,16 +191,16 @@ no model loading):
 | 2 | *(Local mode only)* Loads model directly with transformers |
 | 3 | Installs Python packages (httpx/pymupdf/Pillow always; transformers/qwen-vl-utils only for local) |
 | 4 | Defines helper functions: `run_vlm()`, `extract_page()` with sliding window support |
-| 5 | Lists uploaded docs, you pick one |
-| 6 | Renders all pages as images for VLM |
-| 7 | Runs extraction on a single page (with sliding window context from adjacent pages) |
-| 8 | Displays the JSON output |
-| 9 | Alternative prompts — grant admin (default) or library/archival |
-| 10 | **Pass 1:** Batch extracts all pages via 3-page sliding window, saves per-page JSON with continuation flags |
-| 10b | **Pass 2:** Document-level synthesis — adds title, type, creator, summary, cross-page notes |
-| 11 | *(Optional)* Compare VLM vs Gemini extractions |
-| 12 | *(Optional)* Launches extraction server + Streamlit app for interactive testing |
-| 13 | Cleanup — stops all processes |
+| 5 | Defines the extraction prompt + assembly function for this pipeline's schema |
+| 6 | Lists uploaded docs, you pick one |
+| 7 | Renders all pages as images for VLM |
+| 8 | Runs extraction on a single page (with sliding window context from adjacent pages) |
+| 9 | Displays the JSON output |
+| 10 | Defines pass 2 synthesis prompt + helper functions |
+| 11 | **Pass 1 + Pass 2:** Batch loop — extracts all pages (sliding window), saves `_extracted.jsonl`, runs synthesis, saves `_final.json` |
+| 12 | *(Optional)* Compare VLM vs reference extractions |
+| 13 | *(Optional)* Launches extraction server + Streamlit app for interactive testing |
+| 14 | Cleanup — stops all processes |
 
 > **Streamlit test (step 12)** requires:
 > 1. A **Custom URL tool on port 8501** in the workspace config

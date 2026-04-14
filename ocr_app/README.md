@@ -41,11 +41,16 @@ continuation flags, not by the LLM.
 
 The extraction prompt used is saved in the output for reproducibility.
 
-Two output formats are available:
-- **Grant admin schema** — stakeholders, addresses, tables, narratives
-  with citations, signatures, document details
-- **Library/archival schema** — bibliographic metadata, musical notation,
-  marginalia, stamps/bookplates, physical condition, multilingual support
+Two parallel notebooks are provided for two common document types:
+
+| Use case | Notebook |
+|----------|----------|
+| Grant admin (award notices, budgets, terms, proposals) | `notebooks/test_extraction_pipeline.ipynb` |
+| Library / archival (books, manuscripts, sheet music, maps, multilingual) | `notebooks/library_extraction_pipeline.ipynb` |
+
+Both use the same sliding-window + two-pass architecture; the per-page
+prompts and assembly functions differ to match the schema each use case
+needs (stakeholders/tables/narratives vs bibliographic/body_text/marginalia).
 
 ## RunAI Deployment
 

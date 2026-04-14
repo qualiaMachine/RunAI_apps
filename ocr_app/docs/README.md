@@ -20,7 +20,12 @@ to understand document structure visually:
   (split tables, mid-sentence breaks) — accurate because the VLM can see
   neighboring pages
 - Cross-page linking is done **programmatically** from continuation flags
-- Produces structured JSON (grant admin or library/archival schema)
+- Two notebook variants ship with the repo:
+  - `test_extraction_pipeline.ipynb` — grant administration schema
+    (stakeholders, addresses, tables, narratives with citations)
+  - `library_extraction_pipeline.ipynb` — library/archival schema
+    (bibliographic metadata, body_text, marginalia, stamps, musical notation)
+- Produces structured JSON per the notebook you choose
 - **Pass 2** feeds all per-page JSONs back to the VLM (text-only, no images)
   for document-level metadata: title, type, creator, summary, cross-page notes.
   Never modifies per-page results
