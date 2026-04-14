@@ -5,7 +5,7 @@ conditions, archival scans, and other institutional documents. Produces
 JSON for downstream systematic analysis.
 
 All pages (digital PDFs, scans, TIFFs) are rendered as images and sent
-to a Vision Language Model (Qwen3-VL-32B-Instruct) for structured
+to a Vision Language Model (Qwen3-VL-32B-Instruct-AWQ) for structured
 extraction. This ensures the VLM sees layout, tables, signatures,
 watermarks, and annotations — not just raw text.
 
@@ -35,7 +35,7 @@ Follow these docs in order:
 0. [Setup Data Volumes](docs/setup-data-volumes.md) — download model to shared PVC, create output volume
 1. [Setup & Test Workspace](docs/setup-workspace.md) — experiment with pipeline in notebook, iterate on prompts/formats
 2. [Deploy Streamlit App](docs/deploy-streamlit.md) *(optional)* — polished demo UI, test from workspace first
-3. [Deploy vLLM Server](docs/deploy-vllm.md) — persistent Qwen3-VL-32B-Instruct inference endpoint
+3. [Deploy vLLM Server](docs/deploy-vllm.md) — persistent Qwen3-VL-32B-Instruct-AWQ inference endpoint
 4. [Batch Processing](docs/batch-processing.md) — production workspace for large-scale runs
 
 Additional: [Troubleshooting](docs/troubleshooting.md)

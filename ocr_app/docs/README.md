@@ -3,7 +3,7 @@
 Production deployment for extracting structured JSON from institutional
 documents (grant awards, budgets, terms & conditions, archival scans).
 All pages are rendered as images and sent to a Vision Language Model
-(Qwen3-VL-32B-Instruct) for structured extraction.
+(Qwen3-VL-32B-Instruct-AWQ) for structured extraction.
 
 ## Why this architecture?
 
@@ -18,13 +18,13 @@ to understand document structure visually:
 
 | Workload | Type | What it does | GPU | Port |
 |----------|------|-------------|-----|------|
-| **`qwen3--vl--32b--instruct`** | Inference | Serves Qwen3-VL-32B-Instruct for text parsing + VLM OCR | 0.80 | 8000 |
+| **`qwen3--vl--32b--instruct-awq`** | Inference | Serves Qwen3-VL-32B-Instruct-AWQ for text parsing + VLM OCR | 0.80 | 8000 |
 | **`ocr-setup`** | Workspace | One-time setup — test pipeline on sample docs | 0 | 8888 |
 | **`ocr-batch`** | Workspace | Production batch processing | 0 | 8888 |
 | **`ocr-extract`** | Inference | *(optional)* FastAPI extraction server for API/UI use | 0 | 8090 |
 | **`ocr-app`** | Workspace | *(optional)* Streamlit UI for PoC demos | 0 | 8501 |
 
-Only `qwen3--vl--32b--instruct` uses GPU. Everything else is CPU-only.
+Only `qwen3--vl--32b--instruct-awq` uses GPU. Everything else is CPU-only.
 
 ### Service layout
 
@@ -57,7 +57,7 @@ Follow these docs in order:
 0. **[Setup Data Volumes](setup-data-volumes.md)** — Download model to shared PVC, create output volume
 1. **[Setup & Test Workspace](setup-workspace.md)** — Experiment with pipeline in notebook, iterate on prompts/formats, test Streamlit locally
 2. **[Deploy Streamlit App](deploy-streamlit.md)** *(optional)* — Deploy as its own workload for persistent demo UI
-3. **[Deploy vLLM Server](deploy-vllm.md)** — Persistent Qwen3-VL-32B-Instruct inference endpoint
+3. **[Deploy vLLM Server](deploy-vllm.md)** — Persistent Qwen3-VL-32B-Instruct-AWQ inference endpoint
 4. **[Batch Processing](batch-processing.md)** — Production workspace for large-scale runs
 
 All steps use the **RunAI web UI only** — no CLI tools required.
@@ -72,7 +72,7 @@ All steps use the **RunAI web UI only** — no CLI tools required.
 
 0. Setup data volumes (Step 0) — PVCs for input/output
 1. Setup workspace (Step 1) — verify pipeline with notebook
-3. Deploy `qwen3--vl--32b--instruct` as persistent endpoint (Step 3)
+3. Deploy `qwen3--vl--32b--instruct-awq` as persistent endpoint (Step 3)
 4. Deploy `ocr-batch` (Step 4) — batch workspace with `--resume`
 
 ---

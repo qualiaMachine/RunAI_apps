@@ -104,11 +104,12 @@ Add Jupyter for browser access:
 | Field | Value |
 |-------|-------|
 | **GPU devices** | `1` |
-| **GPU fractioning** | Enabled — set to `85%` of device (32B model needs ~64 GB VRAM) |
+| **GPU fractioning** | Enabled — set to `25%` of device (AWQ 4-bit model needs ~20 GB VRAM) |
 
 > **Why GPU?** The setup workspace runs the full pipeline locally —
-> including vLLM for model inference. You need GPU to load and run
-> Qwen3-VL-32B.
+> including the VLM for model inference. The AWQ 4-bit quantized model
+> (`QuantTrio/Qwen3-VL-32B-Instruct-AWQ`) uses ~20 GB. For the full
+> bf16 model, increase to 75-85%.
 
 ## Data & storage
 

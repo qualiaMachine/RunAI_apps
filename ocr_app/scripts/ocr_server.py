@@ -43,7 +43,7 @@ from pydantic import BaseModel
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://localhost:8000/v1")
 LLM_MODEL = os.environ.get("LLM_MODEL", "")  # auto-detect if empty
 VLM_BASE_URL = os.environ.get("VLM_BASE_URL", "")  # defaults to LLM_BASE_URL
-VLM_MODEL = os.environ.get("VLM_MODEL", "Qwen/Qwen3-VL-32B-Instruct")
+VLM_MODEL = os.environ.get("VLM_MODEL", "QuantTrio/Qwen3-VL-32B-Instruct-AWQ")
 HOST = os.environ.get("OCR_HOST", "0.0.0.0")
 PORT = int(os.environ.get("OCR_PORT", "8090"))
 
