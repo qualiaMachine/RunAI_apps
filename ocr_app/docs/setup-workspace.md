@@ -7,16 +7,17 @@
 `ocr-setup` is your **experimentation workspace** — this is where you
 iterate on the extraction pipeline before deploying anything else:
 
-1. Start vLLM locally (loads model from shared PVC)
+1. Load the VLM directly with transformers (no vLLM server needed)
 2. Upload sample documents
-3. Walk through the test notebook cell by cell — connect to vLLM, extract
-   text, render scanned pages, send to LLM, inspect JSON output
-4. Experiment with different output formats and prompts
-5. Test the Streamlit app from this workspace (optional)
+3. Walk through the test notebook cell by cell — render pages, send to
+   VLM via 3-page sliding window, inspect JSON output
+4. Experiment with different prompts (grant admin or library/archival)
+5. Run batch extraction with two-pass pipeline (per-page + doc-level synthesis)
+6. Test the Streamlit app from this workspace (optional)
 
-The notebook calls vLLM running locally in this workspace — no separate
-inference deployment needed at this stage. You're working directly with
-the pipeline code so you can see and tweak everything.
+The notebook loads the model directly on the workspace GPU — no separate
+vLLM inference deployment needed at this stage. You're working directly
+with the pipeline code so you can see and tweak everything.
 
 A **test notebook** is included at
 `/tmp/RunAI_apps/ocr_app/notebooks/test_extraction_pipeline.ipynb` —
@@ -160,11 +161,11 @@ your browser.
 | 2 | Loads Qwen3-VL-32B-AWQ (4-bit, ~20 GB) with transformers |
 | 3 | Lists uploaded docs, you pick one |
 | 4 | Renders all pages as images for VLM |
-| 5 | Runs extraction on a single page via VLM |
+| 5 | Runs extraction on a single page (with sliding window context from adjacent pages) |
 | 6 | Displays the JSON output |
 | 7 | Alternative prompts — grant admin (default) or library/archival |
-| 8 | **Pass 1:** Batch processes all pages, saves per-page JSON with continuation flags |
-| 8b | **Pass 2 (optional):** Document-level synthesis — adds title, summary, cross-page notes |
+| 8 | **Pass 1:** Batch extracts all pages via 3-page sliding window, saves per-page JSON with continuation flags |
+| 8b | **Pass 2:** Document-level synthesis — adds title, type, creator, summary, cross-page notes |
 | 9 | Compare VLM vs Gemini extractions |
 | 10 | Launches extraction server + Streamlit app for interactive testing |
 | 11 | Cleanup — stops all processes |

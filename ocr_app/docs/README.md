@@ -11,41 +11,54 @@ Traditional OCR pipelines (Tesseract + regex) are brittle — they break on
 layout changes and need per-document-type rules. This pipeline uses a VLM
 to understand document structure visually:
 
-- Every page (digital or scanned) is rendered as an image
+- Each page is rendered as an image and processed via a **3-page sliding
+  window** — the VLM sees adjacent pages as context, extracts the center
+  page only
 - The VLM sees layout, tables, signatures, watermarks, and annotations
 - PDF hyperlinks are extracted from metadata and passed as additional context
-- Per-page continuation flags detect content spanning page boundaries
+- Per-page **continuation flags** detect content spanning page boundaries
+  (split tables, mid-sentence breaks) — accurate because the VLM can see
+  neighboring pages
+- Cross-page linking is done **programmatically** from continuation flags
 - Produces structured JSON (grant admin or library/archival schema)
-- Optional pass 2 adds document-level metadata and summary (text-only, no images)
+- **Pass 2** feeds all per-page JSONs back to the VLM (text-only, no images)
+  for document-level metadata: title, type, creator, summary, cross-page notes.
+  Never modifies per-page results
 - Extraction prompt is saved in output for reproducibility
 
 | Workload | Type | What it does | GPU | Port |
 |----------|------|-------------|-----|------|
-| **`ocr-setup`** | Workspace | One-time setup — test pipeline on sample docs | 0.85 | 8888 |
-| **`qwen3--vl--32b--instruct`** | Inference | *(optional)* Serves Qwen3-VL-32B-Instruct for text parsing + VLM OCR | 0.85 | 8000 |
+| **`ocr-setup`** | Workspace | Notebook environment — load model locally, iterate on prompts | 0.25 | 8888 |
+| **`qwen3--vl--32b--instruct-awq`** | Inference | *(production)* Serves Qwen3-VL-32B-Instruct-AWQ via vLLM | 0.25 | 8000 |
 | **`ocr-app`** | Workspace | *(optional)* Streamlit UI for PoC demos | 0 | 8501 |
 
-### Service layout
+### Two modes of running the VLM
+
+**Notebook mode (setup workspace):** The `ocr-setup` workspace loads the
+model directly with transformers — no vLLM server needed. This is best
+for iterating on prompts, testing on sample docs, and batch runs.
+The workspace needs its own GPU (25% with AWQ).
+
+**Production mode (vLLM server):** For large-scale batch processing,
+deploy the vLLM inference job and point batch scripts at it over HTTP.
+The batch workspace is CPU-only; all GPU work is in vLLM.
 
 ```
-                    +---------------------+
-                    |   vLLM Server       |
-                    |   Qwen3-VL-32B     |
-                    |   Port 8000 (GPU)   |
-                    +---------^-----------+
-                              | HTTP (cluster DNS)
-              +---------------+----------------+
-              |               |                |
-   +----------+---+  +-------+--------+  +----+-----------+
-   | Batch Script |  | Extract Server |  | Streamlit UI   |
-   | (workspace)  |  | (optional API) |  | (optional PoC) |
-   | CPU only     |  | CPU only       |  | CPU only       |
-   +--------------+  +----------------+  +----------------+
-```
+  Notebook mode:                    Production mode:
 
-All paths talk to the same vLLM server. The batch script is the primary
-tool for processing large collections. The extraction server and Streamlit
-UI are optional — useful for interactive demos.
+  +----------------+                +---------------------+
+  | ocr-setup      |                |   vLLM Server       |
+  | Model loaded   |                |   Qwen3-VL-32B-AWQ  |
+  | locally (GPU)  |                |   Port 8000 (GPU)   |
+  +----------------+                +---------^-----------+
+                                              | HTTP
+                                +-------------+-------------+
+                                |             |             |
+                         +------+------+ +----+----+ +------+------+
+                         | ocr-batch   | | extract | | Streamlit   |
+                         | (CPU only)  | | server  | | UI          |
+                         +-------------+ +---------+ +-------------+
+```
 
 ---
 
