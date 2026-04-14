@@ -30,8 +30,8 @@ different schemas tuned to each document type:
 
 | If you're processing... | Use this notebook |
 |-------------------------|-------------------|
-| **Grant administration docs** — award notices, budgets, RSP terms, research proposals, forms with stakeholders/addresses | `/tmp/RunAI_apps/ocr_app/notebooks/test_extraction_pipeline.ipynb` |
-| **Library / archival materials** — books, manuscripts, sheet music, newspapers, maps, multilingual scans, materials needing bibliographic metadata | `/tmp/RunAI_apps/ocr_app/notebooks/library_extraction_pipeline.ipynb` |
+| **Grant administration docs** — award notices, budgets, RSP terms, research proposals, forms with stakeholders/addresses | `repo/ocr_app/notebooks/test_extraction_pipeline.ipynb` |
+| **Library / archival materials** — books, manuscripts, sheet music, newspapers, maps, multilingual scans, materials needing bibliographic metadata | `repo/ocr_app/notebooks/library_extraction_pipeline.ipynb` |
 
 The two notebooks share:
 - Remote vs local VLM mode toggle
