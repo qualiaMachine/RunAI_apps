@@ -3,7 +3,7 @@
 Production deployment for extracting structured JSON from institutional
 documents (grant awards, budgets, terms & conditions, archival scans).
 All pages are rendered as images and sent to a Vision Language Model
-(Qwen3-VL-32B-Instruct) for structured extraction.
+(Qwen3-VL-32B-Instruct-AWQ) for structured extraction.
 
 ## Why this architecture?
 
@@ -14,7 +14,10 @@ to understand document structure visually:
 - Every page (digital or scanned) is rendered as an image
 - The VLM sees layout, tables, signatures, watermarks, and annotations
 - PDF hyperlinks are extracted from metadata and passed as additional context
-- Produces structured JSON matching the grant admin schema
+- Per-page continuation flags detect content spanning page boundaries
+- Produces structured JSON (grant admin or library/archival schema)
+- Optional pass 2 adds document-level metadata and summary (text-only, no images)
+- Extraction prompt is saved in output for reproducibility
 
 | Workload | Type | What it does | GPU | Port |
 |----------|------|-------------|-----|------|
@@ -66,7 +69,7 @@ Less tested but optional future paths
 
 0. Setup data volumes (Step 0) — PVCs for input/output
 1. Setup workspace (Step 1) — verify pipeline with notebook
-3. Deploy `qwen3--vl--32b--instruct` as persistent endpoint (Step 3)
+3. Deploy `qwen3--vl--32b--instruct-awq` as persistent endpoint (Step 3)
 4. Deploy `ocr-batch` (Step 4) — batch workspace with `--resume`
 
 ---

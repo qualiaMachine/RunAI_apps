@@ -5,7 +5,7 @@ conditions, archival scans, and other institutional documents. Produces
 JSON for downstream systematic analysis.
 
 All pages (digital PDFs, scans, TIFFs) are rendered as images and sent
-to a Vision Language Model (Qwen3-VL-32B-Instruct) for structured
+to a Vision Language Model (Qwen3-VL-32B-Instruct-AWQ) for structured
 extraction. This ensures the VLM sees layout, tables, signatures,
 watermarks, and annotations — not just raw text.
 
@@ -22,9 +22,28 @@ watermarks, and annotations — not just raw text.
   +---------------------+     +----------------------+
 ```
 
-Every page is rendered as an image and sent to the VLM for extraction.
-PDF hyperlinks are extracted from the metadata layer and passed as
-additional context. All GPU work happens in vLLM.
+## Two-pass extraction pipeline
+
+**Pass 1 (per-page):** Every page is rendered as an image and sent to
+the VLM independently. Each page produces a structured JSON with all
+extracted content plus continuation flags (whether content is cut off
+and continues on the next page). This is the source of truth.
+
+**Pass 2 (document-level, optional):** All per-page JSONs are fed back
+to the LLM as text (no images) to produce document-level metadata:
+title, creator, date, type, summary, and cross-page notes. Pass 2
+never modifies per-page results — it only adds new top-level fields.
+
+Cross-page table/text linking is done programmatically from the
+continuation flags, not by the LLM.
+
+The extraction prompt used is saved in the output for reproducibility.
+
+Two output formats are available:
+- **Grant admin schema** — stakeholders, addresses, tables, narratives
+  with citations, signatures, document details
+- **Library/archival schema** — bibliographic metadata, musical notation,
+  marginalia, stamps/bookplates, physical condition, multilingual support
 
 ## RunAI Deployment
 
@@ -35,7 +54,7 @@ Follow these docs in order:
 0. [Setup Data Volumes](docs/setup-data-volumes.md) — download model to shared PVC, create output volume
 1. [Setup & Test Workspace](docs/setup-workspace.md) — experiment with pipeline in notebook, iterate on prompts/formats
 2. [Deploy Streamlit App](docs/deploy-streamlit.md) *(optional)* — polished demo UI, test from workspace first
-3. [Deploy vLLM Server](docs/deploy-vllm.md) — persistent Qwen3-VL-32B-Instruct inference endpoint
+3. [Deploy vLLM Server](docs/deploy-vllm.md) — persistent Qwen3-VL-32B-Instruct-AWQ inference endpoint
 4. [Batch Processing](docs/batch-processing.md) — production workspace for large-scale runs
 
 Additional: [Troubleshooting](docs/troubleshooting.md)

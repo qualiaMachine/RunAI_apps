@@ -104,11 +104,12 @@ Add Jupyter for browser access:
 | Field | Value |
 |-------|-------|
 | **GPU devices** | `1` |
-| **GPU fractioning** | Enabled — set to `85%` of device (32B model needs ~64 GB VRAM) |
+| **GPU fractioning** | Enabled — set to `25%` of device (AWQ 4-bit model needs ~20 GB VRAM) |
 
 > **Why GPU?** The setup workspace runs the full pipeline locally —
-> including vLLM for model inference. You need GPU to load and run
-> Qwen3-VL-32B.
+> including the VLM for model inference. The AWQ 4-bit quantized model
+> (`QuantTrio/Qwen3-VL-32B-Instruct-AWQ`) uses ~20 GB. For the full
+> bf16 model, increase to 75-85%.
 
 ## Data & storage
 
@@ -156,15 +157,17 @@ your browser.
 | Step | What it does |
 |------|-------------|
 | 1 | Checks GPU and shared models PVC |
-| 2 | Loads Qwen3-VL-32B directly with transformers |
+| 2 | Loads Qwen3-VL-32B-AWQ (4-bit, ~20 GB) with transformers |
 | 3 | Lists uploaded docs, you pick one |
 | 4 | Renders all pages as images for VLM |
 | 5 | Runs extraction on a single page via VLM |
 | 6 | Displays the JSON output |
-| 7 | Alternative prompts to try (award, budget, terms, key_values, text) |
-| 8 | Processes all pages and saves results to `/ocr/` |
-| 9 | Launches extraction server + Streamlit app for interactive testing |
-| 10 | Cleanup — stops all processes |
+| 7 | Alternative prompts — grant admin (default) or library/archival |
+| 8 | **Pass 1:** Batch processes all pages, saves per-page JSON with continuation flags |
+| 8b | **Pass 2 (optional):** Document-level synthesis — adds title, summary, cross-page notes |
+| 9 | Compare VLM vs Gemini extractions |
+| 10 | Launches extraction server + Streamlit app for interactive testing |
+| 11 | Cleanup — stops all processes |
 
 > **Streamlit test (step 10)** requires:
 > 1. A **Custom URL tool on port 8501** in the workspace config

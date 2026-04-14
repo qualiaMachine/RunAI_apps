@@ -43,7 +43,7 @@ from pydantic import BaseModel
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://localhost:8000/v1")
 LLM_MODEL = os.environ.get("LLM_MODEL", "")  # auto-detect if empty
 VLM_BASE_URL = os.environ.get("VLM_BASE_URL", "")  # defaults to LLM_BASE_URL
-VLM_MODEL = os.environ.get("VLM_MODEL", "Qwen/Qwen3-VL-32B-Instruct")
+VLM_MODEL = os.environ.get("VLM_MODEL", "QuantTrio/Qwen3-VL-32B-Instruct-AWQ")
 HOST = os.environ.get("OCR_HOST", "0.0.0.0")
 PORT = int(os.environ.get("OCR_PORT", "8090"))
 
@@ -221,6 +221,7 @@ class OutputFormat(str, Enum):
     markdown = "markdown"
     json = "json"
     text = "text"
+    library = "library"
 
 
 # Prompts for LLM text parsing (text already extracted, no image)
@@ -318,6 +319,41 @@ TEXT_PROMPTS = {
         "Clean up and return the following document text, preserving the "
         "original reading order and structure. Output only the text."
     ),
+    OutputFormat.library: (
+        "Parse the following text extracted from a scanned library document. "
+        "This may be a book page, manuscript, sheet music, newspaper, map, "
+        "pamphlet, or other archival material.\n\n"
+        "Return a JSON object with these fields (omit any that are not present):\n"
+        '  "page_type": "<book_page | manuscript | sheet_music | newspaper | '
+        'map | photograph | illustration | form | correspondence | ephemera | mixed>",\n'
+        '  "title": running title, chapter title, or piece title visible on this page,\n'
+        '  "creator": author, composer, artist, or cartographer if shown,\n'
+        '  "date": any date visible (publication, manuscript, postmark, etc.),\n'
+        '  "language": primary language of the text,\n'
+        '  "page_number": printed or stamped page/folio number,\n'
+        '  "body_text": full verbatim text in reading order (ALL text on the page),\n'
+        '  "headings": array of section or chapter headings,\n'
+        '  "footnotes": array of footnote texts,\n'
+        '  "marginalia": array of handwritten marginal notes (describe if illegible),\n'
+        '  "tables": array of tables as 2D arrays or key-value objects,\n'
+        '  "illustrations": array of {description, caption} for images/figures/plates,\n'
+        '  "musical_notation": {present: boolean, description: string} if sheet music,\n'
+        '  "stamps_marks": array of {text, type} for library stamps, bookplates, '
+        'accession numbers, call numbers, barcodes,\n'
+        '  "physical_notes": any visible damage, stains, tears, or binding artifacts,\n'
+        '  "one_sentence_summary": brief description of page content\n\n'
+        "RULES:\n"
+        "- Transcribe ALL printed and typed text VERBATIM — do not modernize spelling, "
+        "correct errors, or expand abbreviations.\n"
+        "- For sheet music: describe the notation (instrument, key, tempo markings, "
+        "lyrics) but do not attempt to encode the music itself.\n"
+        "- For handwriting: transcribe if legible, otherwise describe (e.g. "
+        '"[illegible annotation in pencil, ~3 words]").\n'
+        "- Preserve original line breaks within poetry or verse.\n"
+        "- Capture ALL stamps, bookplates, and catalog markings — these are critical "
+        "for provenance.\n"
+        "- Output ONLY valid JSON."
+    ),
 }
 
 # Prompts for VLM one-shot OCR (image input, for scans/TIFFs)
@@ -376,6 +412,35 @@ VLM_PROMPTS = {
         "Extract all text from this image exactly as it appears. "
         "Preserve the original reading order, line breaks, and structure. "
         "Output only the extracted text."
+    ),
+    OutputFormat.library: (
+        "Extract all information from this scanned library document page. "
+        "This may be a book page, manuscript, sheet music, newspaper, map, "
+        "photograph, pamphlet, or other archival material.\n\n"
+        "Return a JSON object with these fields (omit any not present):\n"
+        '  "page_type": "<book_page | manuscript | sheet_music | newspaper | '
+        'map | photograph | illustration | form | correspondence | ephemera | mixed>",\n'
+        '  "title", "creator", "date", "language", "page_number",\n'
+        '  "body_text": full verbatim text in reading order (ALL text on the page),\n'
+        '  "headings": array of section/chapter headings,\n'
+        '  "footnotes": array of footnote texts,\n'
+        '  "marginalia": array of handwritten marginal notes,\n'
+        '  "tables": array of tables as 2D arrays or key-value objects,\n'
+        '  "illustrations": array of {description, caption},\n'
+        '  "musical_notation": {present: boolean, description: string},\n'
+        '  "stamps_marks": array of {text, type} for library stamps, bookplates, '
+        'accession numbers, call numbers, barcodes,\n'
+        '  "physical_notes": visible damage, stains, tears, binding artifacts,\n'
+        '  "one_sentence_summary": brief description of page content\n\n'
+        "RULES:\n"
+        "- Transcribe ALL text VERBATIM — do not modernize spelling or correct errors.\n"
+        "- For sheet music: describe notation (instrument, key, tempo, lyrics) "
+        "but do not encode the music.\n"
+        "- For handwriting: transcribe if legible, otherwise describe "
+        '(e.g. "[illegible annotation in pencil, ~3 words]").\n'
+        "- Preserve line breaks in poetry/verse.\n"
+        "- Capture ALL stamps, bookplates, and catalog markings.\n"
+        "- Output ONLY valid JSON."
     ),
 }
 

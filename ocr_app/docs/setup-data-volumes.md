@@ -78,7 +78,7 @@ rsync, or rclone) to keep the cluster PVC in sync with the source.
 
 ## Shared models PVC — download Qwen3-VL-32B
 
-The vLLM server needs `Qwen/Qwen3-VL-32B-Instruct` (~64 GB) on the
+The vLLM server needs `QuantTrio/Qwen3-VL-32B-Instruct-AWQ` (~20 GB) on the
 shared models PVC at `/models/.cache/huggingface`. If the model isn't
 there yet, you need to download it before deploying the inference job.
 
@@ -97,7 +97,7 @@ for full PVC creation instructions.
 5. Run:
 
 ```bash
-python /models/provision_shared_models.py download Qwen/Qwen3-VL-32B-Instruct
+python /models/provision_shared_models.py download QuantTrio/Qwen3-VL-32B-Instruct-AWQ
 ```
 
 This downloads ~64 GB to the PVC. Takes a few minutes depending on
@@ -107,7 +107,7 @@ network speed.
 
 ```bash
 python /models/provision_shared_models.py list
-# Should show Qwen/Qwen3-VL-32B-Instruct in the list
+# Should show QuantTrio/Qwen3-VL-32B-Instruct-AWQ in the list
 ```
 
 7. **Stop** the `update-shared-models` workspace when done.
