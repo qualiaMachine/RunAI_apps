@@ -50,7 +50,7 @@ Leave defaults (HTTP, container port auto-detected).
 | Field | Value |
 |-------|-------|
 | **Command** | *(leave empty)* |
-| **Arguments** | `QuantTrio/Qwen3-VL-32B-Instruct-AWQ --quantization awq --dtype half --max-model-len 16384` |
+| **Arguments** | `QuantTrio/Qwen3-VL-32B-Instruct-AWQ --quantization awq_marlin --dtype half --max-model-len 16384` |
 
 **Environment variables** (click **+ Environment Variable** for each):
 
@@ -63,7 +63,8 @@ Leave defaults (HTTP, container port auto-detected).
 **Working directory:** *(leave empty)*
 
 > **About the arguments:**
-> - `--quantization awq` tells vLLM to use AWQ 4-bit weights
+> - `--quantization awq_marlin` uses the optimized Marlin kernel for
+>   AWQ weights (~6-10x faster generation than plain `awq`)
 > - `--dtype half` = fp16 compute (required for AWQ on most GPUs)
 > - `--max-model-len 16384` caps KV cache allocation to 16K tokens.
 >   The model supports 262K natively but that would need 64+ GB just
@@ -155,8 +156,8 @@ If it doesn't respond:
 
 | GPU | Arguments | GPU fraction |
 |-----|-----------|-------------|
-| **96 GB (AWQ, default)** | `QuantTrio/Qwen3-VL-32B-Instruct-AWQ --quantization awq --dtype half --max-model-len 16384` | **35%** |
-| A100 80GB (AWQ) | `QuantTrio/Qwen3-VL-32B-Instruct-AWQ --quantization awq --dtype half --max-model-len 16384` | 40% |
+| **96 GB (AWQ, default)** | `QuantTrio/Qwen3-VL-32B-Instruct-AWQ --quantization awq_marlin --dtype half --max-model-len 16384` | **35%** |
+| A100 80GB (AWQ) | `QuantTrio/Qwen3-VL-32B-Instruct-AWQ --quantization awq_marlin --dtype half --max-model-len 16384` | 40% |
 | 96 GB (bf16, full) | `Qwen/Qwen3-VL-32B-Instruct --dtype auto --max-model-len 16384` | 75% |
 | A100 80GB (bf16) | `Qwen/Qwen3-VL-32B-Instruct --dtype auto --max-model-len 16384` | 85% |
 | L4/RTX 4090 24GB | `Qwen/Qwen3-VL-8B-Instruct --dtype auto --max-model-len 16384` | 100% |
