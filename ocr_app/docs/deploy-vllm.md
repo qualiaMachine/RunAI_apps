@@ -17,7 +17,7 @@ In the RunAI UI: **Workloads** > **New Workload** > **Inference**
 | Field | Value |
 |-------|-------|
 | **Cluster** | `doit-ai-cluster` |
-| **Project** | `jupyter-endemann01` (or your project) |
+| **Project** | `shared-models` (shared endpoint for all users) |
 | **Template** | Start from scratch |
 | **Inference type** | **Hugging Face** |
 | **Inference name** | `qwen3--vl--32b--instruct-awq` |

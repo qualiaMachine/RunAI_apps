@@ -100,7 +100,7 @@ for full PVC creation instructions.
 python /models/provision_shared_models.py download QuantTrio/Qwen3-VL-32B-Instruct-AWQ
 ```
 
-This downloads ~64 GB to the PVC. Takes a few minutes depending on
+This downloads ~20 GB to the PVC. Takes a few minutes depending on
 network speed.
 
 6. Verify the model is there:
