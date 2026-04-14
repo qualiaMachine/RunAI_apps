@@ -21,13 +21,9 @@ to understand document structure visually:
 
 | Workload | Type | What it does | GPU | Port |
 |----------|------|-------------|-----|------|
-| **`qwen3--vl--32b--instruct-awq`** | Inference | Serves Qwen3-VL-32B-Instruct-AWQ for text parsing + VLM OCR | 0.80 | 8000 |
-| **`ocr-setup`** | Workspace | One-time setup — test pipeline on sample docs | 0 | 8888 |
-| **`ocr-batch`** | Workspace | Production batch processing | 0 | 8888 |
-| **`ocr-extract`** | Inference | *(optional)* FastAPI extraction server for API/UI use | 0 | 8090 |
+| **`ocr-setup`** | Workspace | One-time setup — test pipeline on sample docs | 0.85 | 8888 |
+| **`qwen3--vl--32b--instruct`** | Inference | *(optional)* Serves Qwen3-VL-32B-Instruct for text parsing + VLM OCR | 0.85 | 8000 |
 | **`ocr-app`** | Workspace | *(optional)* Streamlit UI for PoC demos | 0 | 8501 |
-
-Only `qwen3--vl--32b--instruct-awq` uses GPU. Everything else is CPU-only.
 
 ### Service layout
 
@@ -56,14 +52,12 @@ UI are optional — useful for interactive demos.
 ## Deployment Guide
 
 Follow these docs in order:
-
-0. **[Setup Data Volumes](setup-data-volumes.md)** — Download model to shared PVC, create output volume
+0. **[Setup Model Volumes](setup-data-volumes.md)** — [Admin only] Download model(s) of interest to shared PVC. Ask admin if you need additional models.
 1. **[Setup & Test Workspace](setup-workspace.md)** — Experiment with pipeline in notebook, iterate on prompts/formats, test Streamlit locally
-2. **[Deploy Streamlit App](deploy-streamlit.md)** *(optional)* — Deploy as its own workload for persistent demo UI
-3. **[Deploy vLLM Server](deploy-vllm.md)** — Persistent Qwen3-VL-32B-Instruct-AWQ inference endpoint
-4. **[Batch Processing](batch-processing.md)** — Production workspace for large-scale runs
 
-All steps use the **RunAI web UI only** — no CLI tools required.
+Less tested but optional future paths
+2. **[Deploy Streamlit App](deploy-streamlit.md)** *(optional)* — Deploy as its own workload for persistent demo UI
+3. **[Deploy vLLM Server](deploy-vllm.md)** — *(optional)* Persistent Qwen3-VL-32B-Instruct inference endpoint
 
 ### PoC path (5 sample docs)
 
