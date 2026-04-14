@@ -71,8 +71,8 @@ Leave defaults (HTTP, container port auto-detected).
 | **GPU memory** | `% of device` — Request: `25` |
 
 > **Note:** The AWQ 4-bit model needs ~20 GB VRAM. 25% of a 96 GB GPU
-> (~24 GB) is sufficient for page-by-page extraction. Increase to 35%
-> if you need longer context. For the full bf16 model
+> (~24 GB) is sufficient for sliding window extraction (3 images per
+> call). Increase to 35% if you need longer context or larger batches. For the full bf16 model
 > (`Qwen/Qwen3-VL-32B-Instruct --dtype auto`), use 75-85%.
 
 ### Data & storage

@@ -24,15 +24,17 @@ watermarks, and annotations — not just raw text.
 
 ## Two-pass extraction pipeline
 
-**Pass 1 (per-page):** Every page is rendered as an image and sent to
-the VLM independently. Each page produces a structured JSON with all
-extracted content plus continuation flags (whether content is cut off
-and continues on the next page). This is the source of truth.
+**Pass 1 (per-page, sliding window):** Each page is rendered as an image
+and sent to the VLM with its adjacent pages as visual context (3-page
+sliding window). The VLM extracts data from the center page only — the
+neighbors let it detect cross-page content (split tables, mid-sentence
+breaks). Each page produces a structured JSON with continuation flags.
+This is the source of truth.
 
-**Pass 2 (document-level, optional):** All per-page JSONs are fed back
-to the LLM as text (no images) to produce document-level metadata:
-title, creator, date, type, summary, and cross-page notes. Pass 2
-never modifies per-page results — it only adds new top-level fields.
+**Pass 2 (document-level):** All per-page JSONs are fed back to the
+VLM as text (no images) to produce document-level metadata: title,
+creator, date, type, summary, and cross-page notes. Pass 2 never
+modifies per-page results — it only adds new top-level fields.
 
 Cross-page table/text linking is done programmatically from the
 continuation flags, not by the LLM.
