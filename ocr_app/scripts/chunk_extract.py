@@ -96,6 +96,8 @@ def build_chunk_messages(
     links_per_page: Optional[list[list[dict]]] = None,
     is_first_chunk: bool = True,
     is_last_chunk: bool = True,
+    pinned_images: Optional[list[tuple[Any, str]]] = None,
+    forward_context: Optional[dict] = None,
 ) -> list[dict]:
     """Build the OpenAI-style ``messages`` payload for a chunk extraction.
 
@@ -113,6 +115,14 @@ def build_chunk_messages(
         page_range_label: human-readable label like "Pages 3-12 of 40".
         links_per_page: optional per-page hyperlinks extracted from the PDF.
         is_first_chunk / is_last_chunk: drive continuation-flag guidance.
+        pinned_images: extra images shown before the chunk's own pages,
+            labelled as PINNED CONTEXT. Typical use is pinning page 1
+            (cover sheet) into every non-first chunk so the model always
+            has access to title / funding agency / document type.
+        forward_context: structured context from an earlier chunk
+            (typically chunk 1's ``document_details``). Rendered as text
+            so the model can anchor doc-level fields without guessing
+            from a partial view.
     """
     header_parts: list[str] = []
     if filename:
@@ -123,6 +133,9 @@ def build_chunk_messages(
     boundary_note = _continuation_hint(is_first_chunk, is_last_chunk)
     if boundary_note:
         header_parts.append(boundary_note)
+
+    if forward_context:
+        header_parts.append(_render_forward_context(forward_context))
 
     if links_per_page:
         flat = []
@@ -135,6 +148,13 @@ def build_chunk_messages(
     prefix = "\n\n".join(header_parts)
 
     content: list[dict] = []
+
+    # Pinned images first (e.g. page 1 cover sheet) so the model sees
+    # them before the chunk's own pages.
+    for img, label in pinned_images or []:
+        content.append({"type": "text", "text": f"[PINNED CONTEXT — {label}]"})
+        content.append({"type": "image", "image": encode_image_b64(img)})
+
     for i, img in enumerate(images):
         content.append({"type": "text", "text": f"[PAGE IMAGE {i+1} of {len(images)}]"})
         content.append({"type": "image", "image": encode_image_b64(img)})
@@ -143,6 +163,32 @@ def build_chunk_messages(
     content.append({"type": "text", "text": full_prompt})
 
     return [{"role": "user", "content": content}]
+
+
+def _render_forward_context(ctx: dict) -> str:
+    """Format structured forward-context as a text block for the prompt.
+
+    The model is told these are verified anchors from an earlier chunk —
+    it should USE them rather than re-deriving doc-level metadata from
+    its own (partial) view. Keeps the keys named exactly as they will
+    be used in the output schema so the model doesn't need to translate.
+    """
+    lines = [
+        "VERIFIED CONTEXT FROM EARLIER IN THIS DOCUMENT:",
+        "The following fields were extracted from the document's opening pages.",
+        "Treat them as authoritative — do NOT re-derive from your partial view.",
+        "Copy them through into your document_details output unchanged.",
+        "",
+    ]
+    dd = ctx.get("document_details") or {}
+    for k, v in dd.items():
+        if v not in (None, "", [], {}):
+            lines.append(f"  document_details.{k}: {v!r}")
+    if ctx.get("document_tags"):
+        lines.append(f"  document_tags: {ctx['document_tags']!r}")
+    if ctx.get("one_sentence_summary"):
+        lines.append(f"  one_sentence_summary: {ctx['one_sentence_summary']!r}")
+    return "\n".join(lines)
 
 
 def _continuation_hint(is_first: bool, is_last: bool) -> str:
