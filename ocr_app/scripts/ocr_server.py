@@ -562,7 +562,7 @@ async def extract_pdf(
     file: UploadFile = File(...),
     format: OutputFormat = Form(OutputFormat.award),
     prompt: Optional[str] = Form(None),
-    max_tokens: int = Form(8192),
+    max_tokens: int = Form(16000),
     pages: Optional[str] = Form(None),
 ):
     """Extract structured data from a PDF.
@@ -629,7 +629,7 @@ async def extract_image(
     file: UploadFile = File(...),
     format: OutputFormat = Form(OutputFormat.award),
     prompt: Optional[str] = Form(None),
-    max_tokens: int = Form(8192),
+    max_tokens: int = Form(16000),
 ):
     """Extract structured data from an image (TIFF, PNG, JPG, etc.).
 

@@ -413,8 +413,8 @@ def main():
     parser.add_argument("--format", default="award",
                         choices=[f.value for f in OutputFormat],
                         help="Output format / document type (default: award)")
-    parser.add_argument("--max-tokens", type=int, default=8192,
-                        help="Max tokens per LLM response (default: 8192)")
+    parser.add_argument("--max-tokens", type=int, default=16000,
+                        help="Max tokens per LLM response (default: 16000)")
     parser.add_argument("--concurrency", type=int, default=4,
                         help="Max concurrent LLM/VLM requests (default: 4)")
     parser.add_argument("--extensions", nargs="+",
