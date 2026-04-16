@@ -172,7 +172,7 @@ with st.sidebar:
 
     with st.expander("Advanced options"):
         max_tokens = st.slider(
-            "Max output tokens", 256, 8192, 4096, 256,
+            "Max output tokens", 256, 16000, 16000, 256,
         )
         pdf_pages = st.text_input(
             "PDF pages (optional)",
