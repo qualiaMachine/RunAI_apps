@@ -21,6 +21,7 @@ DOC_SYNTHESIS_PROMPT = """Role & Objective: You are an expert data extraction as
 Task: You are given a contiguous run of pages from ONE document. Extract all data from these pages into a SINGLE JSON object matching the structure below. Treat the pages as one continuous document — do not emit per-page output.
 
 {
+  "one_sentence_summary": "<one sentence summary covering all pages shown>",
   "confidence_percentage": <float 0-100>,
   "confidence_narrative": "<brief note on extraction quality and comprehensiveness>",
   "page_range_start": <integer — 1-indexed PDF page of the first visible page in this chunk (from its 'PDF page N' label)>,
@@ -30,14 +31,6 @@ Task: You are given a contiguous run of pages from ONE document. Extract all dat
   "document_details": {
     "application_id": "", "application_type": "", "title": "",
     "requested_amount": null, "completed_date": "", "sub_document_type": ""
-  },
-  "one_sentence_summary": "<one sentence summary covering all pages shown>",
-  "document_tags": ["<high-level grant admin tags, e.g. IRB, IACUC, Biosafety>"],
-  "has_annotation": <boolean>,
-  "has_watermark": <boolean>,
-  "signature_lines": {
-    "has_signature_line": <boolean>,
-    "has_valid_signature": <boolean>
   },
   "tables": [
     {
@@ -85,6 +78,13 @@ Task: You are given a contiguous run of pages from ONE document. Extract all dat
       "raw_address_text": "<verbatim text block containing the full address>"
     }
   ],
+  "document_tags": ["<high-level grant admin tags, e.g. IRB, IACUC, Biosafety>"],
+  "has_annotation": <boolean>,
+  "has_watermark": <boolean>,
+  "signature_lines": {
+    "has_signature_line": <boolean>,
+    "has_valid_signature": <boolean>
+  },
   "other_metadata": {}
 }
 
@@ -133,4 +133,5 @@ PROCESSING RULES:
 - Preserve ALL dollar amounts, dates, reference numbers exactly as they appear.
 - Missing fields: use null or "" as appropriate. Escape all strings.
 - QUOTES INSIDE STRING VALUES: If a value contains a quoted phrase (e.g. a caption like `organized by "Planning" versus "Management"`), use typographic smart quotes ("U+201C" / "U+201D") — NEVER straight ASCII double quotes. Straight `"` inside a string value breaks JSON parsing unless escaped as `\\"`. When in doubt, rewrite with smart quotes.
+- WHITESPACE RUNS: Inside string values, NEVER emit more than two consecutive newline characters (`\\n\\n`). Collapse any run of empty lines, spaces, or repeated whitespace to a single space or `\\n`. Long runs of identical whitespace burn output tokens and trigger runaway detection — they almost always indicate the model has lost its place in the page.
 - Output ONLY valid JSON. No markdown fences, no introductory text."""
