@@ -20,12 +20,6 @@ DOC_SYNTHESIS_PROMPT = """Role & Objective: You are an expert data extraction as
 
 Task: You are given a contiguous run of pages from ONE document. Extract all data from these pages into a SINGLE JSON object matching the structure below. Treat the pages as one continuous document — do not emit per-page output.
 
-PRIORITY ORDER (highest first — if you ever run short of output tokens, emit these fields in this order):
-  1. tables — COMPLETE row-by-row extraction of every table across all visible pages
-  2. narrative_responses — verbatim body text / paragraphs
-  3. stakeholders, addresses
-  4. everything else
-
 {
   "confidence_percentage": <float 0-100>,
   "confidence_narrative": "<brief note on extraction quality and comprehensiveness>",
@@ -33,6 +27,18 @@ PRIORITY ORDER (highest first — if you ever run short of output tokens, emit t
   "page_range_end": <integer — 1-indexed PDF page of the last visible page in this chunk>,
   "visual_page_range_start": "<the page number PRINTED on the first visible page, or null if none>",
   "visual_page_range_end": "<the page number PRINTED on the last visible page, or null if none>",
+  "document_details": {
+    "application_id": "", "application_type": "", "title": "",
+    "requested_amount": null, "completed_date": "", "sub_document_type": ""
+  },
+  "one_sentence_summary": "<one sentence summary covering all pages shown>",
+  "document_tags": ["<high-level grant admin tags, e.g. IRB, IACUC, Biosafety>"],
+  "has_annotation": <boolean>,
+  "has_watermark": <boolean>,
+  "signature_lines": {
+    "has_signature_line": <boolean>,
+    "has_valid_signature": <boolean>
+  },
   "tables": [
     {
       "page_number": <integer — 1-indexed PDF page where this table starts (use the 'PDF page N' label shown with each image)>,
@@ -79,18 +85,6 @@ PRIORITY ORDER (highest first — if you ever run short of output tokens, emit t
       "raw_address_text": "<verbatim text block containing the full address>"
     }
   ],
-  "has_annotation": <boolean>,
-  "has_watermark": <boolean>,
-  "signature_lines": {
-    "has_signature_line": <boolean>,
-    "has_valid_signature": <boolean>
-  },
-  "document_tags": ["<high-level grant admin tags, e.g. IRB, IACUC, Biosafety>"],
-  "one_sentence_summary": "<one sentence summary covering all pages shown>",
-  "document_details": {
-    "application_id": "", "application_type": "", "title": "",
-    "requested_amount": null, "completed_date": "", "sub_document_type": ""
-  },
   "other_metadata": {}
 }
 
@@ -138,4 +132,5 @@ PROCESSING RULES:
 - ADDRESSES: Use ONLY the allowed stakeholder_type values listed above. If unclear, use "Unknown". Place "Care Of"/"Attention" lines ONLY in care_of. Capture raw_address_text verbatim.
 - Preserve ALL dollar amounts, dates, reference numbers exactly as they appear.
 - Missing fields: use null or "" as appropriate. Escape all strings.
+- QUOTES INSIDE STRING VALUES: If a value contains a quoted phrase (e.g. a caption like `organized by "Planning" versus "Management"`), use typographic smart quotes ("U+201C" / "U+201D") — NEVER straight ASCII double quotes. Straight `"` inside a string value breaks JSON parsing unless escaped as `\\"`. When in doubt, rewrite with smart quotes.
 - Output ONLY valid JSON. No markdown fences, no introductory text."""
