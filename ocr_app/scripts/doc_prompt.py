@@ -29,18 +29,6 @@ PRIORITY ORDER (highest first — if you ever run short of output tokens, emit t
 {
   "confidence_percentage": <float 0-100>,
   "confidence_narrative": "<brief note on extraction quality and comprehensiveness>",
-  "has_annotation": <boolean>,
-  "has_watermark": <boolean>,
-  "signature_lines": {
-    "has_signature_line": <boolean>,
-    "has_valid_signature": <boolean>
-  },
-  "document_tags": ["<high-level grant admin tags, e.g. IRB, IACUC, Biosafety>"],
-  "one_sentence_summary": "<one sentence summary covering all pages shown>",
-  "document_details": {
-    "application_id": "", "application_type": "", "title": "",
-    "requested_amount": null, "completed_date": "", "sub_document_type": ""
-  },
   "tables": [
     {
       "preceding_section_header": "<nearest section/heading text above this table, '' if none>",
@@ -79,6 +67,18 @@ PRIORITY ORDER (highest first — if you ever run short of output tokens, emit t
       "raw_address_text": "<verbatim text block containing the full address>"
     }
   ],
+  "has_annotation": <boolean>,
+  "has_watermark": <boolean>,
+  "signature_lines": {
+    "has_signature_line": <boolean>,
+    "has_valid_signature": <boolean>
+  },
+  "document_tags": ["<high-level grant admin tags, e.g. IRB, IACUC, Biosafety>"],
+  "one_sentence_summary": "<one sentence summary covering all pages shown>",
+  "document_details": {
+    "application_id": "", "application_type": "", "title": "",
+    "requested_amount": null, "completed_date": "", "sub_document_type": ""
+  },
   "other_metadata": {}
 }
 
