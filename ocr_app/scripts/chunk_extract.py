@@ -98,6 +98,7 @@ def build_chunk_messages(
     is_last_chunk: bool = True,
     pinned_images: Optional[list[tuple[Any, str]]] = None,
     forward_context: Optional[dict] = None,
+    first_pdf_page: int = 1,
 ) -> list[dict]:
     """Build the OpenAI-style ``messages`` payload for a chunk extraction.
 
@@ -123,6 +124,12 @@ def build_chunk_messages(
             (typically chunk 1's ``document_details``). Rendered as text
             so the model can anchor doc-level fields without guessing
             from a partial view.
+        first_pdf_page: 1-indexed PDF page number of the FIRST image in
+            ``images``. Used to label each image with its absolute PDF
+            page so the model can populate ``page_number`` on tables
+            accurately (``images[i]`` is labelled as PDF page
+            ``first_pdf_page + i``). Default 1 (single-shot extraction
+            starting at page 1).
     """
     header_parts: list[str] = []
     if filename:
@@ -156,7 +163,11 @@ def build_chunk_messages(
         content.append({"type": "image", "image": encode_image_b64(img)})
 
     for i, img in enumerate(images):
-        content.append({"type": "text", "text": f"[PAGE IMAGE {i+1} of {len(images)}]"})
+        pdf_page = first_pdf_page + i
+        content.append({
+            "type": "text",
+            "text": f"[PAGE IMAGE {i+1} of {len(images)} — PDF page {pdf_page}]",
+        })
         content.append({"type": "image", "image": encode_image_b64(img)})
 
     full_prompt = f"{prefix}\n\n{prompt}" if prefix else prompt
@@ -265,6 +276,8 @@ def assemble_document_from_merged(
     for t in merged.get("tables", []) or []:
         pascal_tables.append({
             "PageRange": t.get("_source_page_range", "UNKNOWN"),
+            "PageNumber": t.get("page_number"),
+            "VisualPageNumber": t.get("visual_page_number"),
             "PrecedingSectionHeader": t.get("preceding_section_header", ""),
             "TableClassification": t.get("table_classification", "Standard_Table"),
             "TableData": t.get("table_data", []),
