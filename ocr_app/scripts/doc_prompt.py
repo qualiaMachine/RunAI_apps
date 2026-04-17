@@ -133,4 +133,5 @@ PROCESSING RULES:
 - Preserve ALL dollar amounts, dates, reference numbers exactly as they appear.
 - Missing fields: use null or "" as appropriate. Escape all strings.
 - QUOTES INSIDE STRING VALUES: If a value contains a quoted phrase (e.g. a caption like `organized by "Planning" versus "Management"`), use typographic smart quotes ("U+201C" / "U+201D") — NEVER straight ASCII double quotes. Straight `"` inside a string value breaks JSON parsing unless escaped as `\\"`. When in doubt, rewrite with smart quotes.
+- WHITESPACE RUNS: Inside string values, NEVER emit more than two consecutive newline characters (`\\n\\n`). Collapse any run of empty lines, spaces, or repeated whitespace to a single space or `\\n`. Long runs of identical whitespace burn output tokens and trigger runaway detection — they almost always indicate the model has lost its place in the page.
 - Output ONLY valid JSON. No markdown fences, no introductory text."""
