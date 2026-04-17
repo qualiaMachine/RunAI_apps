@@ -60,9 +60,12 @@ def _chunk(**overrides) -> dict:
 
 
 def _table(classification="Standard_Table", header="Year 1 Budget",
-           rows=None, cfp=False, ctn=False):
+           rows=None, cfp=False, ctn=False,
+           page_number=None, visual_page_number=None):
     return {
         "preceding_section_header": header,
+        "page_number": page_number,
+        "visual_page_number": visual_page_number,
         "table_classification": classification,
         "continues_from_previous_chunk": cfp,
         "continues_to_next_chunk": ctn,
@@ -291,6 +294,34 @@ def test_merge_chunks_json_handles_parse_errors():
     assert len(out["other_metadata"]["merge_errors"]) == 1
 
 
+def test_page_number_survives_dedupe_and_stitch():
+    # Dedupe: two chunks both see the full table on page 7, keep page_number
+    rows = [{"r": 1}, {"r": 2}, {"r": 3}]
+    c1 = _chunk(tables=[_table(rows=rows, header="Year 1 Budget",
+                               page_number=7, visual_page_number="7")])
+    c2 = _chunk(tables=[_table(rows=rows, header="Year 1 Budget",
+                               page_number=7, visual_page_number="7")])
+    out = merge_chunks([c1, c2])
+    assert len(out["tables"]) == 1
+    assert out["tables"][0]["page_number"] == 7
+    assert out["tables"][0]["visual_page_number"] == "7"
+
+    # Stitch: long table spans chunks — keep the START page_number
+    c3 = _chunk(tables=[_table(rows=[{"r": 1}, {"r": 2}],
+                               header="Publications",
+                               page_number=10, visual_page_number="10",
+                               ctn=True)])
+    c4 = _chunk(tables=[_table(rows=[{"r": 3}, {"r": 4}],
+                               header="Publications",
+                               page_number=15, visual_page_number="15",
+                               cfp=True)])
+    out = merge_chunks([c3, c4])
+    assert len(out["tables"]) == 1
+    assert out["tables"][0]["page_number"] == 10, \
+        f"expected start page 10, got {out['tables'][0]['page_number']}"
+    assert out["tables"][0]["visual_page_number"] == "10"
+
+
 def test_fragment_not_preferred_over_complete():
     # Even if the fragment has more rows by accident, full copy wins
     c1 = _chunk(tables=[_table(
@@ -326,6 +357,7 @@ TESTS = [
     test_doc_level_aggregation,
     test_doc_details_null_coalesce,
     test_merge_chunks_json_handles_parse_errors,
+    test_page_number_survives_dedupe_and_stitch,
     test_fragment_not_preferred_over_complete,
 ]
 

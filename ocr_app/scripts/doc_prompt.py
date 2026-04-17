@@ -44,6 +44,8 @@ PRIORITY ORDER (highest first — if you ever run short of output tokens, emit t
   "tables": [
     {
       "preceding_section_header": "<nearest section/heading text above this table, '' if none>",
+      "page_number": <integer — 1-indexed PDF page where this table starts (use the 'PDF page N' label shown with each image)>,
+      "visual_page_number": "<the page number PRINTED on the page (header/footer/margin), e.g. '12', 'iii', 'A-5'. Use null if no page number is visible on the page where the table starts.>",
       "table_classification": "<Literal_Grid | Key_Value_Form | Standard_Table>",
       "continues_from_previous_chunk": <boolean>,
       "continues_to_next_chunk": <boolean>,
@@ -117,6 +119,8 @@ PROCESSING RULES:
 - NARRATIVE EXTRACTION (CRITICAL FOR RAG): Extract ALL body text, paragraphs, memos, and application answers VERBATIM to ensure 100% document coverage. If text is part of a Q&A form, include the question in prompt_or_header. For unstructured letter/memo body, use "General Body Text". Do NOT summarize, truncate, or condense.
 - CITATIONS: Add [cite: N] numbered tags after each distinct statement in narrative text, incrementing N from 1 within each narrative_responses entry.
 - PRECEDING_SECTION_HEADER: For every table and narrative, capture the nearest section heading above it (e.g. "Year 1 Budget", "Specific Aims", "Biographical Sketch"). This is used to disambiguate items that have similar content in different sections of the document. If there is no clear preceding header, use "".
+- PAGE_NUMBER (tables): The 1-indexed PDF page where the table STARTS. Each image you receive is labelled with both its position in this chunk and its absolute PDF page number (e.g. "[PAGE IMAGE 3 of 10 — PDF page 13]"). Use the "PDF page N" value, NOT the "PAGE IMAGE N of 10" value. If a table spans multiple pages, use the page where it begins (even if that page is the first image in this chunk and the table is continued from a previous chunk — in that case also set continues_from_previous_chunk: true).
+- VISUAL_PAGE_NUMBER (tables): The page number PRINTED on the page itself — typically in a header, footer, or margin (e.g. "12", "iii", "A-5", "Page 3 of 17"). Capture it verbatim as a string. If no page number is printed on the page where the table starts, use null. Do NOT infer or compute a visual page number — only record what is visibly printed.
 - SIGNATURES: Do NOT read handwriting. Only note if a signature LINE exists and if a signature is DETECTED.
 - STAKEHOLDER ROLES: Use ONLY the allowed stakeholder_role values listed above. If context does not make the role explicitly clear, use "Unknown". Capture raw_stakeholder_text verbatim.
 - HYPERLINKS: Include the exact URLs in the relevant narrative text or other_metadata.
