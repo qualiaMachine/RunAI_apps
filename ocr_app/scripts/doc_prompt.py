@@ -29,14 +29,14 @@ PRIORITY ORDER (highest first — if you ever run short of output tokens, emit t
 {
   "confidence_percentage": <float 0-100>,
   "confidence_narrative": "<brief note on extraction quality and comprehensiveness>",
-  "page_range_start": <int: 1-indexed sequential page number of the first visible page in this chunk>,
-  "page_range_end": <int: 1-indexed sequential page number of the last visible page in this chunk>,
-  "visual_page_range_start": "<string: the page label printed on the first page (e.g. '42 | Page', 'iii', '1'), '' if none>",
-  "visual_page_range_end": "<string: the page label printed on the last page, '' if none>",
+  "page_range_start": <integer — 1-indexed PDF page of the first visible page in this chunk (from its 'PDF page N' label)>,
+  "page_range_end": <integer — 1-indexed PDF page of the last visible page in this chunk>,
+  "visual_page_range_start": "<the page number PRINTED on the first visible page, or null if none>",
+  "visual_page_range_end": "<the page number PRINTED on the last visible page, or null if none>",
   "tables": [
     {
-      "page_number": <int: 1-indexed sequential page number where this table starts>,
-      "visual_page_number": "<string: page label printed on that page, '' if none>",
+      "page_number": <integer — 1-indexed PDF page where this table starts (use the 'PDF page N' label shown with each image)>,
+      "visual_page_number": "<the page number PRINTED on the page (header/footer/margin), e.g. '12', 'iii', 'A-5'. Use null if no page number is visible on the page where the table starts.>",
       "preceding_section_header": "<nearest section/heading text above this table, '' if none>",
       "table_classification": "<Literal_Grid | Key_Value_Form | Standard_Table>",
       "continues_from_previous_chunk": <boolean>,
@@ -46,8 +46,8 @@ PRIORITY ORDER (highest first — if you ever run short of output tokens, emit t
   ],
   "narrative_responses": [
     {
-      "page_number": <int: 1-indexed sequential page number where this narrative starts>,
-      "visual_page_number": "<string: page label printed on that page, '' if none>",
+      "page_number": <integer — 1-indexed PDF page where this narrative starts (use the 'PDF page N' label shown with each image)>,
+      "visual_page_number": "<the page number PRINTED on that page, or null if none>",
       "preceding_section_header": "<nearest section/heading text above this narrative, '' if none>",
       "prompt_or_header": "<exact question, section header, or 'General Body Text'>",
       "continues_from_previous_chunk": <boolean>,
@@ -57,8 +57,8 @@ PRIORITY ORDER (highest first — if you ever run short of output tokens, emit t
   ],
   "stakeholders": [
     {
-      "page_number": <int: 1-indexed sequential page number where the stakeholder info appears>,
-      "visual_page_number": "<string: page label printed on that page, '' if none>",
+      "page_number": <integer — 1-indexed PDF page where the stakeholder info appears (use the 'PDF page N' label shown with each image)>,
+      "visual_page_number": "<the page number PRINTED on that page, or null if none>",
       "context_snippet": "<3-5 words near the stakeholder info>",
       "stakeholder_role": "<Principal Investigator | Co-Investigator | Collaborator | Key Personnel | Grants Administrative Contact | Sponsor Contact | Authorized Organizational Representative | Unknown>",
       "full_name": "", "first_name": "", "last_name": "",
@@ -69,8 +69,8 @@ PRIORITY ORDER (highest first — if you ever run short of output tokens, emit t
   ],
   "addresses": [
     {
-      "page_number": <int: 1-indexed sequential page number where the address appears>,
-      "visual_page_number": "<string: page label printed on that page, '' if none>",
+      "page_number": <integer — 1-indexed PDF page where the address appears (use the 'PDF page N' label shown with each image)>,
+      "visual_page_number": "<the page number PRINTED on that page, or null if none>",
       "context_snippet": "<3-5 words near the address>",
       "addressee": "", "care_of": null,
       "address_line1": "", "address_line2": "",
@@ -129,7 +129,9 @@ PROCESSING RULES:
 - NARRATIVE EXTRACTION (CRITICAL FOR RAG): Extract ALL body text, paragraphs, memos, and application answers VERBATIM to ensure 100% document coverage. If text is part of a Q&A form, include the question in prompt_or_header. For unstructured letter/memo body, use "General Body Text". Do NOT summarize, truncate, or condense.
 - CITATIONS: Add [cite: N] numbered tags after each distinct statement in narrative text, incrementing N from 1 within each narrative_responses entry.
 - PRECEDING_SECTION_HEADER: For every table and narrative, capture the nearest section heading above it (e.g. "Year 1 Budget", "Specific Aims", "Biographical Sketch"). This is used to disambiguate items that have similar content in different sections of the document. If there is no clear preceding header, use "".
-- PAGE NUMBERS: Every tables, narrative_responses, stakeholders, and addresses item MUST include `page_number` (the 1-indexed sequential position of the page within this chunk — first visible page is 1) and `visual_page_number` (the page label as printed on the page itself, e.g. "42 | Page", "iii", "Page 3 of 10"; use "" if no label is printed). At the top level, also emit `page_range_start` / `page_range_end` (sequential) and `visual_page_range_start` / `visual_page_range_end` (printed labels) covering the chunk.
+- PAGE_NUMBER (every tables, narrative_responses, stakeholders, addresses item): The 1-indexed PDF page where the item STARTS. Each image you receive is labelled with both its position in this chunk and its absolute PDF page number (e.g. "[PAGE IMAGE 3 of 10 — PDF page 13]"). Use the "PDF page N" value, NOT the "PAGE IMAGE N of 10" value. If an item spans multiple pages, use the page where it begins (even if that page is the first image in this chunk and the item is continued from a previous chunk — in that case also set continues_from_previous_chunk: true).
+- VISUAL_PAGE_NUMBER (every tables, narrative_responses, stakeholders, addresses item): The page number PRINTED on the page itself — typically in a header, footer, or margin (e.g. "12", "iii", "A-5", "Page 3 of 17"). Capture it verbatim as a string. If no page number is printed on the page where the item starts, use null. Do NOT infer or compute a visual page number — only record what is visibly printed.
+- PAGE_RANGE (top level): Emit `page_range_start` / `page_range_end` as the PDF page numbers of the first and last visible pages in this chunk. Emit `visual_page_range_start` / `visual_page_range_end` as the printed page numbers on those same pages (null if not printed).
 - SIGNATURES: Do NOT read handwriting. Only note if a signature LINE exists and if a signature is DETECTED.
 - STAKEHOLDER ROLES: Use ONLY the allowed stakeholder_role values listed above. If context does not make the role explicitly clear, use "Unknown". Capture raw_stakeholder_text verbatim.
 - HYPERLINKS: Include the exact URLs in the relevant narrative text or other_metadata.
