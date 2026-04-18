@@ -164,18 +164,41 @@ def render_pdf_page(pdf_path: Path, page_idx: int) -> Image.Image:
     return img
 
 
+def _detect_page_orientations(pdf_path: Path) -> list[str]:
+    """Detect orientation (portrait/landscape) for each page in a PDF."""
+    import fitz
+    doc = fitz.open(str(pdf_path))
+    orientations = []
+    for page in doc:
+        rect = page.rect
+        orientations.append("landscape" if rect.width > rect.height else "portrait")
+    doc.close()
+    return orientations
+
+
 async def process_pdf(client: httpx.AsyncClient, pdf_path: Path, fmt: OutputFormat,
                       max_tokens: int, model: str, semaphore: asyncio.Semaphore) -> dict:
     """Process a single PDF — extract text or VLM OCR per page."""
     pages = extract_pdf_pages(pdf_path)
     text_prompt = TEXT_PROMPTS[fmt]
     vlm_prompt = VLM_PROMPTS[fmt]
+    orientations = _detect_page_orientations(pdf_path)
 
     page_results = []
     digital_count = 0
     scanned_count = 0
 
     for page_info in pages:
+        page_idx = page_info["page"]
+        orientation = orientations[page_idx] if page_idx < len(orientations) else "unknown"
+
+        # Log orientation transitions
+        if page_idx > 0 and page_idx < len(orientations):
+            prev_orient = orientations[page_idx - 1]
+            if prev_orient != orientation:
+                print(f"  Page {page_idx + 1}: orientation change "
+                      f"({prev_orient} → {orientation})", flush=True)
+
         async with semaphore:
             t0 = time.time()
             if page_info["has_text"]:
@@ -197,6 +220,7 @@ async def process_pdf(client: httpx.AsyncClient, pdf_path: Path, fmt: OutputForm
             "page": page_info["page"] + 1,
             "text": result_text,
             "method": method,
+            "orientation": orientation,
             "elapsed_ms": round(elapsed_ms, 2),
         })
 
@@ -389,8 +413,8 @@ def main():
     parser.add_argument("--format", default="award",
                         choices=[f.value for f in OutputFormat],
                         help="Output format / document type (default: award)")
-    parser.add_argument("--max-tokens", type=int, default=4096,
-                        help="Max tokens per LLM response (default: 4096)")
+    parser.add_argument("--max-tokens", type=int, default=16000,
+                        help="Max tokens per LLM response (default: 16000)")
     parser.add_argument("--concurrency", type=int, default=4,
                         help="Max concurrent LLM/VLM requests (default: 4)")
     parser.add_argument("--extensions", nargs="+",
