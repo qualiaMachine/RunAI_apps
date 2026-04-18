@@ -26,7 +26,7 @@ Shape of the merged output:
       "tables": [...],                     # deduped + stitched union
       "narrative_responses": [...],        # deduped + stitched union
       "other_metadata": {...},             # shallow-merged
-      "boundary_notes": [...],             # deterministic lint output
+      "potential_issues": [...],           # deterministic lint output
       "chunks": [                          # per-chunk sidecar
         {"chunk_index", "page_start", "page_end",
          "experiment": {...},
@@ -633,7 +633,7 @@ def _is_empty_table(t: dict) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Deterministic lint (boundary_notes)
+# Deterministic lint (potential_issues)
 # ---------------------------------------------------------------------------
 
 def _lint_merged(merged: dict) -> list[str]:
@@ -721,7 +721,7 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
     chunks. If provided, it's recorded under ``experiment.extraction_prompt``
     so the merged JSON captures exactly what the VLM was asked.
 
-    Lint notes (``boundary_notes``) are always computed at the end.
+    Lint notes (``potential_issues``) are always computed at the end.
     Stakeholders and addresses are sorted by ``visual_page_number`` so
     downstream readers get a natural top-of-doc-to-bottom reading order.
     """
@@ -767,7 +767,7 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
                 t for t in merged["tables"] if not _is_empty_table(t)
             ]
         merged["chunks"] = _build_chunks_sidecar(records)
-        merged["boundary_notes"] = _lint_merged(merged)
+        merged["potential_issues"] = _lint_merged(merged)
         return merged
 
     experiment = _doc_level_experiment(records)
@@ -826,7 +826,7 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
         merged.get("narrative_responses") or [],
         key=_page_sort_key,
     )
-    merged["boundary_notes"] = _lint_merged(merged)
+    merged["potential_issues"] = _lint_merged(merged)
     return merged
 
 
