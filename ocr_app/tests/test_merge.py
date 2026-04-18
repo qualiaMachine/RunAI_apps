@@ -531,6 +531,55 @@ def test_normalize_visual_page_number():
     assert normalize_visual_page_number("") == ""
 
 
+def test_normalize_visual_page_number_sub_form_guard():
+    # Chunk covers PDF indices [24, 33) → printed pages 25..33.
+    rng = (24, 33)
+    # In-range numeric passes through
+    assert normalize_visual_page_number("25", rng) == "25"
+    assert normalize_visual_page_number("33", rng) == "33"
+    # Out-of-range bare numbers (sub-form misread) nulled out
+    assert normalize_visual_page_number("1", rng) is None
+    assert normalize_visual_page_number("8", rng) is None
+    # "X/N" sub-pagination nulled when X is outside chunk range
+    assert normalize_visual_page_number("1/8", rng) is None
+    assert normalize_visual_page_number("Page 3 of 8", rng) is None
+    # "Page 27 of 142" — real doc pagination, in-range → keep "27"
+    assert normalize_visual_page_number("Page 27 of 142", rng) == "27"
+    # Non-numeric (roman/appendix) bypasses the range check
+    assert normalize_visual_page_number("iii", rng) == "iii"
+    assert normalize_visual_page_number("A-5", rng) == "A-5"
+    # No range supplied → legacy behavior (strip decoration only)
+    assert normalize_visual_page_number("1/8") == "1"
+    assert normalize_visual_page_number("1", None) == "1"
+
+
+def test_merge_nulls_sub_form_pages_outside_chunk_range():
+    # Two chunks, 20-page doc. Chunk 2 covers PDF 7..14 (printed 8..15)
+    # but the VLM misreads an attached sub-form and emits "1" and "2"
+    # as visual_page_numbers. Those must be nulled out so they don't
+    # collide with real pages 1/2 from chunk 1.
+    c1_tables = [
+        _table(rows=[{"a": 1}], header="Real page 1", visual_page_number="1"),
+        _table(rows=[{"b": 2}], header="Real page 2", visual_page_number="2"),
+    ]
+    c2_tables = [
+        _table(rows=[{"x": 9}], header="Sub-form A", visual_page_number="1"),
+        _table(rows=[{"y": 10}], header="Sub-form B", visual_page_number="2/8"),
+    ]
+    r1 = {"chunk_index": 0, "page_start": 0, "page_end": 9,
+          "experiment": {}, "extracted": _chunk(tables=c1_tables)}
+    r2 = {"chunk_index": 1, "page_start": 7, "page_end": 15,
+          "experiment": {}, "extracted": _chunk(tables=c2_tables)}
+    out = merge_chunks([r1, r2])
+    pages = [t.get("visual_page_number") for t in out["tables"]]
+    # Real pages 1 and 2 survive; sub-form misreads are nulled
+    assert "1" in pages and "2" in pages
+    # Exactly two sub-form tables with null page (not colliding with real 1/2)
+    assert pages.count(None) == 2
+    # And we kept all four tables (no collision collapses)
+    assert len(out["tables"]) == 4
+
+
 def test_merge_normalizes_page_decoration_before_dedupe():
     # Two chunks see the same table at PDF page 51; chunk 1 captures the
     # printed page as "50" (clean), chunk 2 captures "50 | Page" (footer
@@ -624,6 +673,8 @@ TESTS = [
     test_stakeholders_sorted_by_visual_page_number,
     test_empty_stakeholders_filtered_out,
     test_normalize_visual_page_number,
+    test_normalize_visual_page_number_sub_form_guard,
+    test_merge_nulls_sub_form_pages_outside_chunk_range,
     test_merge_normalizes_page_decoration_before_dedupe,
     test_extraction_prompt_recorded_in_experiment,
     test_single_chunk_full_record_passthrough,

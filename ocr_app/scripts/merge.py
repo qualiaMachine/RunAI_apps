@@ -457,7 +457,7 @@ _PAGE_NUMBER_FOOTER_PATTERNS = [
 ]
 
 
-def normalize_visual_page_number(raw):
+def normalize_visual_page_number(raw, chunk_page_range=None):
     """Strip common footer artifacts from a printed-page-number string.
 
     The VLM sometimes captures footer decoration verbatim (``"50 | Page"``
@@ -465,21 +465,44 @@ def normalize_visual_page_number(raw):
     prompt asks for the value to be verbatim. That breaks cross-chunk
     dedupe and page-sort ordering, so we normalize anything that matches
     a known footer pattern to just the page identifier.
+
+    Sub-form collision guard: when ``chunk_page_range=(page_start,
+    page_end)`` is supplied (0-based inclusive start, exclusive end — the
+    shape used by ``chunk_page_ranges``) AND the normalized value is a
+    plain int falling outside the 1-based printed range ``[page_start+1,
+    page_end]``, the function returns ``None``. This catches the common
+    failure where the VLM reads a sub-form's "Page X of N" footer (or a
+    bare "X") from an attached document inside a larger award packet and
+    emits it as the outer doc's ``visual_page_number``; without this
+    guard, those sub-form pages collide with the enclosing doc's real
+    pages during dedup and sort out-of-order. Non-numeric identifiers
+    (roman numerals, "A-5", etc.) bypass the range check.
     """
     if raw is None or raw == "":
         return raw
     s = str(raw).strip()
+    normalized = s
     for pat in _PAGE_NUMBER_FOOTER_PATTERNS:
         m = pat.match(s)
         if m:
-            return m.group(1)
-    return s
+            normalized = m.group(1)
+            break
+    if chunk_page_range is not None:
+        start, end = chunk_page_range
+        if start is not None and end is not None:
+            try:
+                n = int(normalized)
+            except (TypeError, ValueError):
+                return normalized
+            if n < start + 1 or n > end:
+                return None
+    return normalized
 
 
-def _normalize_page_numbers_inplace(items: list[dict]) -> None:
+def _normalize_page_numbers_inplace(items: list[dict], chunk_page_range=None) -> None:
     for it in items or []:
         page = it.get("visual_page_number")
-        normed = normalize_visual_page_number(page)
+        normed = normalize_visual_page_number(page, chunk_page_range)
         if normed != page:
             it["visual_page_number"] = normed
 
@@ -746,9 +769,20 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
     # Normalize VLM footer-text drift ("50 | Page" → "50") before anything
     # downstream sees the values. Both dedupe and page-sort rely on stable
     # page identifiers; the VLM sometimes captures the decoration verbatim.
-    for e in extracted_list:
+    # When full chunk records are available, each chunk's (page_start,
+    # page_end) range is passed through so the normalizer can also null
+    # out sub-form misreads (e.g., a bare "3" emitted for an attached
+    # form when the chunk actually covers PDF pages 31-39).
+    chunk_ranges: list = []
+    if records:
+        for r in records:
+            ps, pe = r.get("page_start"), r.get("page_end")
+            chunk_ranges.append((ps, pe) if ps is not None and pe is not None else None)
+    else:
+        chunk_ranges = [None] * len(extracted_list)
+    for e, rng in zip(extracted_list, chunk_ranges):
         for field in ("tables", "narrative_responses", "stakeholders", "addresses"):
-            _normalize_page_numbers_inplace(e.get(field) or [])
+            _normalize_page_numbers_inplace(e.get(field) or [], rng)
 
     if len(extracted_list) == 1:
         # Single chunk: no cross-chunk stitch needed, but still apply
