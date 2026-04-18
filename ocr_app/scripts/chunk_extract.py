@@ -92,7 +92,6 @@ def build_chunk_messages(
     prompt: str,
     encode_image_b64: Callable,
     filename: Optional[str] = None,
-    page_range_label: Optional[str] = None,
     links_per_page: Optional[list[list[dict]]] = None,
     is_first_chunk: bool = True,
     is_last_chunk: bool = True,
@@ -113,7 +112,6 @@ def build_chunk_messages(
         encode_image_b64: callable that encodes a PIL image as a base64
             data URI (reuses the notebook's ``_encode_image_b64``).
         filename: source filename, surfaced to the model for context.
-        page_range_label: human-readable label like "Pages 3-12 of 40".
         links_per_page: optional per-page hyperlinks extracted from the PDF.
         is_first_chunk / is_last_chunk: drive continuation-flag guidance.
         pinned_images: extra images shown before the chunk's own pages,
@@ -134,8 +132,6 @@ def build_chunk_messages(
     header_parts: list[str] = []
     if filename:
         header_parts.append(f"Source filename: {filename}")
-    if page_range_label:
-        header_parts.append(f"Chunk page range: {page_range_label}")
 
     boundary_note = _continuation_hint(is_first_chunk, is_last_chunk)
     if boundary_note:
@@ -277,7 +273,6 @@ def assemble_document_from_merged(
         pascal_tables.append({
             "PageRange": t.get("_source_page_range", "UNKNOWN"),
             "PageNumber": t.get("page_number"),
-            "VisualPageNumber": t.get("visual_page_number"),
             "PrecedingSectionHeader": t.get("preceding_section_header", ""),
             "TableClassification": t.get("table_classification", "Standard_Table"),
             "TableData": t.get("table_data", []),
@@ -339,7 +334,7 @@ def assemble_document_from_merged(
 
     sig = merged.get("signature_lines") or {}
     sig_info = {
-        "PageRange": _first_chunk_range_with_signature(chunk_results),
+        "PageRange": _first_chunk_pages_with_signature(chunk_results),
         "HasSignatureLine": bool(sig.get("has_signature_line")),
         "HasValidSignature": bool(sig.get("has_valid_signature")),
     }
@@ -377,7 +372,7 @@ def assemble_document_from_merged(
     per_chunk_summaries = []
     for c in chunk_results:
         per_chunk_summaries.append({
-            "PageRange": c.get("page_range_label", ""),
+            "PageRange": _chunk_page_range_str(c),
             "Summary": ((c.get("extracted") or {}).get("one_sentence_summary") or "N/A"),
         })
 
@@ -406,12 +401,25 @@ def assemble_document_from_merged(
     }
 
 
-def _first_chunk_range_with_signature(chunk_results: list[dict]) -> Optional[str]:
-    """Return the page range label of the first chunk that saw a signature."""
+def _chunk_page_range_str(c: dict) -> str:
+    """Build a human-readable page range string from a chunk record.
+
+    Uses page_start/page_end which are 0-indexed half-open PDF page bounds
+    stored per chunk in the batch loop.
+    """
+    start = c.get("page_start")
+    end = c.get("page_end")
+    if start is None or end is None:
+        return ""
+    return f"Pages {start + 1}-{end}"
+
+
+def _first_chunk_pages_with_signature(chunk_results: list[dict]) -> Optional[str]:
+    """Return the page range of the first chunk that saw a signature."""
     for c in chunk_results:
         sig = ((c.get("extracted") or {}).get("signature_lines") or {})
         if sig.get("has_signature_line"):
-            return c.get("page_range_label")
+            return _chunk_page_range_str(c) or None
     return None
 
 
