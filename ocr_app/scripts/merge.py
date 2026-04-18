@@ -131,14 +131,42 @@ def _address_fingerprint(a: dict) -> str:
     return f"addr:{postal}|{line1}|{city}"
 
 
+_SECTION_HEADER_NOISE = re.compile(
+    r"^\**\s*(?:rev|new|updated|revised)\s*\**[\s:\-\u2013\u2014]*",
+    re.IGNORECASE,
+)
+
+
+def _normalize_section_header(h) -> str:
+    """Header text normalized for same-table collapse comparisons.
+
+    Strips VLM-captured revision markers like ``**REV**`` / ``**NEW**``
+    from the front — the VLM includes the marker in some chunks and
+    drops it in others, causing two copies of the same table to look
+    like distinct sections during dedup.
+    """
+    s = _norm(h)
+    prev = None
+    while s and s != prev:
+        prev = s
+        s = _SECTION_HEADER_NOISE.sub("", s).strip()
+    return s
+
+
 def _table_fingerprint(t: dict) -> str:
-    """classification + page (fallback to section) + header_sig + first_row."""
-    cls = _norm(t.get("table_classification"))
+    """page (fallback to section) + header_sig + first_row.
+
+    ``table_classification`` is intentionally excluded: the VLM sometimes
+    emits the same table as ``Standard_Table`` in one chunk and
+    ``Key_Value_Form`` in the next. Omitting classification here lets
+    first-pass dedup collapse those pairs instead of deferring entirely
+    to ``_collapse_same_page_duplicates``.
+    """
     page = _norm(t.get("visual_page_number"))
-    disambig = page if page else _norm(t.get("preceding_section_header"))
+    disambig = page if page else _normalize_section_header(t.get("preceding_section_header"))
     header_sig = _norm(_table_header_signature(t))
     first_row = _norm(_table_first_row_text(t))
-    return _hash(f"tbl:{cls}|{disambig}|{header_sig}|{first_row}")
+    return _hash(f"tbl:{disambig}|{header_sig}|{first_row}")
 
 
 def _table_header_signature(t: dict) -> str:
@@ -452,12 +480,23 @@ _PAGE_NUMBER_FOOTER_PATTERNS = [
     re.compile(r"^(\d+)\s*\|\s*page\b", re.IGNORECASE),
     # "Page 12", "Page 12 of 142"
     re.compile(r"^page\s+(\d+)", re.IGNORECASE),
-    # "12 | 142", "12/142" (current/total) — take first
-    re.compile(r"^(\d+)\s*[|/]\s*\d+$"),
+    # "12/142", "12 | 142", "12 of 142", "12 — 142" (en/em-dash), and
+    # "12\u201c142" (smart-quote slipped in because the extraction prompt
+    # tells the VLM to use U+201C/U+201D inside string values and it
+    # misapplied that rule to a page-number footer).
+    re.compile(
+        r"^(\d+)\s*(?:[|/,\-\u2013\u2014\u2018\u2019\u201c\u201d]|of)\s*\d+$",
+        re.IGNORECASE,
+    ),
+    # Catch-all: leading digits, a run of non-word chars, trailing
+    # digits, end. Covers exotic footer decoration we haven't named
+    # explicitly. Won't match appendix-style "A-5" since those don't
+    # start with a digit.
+    re.compile(r"^(\d+)[^\w]+\d+$"),
 ]
 
 
-def normalize_visual_page_number(raw):
+def normalize_visual_page_number(raw, chunk_page_range=None):
     """Strip common footer artifacts from a printed-page-number string.
 
     The VLM sometimes captures footer decoration verbatim (``"50 | Page"``
@@ -465,21 +504,44 @@ def normalize_visual_page_number(raw):
     prompt asks for the value to be verbatim. That breaks cross-chunk
     dedupe and page-sort ordering, so we normalize anything that matches
     a known footer pattern to just the page identifier.
+
+    Sub-form collision guard: when ``chunk_page_range=(page_start,
+    page_end)`` is supplied (0-based inclusive start, exclusive end — the
+    shape used by ``chunk_page_ranges``) AND the normalized value is a
+    plain int falling outside the 1-based printed range ``[page_start+1,
+    page_end]``, the function returns ``None``. This catches the common
+    failure where the VLM reads a sub-form's "Page X of N" footer (or a
+    bare "X") from an attached document inside a larger award packet and
+    emits it as the outer doc's ``visual_page_number``; without this
+    guard, those sub-form pages collide with the enclosing doc's real
+    pages during dedup and sort out-of-order. Non-numeric identifiers
+    (roman numerals, "A-5", etc.) bypass the range check.
     """
     if raw is None or raw == "":
         return raw
     s = str(raw).strip()
+    normalized = s
     for pat in _PAGE_NUMBER_FOOTER_PATTERNS:
         m = pat.match(s)
         if m:
-            return m.group(1)
-    return s
+            normalized = m.group(1)
+            break
+    if chunk_page_range is not None:
+        start, end = chunk_page_range
+        if start is not None and end is not None:
+            try:
+                n = int(normalized)
+            except (TypeError, ValueError):
+                return normalized
+            if n < start + 1 or n > end:
+                return None
+    return normalized
 
 
-def _normalize_page_numbers_inplace(items: list[dict]) -> None:
+def _normalize_page_numbers_inplace(items: list[dict], chunk_page_range=None) -> None:
     for it in items or []:
         page = it.get("visual_page_number")
-        normed = normalize_visual_page_number(page)
+        normed = normalize_visual_page_number(page, chunk_page_range)
         if normed != page:
             it["visual_page_number"] = normed
 
@@ -581,12 +643,16 @@ def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
     """Drop adjacent same-page tables whose content is substantially covered
     by a neighbor. Runs after sort; keeps the larger/non-fragment entry.
 
-    Only collapses when the smaller table's tokens are ≥80% covered by the
-    larger one's — conservative enough that legitimately-different tables
-    on the same page (common in multi-criterion scoring rubrics) survive.
-    Also requires matching ``preceding_section_header`` (or one empty) so
-    distinct tables that happen to share row data — e.g. Year-1 vs Year-2
-    budgets with identical line-item shapes — are not collapsed.
+    Two-tier rule:
+      1. Headers agree (after ``_normalize_section_header``, or one is
+         empty) AND ≥80% token coverage of the smaller → collapse.
+      2. Headers disagree but ≥95% coverage AND both tables have ≥10
+         distinct tokens → collapse. Covers the common case where the
+         VLM picks different ``preceding_section_header`` text across
+         overlapping chunks for the same table (e.g. ``"APPENDIX A"``
+         vs ``"COMPREHENSIVE MANAGEMENT PLANNING"``). The 10-token
+         floor protects legitimately-different same-shape tables like
+         Year-1 vs Year-2 budgets from collapsing.
     """
     if not tables:
         return tables
@@ -594,23 +660,27 @@ def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
     kept_tokens: list[set[str]] = []
     for t in tables:
         page = t.get("visual_page_number")
-        header = _norm(t.get("preceding_section_header"))
+        header = _normalize_section_header(t.get("preceding_section_header"))
         tokens = _table_content_tokens(t)
         absorbed = False
         # Walk backwards through same-page neighbors only.
         for i in range(len(kept) - 1, -1, -1):
             if kept[i].get("visual_page_number") != page:
                 break
-            other_header = _norm(kept[i].get("preceding_section_header"))
-            # Different non-empty section headers → different tables.
-            if header and other_header and header != other_header:
-                continue
+            other_header = _normalize_section_header(kept[i].get("preceding_section_header"))
             other_tokens = kept_tokens[i]
             if not tokens or not other_tokens:
                 continue
             overlap = len(tokens & other_tokens)
             small = min(len(tokens), len(other_tokens))
-            if small == 0 or overlap / small < 0.8:
+            if small == 0:
+                continue
+            coverage = overlap / small
+            header_match = not header or not other_header or header == other_header
+            if not (
+                (header_match and coverage >= 0.8)
+                or (coverage >= 0.95 and small >= 10)
+            ):
                 continue
             winner = _pick_more_complete(kept[i], t, _table_size)
             if winner is t:
@@ -622,6 +692,76 @@ def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
             kept.append(t)
             kept_tokens.append(tokens)
     return kept
+
+
+def _dedupe_table_rows(table: dict) -> dict:
+    """Drop fully-duplicate rows within a single table's ``table_data``.
+
+    Applies to ``Standard_Table`` (list of dicts) and ``Literal_Grid``
+    (list of lists). ``Key_Value_Form`` is a single dict, so row
+    duplication is impossible. Row order is preserved; first occurrence
+    of each row wins. Catches VLM runaway where a long table (e.g. a
+    priority-waterbody ranking list spanning multiple pages) repeats
+    rows after the model loses its place.
+    """
+    data = table.get("table_data")
+    if not isinstance(data, list) or not data:
+        return table
+    seen: set = set()
+    deduped: list = []
+    for row in data:
+        if isinstance(row, dict):
+            key = tuple(sorted((str(k), str(v)) for k, v in row.items()))
+        elif isinstance(row, list):
+            key = ("_list",) + tuple(str(c) for c in row)
+        else:
+            key = ("_raw", str(row))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row)
+    if len(deduped) == len(data):
+        return table
+    out = dict(table)
+    out["table_data"] = deduped
+    return out
+
+
+def _collapse_narrative_same_page_substrings(narratives: list[dict]) -> list[dict]:
+    """Drop same-page narratives whose ``verbatim_text`` is contained in
+    another entry's text.
+
+    Overlapping chunks often produce two near-identical entries for the
+    same section: one prepends the section heading, the other picks up
+    the tail of the previous paragraph, etc. ``_narrative_fingerprint``
+    hashes the first 120 chars, so those leading-text variants survive
+    as "distinct". A substring containment pass after dedup collapses
+    the pair, keeping the longer text.
+    """
+    if not narratives:
+        return narratives
+    by_page: dict[str, list[int]] = {}
+    for i, n in enumerate(narratives):
+        by_page.setdefault(_norm(n.get("visual_page_number")), []).append(i)
+    drop: set[int] = set()
+    for indices in by_page.values():
+        if len(indices) < 2:
+            continue
+        items = [(i, _norm(narratives[i].get("verbatim_text", ""))) for i in indices]
+        # Sort by length desc so shorter candidates are checked against
+        # longer ones first.
+        items.sort(key=lambda p: -len(p[1]))
+        for j, (a_i, a_t) in enumerate(items):
+            if a_i in drop or not a_t:
+                continue
+            for b_i, b_t in items[j + 1:]:
+                if b_i in drop or not b_t:
+                    continue
+                if len(a_t) >= len(b_t) and b_t in a_t:
+                    drop.add(b_i)
+    if not drop:
+        return narratives
+    return [n for i, n in enumerate(narratives) if i not in drop]
 
 
 def _is_empty_table(t: dict) -> bool:
@@ -673,6 +813,48 @@ def _lint_merged(merged: dict) -> list[str]:
         notes.append(
             f"stakeholders: {len(unkeyed)} entries with no identifiable key "
             f"(no email, phone, name, position_title) — passed through unmerged"
+        )
+
+    # Page values with non-ASCII characters that survived normalization —
+    # usually smart-quote separators or other footer decoration the
+    # normalizer patterns don't catch yet.
+    for field in ("tables", "narrative_responses", "stakeholders", "addresses"):
+        for i, item in enumerate(merged.get(field) or []):
+            page = item.get("visual_page_number")
+            if page is None:
+                continue
+            s = str(page)
+            if any(ord(c) > 127 for c in s):
+                notes.append(
+                    f"{field}[{i}]: visual_page_number {s!r} contains "
+                    f"non-ASCII characters — normalizer may need another "
+                    f"footer pattern"
+                )
+
+    # Standard_Table entries with inconsistent key sets across rows.
+    # The VLM sometimes misreads a column-span header as an extra row,
+    # producing one row with a different schema than the rest.
+    for i, t in enumerate(merged.get("tables") or []):
+        if t.get("table_classification") != "Standard_Table":
+            continue
+        data = t.get("table_data")
+        if not isinstance(data, list) or len(data) < 2:
+            continue
+        key_sets = [frozenset(r.keys()) for r in data if isinstance(r, dict)]
+        if len(key_sets) < 2:
+            continue
+        counts: dict = {}
+        for ks in key_sets:
+            counts[ks] = counts.get(ks, 0) + 1
+        if len(counts) == 1:
+            continue
+        most_common = max(counts, key=counts.get)
+        odd = sum(c for ks, c in counts.items() if ks != most_common)
+        page = t.get("visual_page_number") or "?"
+        notes.append(
+            f"tables[{i}] on page {page}: Standard_Table has "
+            f"{odd}/{len(key_sets)} row(s) with inconsistent column keys "
+            f"(VLM may have misread a header cell)"
         )
 
     # Items that still carry continuation flags (shouldn't after strip).
@@ -746,9 +928,20 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
     # Normalize VLM footer-text drift ("50 | Page" → "50") before anything
     # downstream sees the values. Both dedupe and page-sort rely on stable
     # page identifiers; the VLM sometimes captures the decoration verbatim.
-    for e in extracted_list:
+    # When full chunk records are available, each chunk's (page_start,
+    # page_end) range is passed through so the normalizer can also null
+    # out sub-form misreads (e.g., a bare "3" emitted for an attached
+    # form when the chunk actually covers PDF pages 31-39).
+    chunk_ranges: list = []
+    if records:
+        for r in records:
+            ps, pe = r.get("page_start"), r.get("page_end")
+            chunk_ranges.append((ps, pe) if ps is not None and pe is not None else None)
+    else:
+        chunk_ranges = [None] * len(extracted_list)
+    for e, rng in zip(extracted_list, chunk_ranges):
         for field in ("tables", "narrative_responses", "stakeholders", "addresses"):
-            _normalize_page_numbers_inplace(e.get(field) or [])
+            _normalize_page_numbers_inplace(e.get(field) or [], rng)
 
     if len(extracted_list) == 1:
         # Single chunk: no cross-chunk stitch needed, but still apply
@@ -780,14 +973,17 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
             ),
             key=_page_sort_key,
         )
-        merged["tables"] = _collapse_same_page_duplicates(sorted(
-            (t for t in (merged.get("tables") or []) if not _is_empty_table(t)),
-            key=_page_sort_key,
-        ))
-        merged["narrative_responses"] = sorted(
+        merged["tables"] = [
+            _dedupe_table_rows(t)
+            for t in _collapse_same_page_duplicates(sorted(
+                (t for t in (merged.get("tables") or []) if not _is_empty_table(t)),
+                key=_page_sort_key,
+            ))
+        ]
+        merged["narrative_responses"] = _collapse_narrative_same_page_substrings(sorted(
             merged.get("narrative_responses") or [],
             key=_page_sort_key,
-        )
+        ))
         merged["chunks"] = _build_chunks_sidecar(records)
         merged["potential_issues"] = _lint_merged(merged)
         return merged
@@ -840,14 +1036,19 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
     # Drop empty-table entries (VLM sometimes tags a section heading as a
     # Standard_Table with no rows — pure noise). Done after dedupe so any
     # chunk that actually captured rows wins via _pick_more_complete.
-    merged["tables"] = _collapse_same_page_duplicates(sorted(
-        (t for t in (merged.get("tables") or []) if not _is_empty_table(t)),
-        key=_page_sort_key,
-    ))
-    merged["narrative_responses"] = sorted(
+    # Dedupe rows within each surviving table to clean up runaway-loop
+    # repetition the VLM sometimes emits in long tabular sections.
+    merged["tables"] = [
+        _dedupe_table_rows(t)
+        for t in _collapse_same_page_duplicates(sorted(
+            (t for t in (merged.get("tables") or []) if not _is_empty_table(t)),
+            key=_page_sort_key,
+        ))
+    ]
+    merged["narrative_responses"] = _collapse_narrative_same_page_substrings(sorted(
         merged.get("narrative_responses") or [],
         key=_page_sort_key,
-    )
+    ))
     merged["potential_issues"] = _lint_merged(merged)
     return merged
 
