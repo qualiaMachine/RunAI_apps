@@ -124,10 +124,10 @@ def build_chunk_messages(
             from a partial view.
         first_pdf_page: 1-indexed PDF page number of the FIRST image in
             ``images``. Used to label each image with its absolute PDF
-            page so the model can populate ``page_number`` on tables
-            accurately (``images[i]`` is labelled as PDF page
-            ``first_pdf_page + i``). Default 1 (single-shot extraction
-            starting at page 1).
+            page so the model can populate ``page_number`` on
+            narratives/stakeholders/addresses accurately (``images[i]``
+            is labelled as PDF page ``first_pdf_page + i``). Default 1
+            (single-shot extraction starting at page 1).
     """
     header_parts: list[str] = []
     if filename:
@@ -272,7 +272,7 @@ def assemble_document_from_merged(
     for t in merged.get("tables", []) or []:
         pascal_tables.append({
             "PageRange": t.get("_source_page_range", "UNKNOWN"),
-            "PageNumber": t.get("page_number"),
+            "VisualPageNumber": t.get("visual_page_number"),
             "PrecedingSectionHeader": t.get("preceding_section_header", ""),
             "TableClassification": t.get("table_classification", "Standard_Table"),
             "TableData": t.get("table_data", []),
