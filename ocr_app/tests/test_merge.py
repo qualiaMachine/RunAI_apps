@@ -83,7 +83,8 @@ def _narr(header="General Body Text", section="", text="",
     }
 
 
-def _stake(email="", first="", last="", full="", inst="", role="Unknown"):
+def _stake(email="", first="", last="", full="", inst="", role="Unknown",
+           position="", dept="", phone=""):
     return {
         "context_snippet": "",
         "stakeholder_role": role,
@@ -91,10 +92,10 @@ def _stake(email="", first="", last="", full="", inst="", role="Unknown"):
         "first_name": first,
         "last_name": last,
         "email": email,
-        "phone": "",
+        "phone": phone,
         "institution": inst,
-        "department": "",
-        "position_title": "",
+        "department": dept,
+        "position_title": position,
         "highest_education": "",
         "raw_stakeholder_text": "",
     }
@@ -315,6 +316,88 @@ def test_visual_page_number_survives_dedupe_and_stitch():
         f"expected start visual page 10, got {out['tables'][0]['visual_page_number']}"
 
 
+def test_stakeholder_role_dedupe_unnamed():
+    # Real-world failure mode: a grant guide mentions "local environmental
+    # grant specialist" dozens of times. Each chunk emits a stakeholder
+    # with no name/email — just a position_title. These should collapse
+    # by role+institution+department rather than stacking up.
+    s1 = _stake(position="local environmental grant specialist",
+                inst="Wisconsin Department of Natural Resources",
+                dept="Bureau of Community Financial Assistance")
+    s2 = _stake(position="local environmental grant specialist",
+                inst="Wisconsin Department of Natural Resources",
+                dept="Bureau of Community Financial Assistance")
+    s3 = _stake(position="local environmental grant specialist",
+                inst="",
+                dept="")
+    # A different role at the same institution should stay separate
+    s4 = _stake(position="local lake, stream or AIS biologist",
+                inst="Wisconsin Department of Natural Resources")
+    c1 = _chunk(stakeholders=[s1, s4])
+    c2 = _chunk(stakeholders=[s2])
+    c3 = _chunk(stakeholders=[s3])
+    out = merge_chunks([c1, c2, c3])
+    # s1+s2 merge; s3 is distinct (empty inst/dept); s4 distinct
+    assert len(out["stakeholders"]) == 3, (
+        f"expected 3 unique roles, got {len(out['stakeholders'])}"
+    )
+
+
+def test_table_dedupe_tolerates_section_header_variance():
+    # Real-world failure: the same table appears in two overlapping chunks
+    # but the VLM assigns different preceding_section_header values to
+    # each copy (e.g. "Funding" vs "Section 1, Table 1. Surface water…").
+    # Same visual_page_number + same rows should still dedupe.
+    full_rows = [{"Grant": "Surface Water Education", "Cap": "$5,000"},
+                 {"Grant": "Lake Planning", "Cap": "$10,000"}]
+    c1 = _chunk(tables=[_table(
+        rows=full_rows, header="Funding", visual_page_number="6",
+    )])
+    c2 = _chunk(tables=[_table(
+        rows=full_rows,
+        header="Section 1, Table 1. Surface water grants and project types",
+        visual_page_number="6",
+    )])
+    out = merge_chunks([c1, c2])
+    assert len(out["tables"]) == 1, (
+        f"expected 1 deduped table, got {len(out['tables'])}"
+    )
+
+
+def test_narrative_dedupe_tolerates_section_header_variance():
+    # Same narrative appears in two overlapping chunks, tagged with
+    # different preceding_section_header each time. Should still dedupe.
+    body = ("Most grants are required by state statute to be cost-shared, "
+            "that is, grantees must contribute a percentage of the project’s "
+            "total costs.")
+    n1 = _narr(header="General Body Text", section="Funding",
+               text=body)
+    n2 = _narr(header="General Body Text", section="Public access",
+               text=body)
+    n1["visual_page_number"] = "7"
+    n2["visual_page_number"] = "7"
+    out = merge_chunks([
+        _chunk(narrative_responses=[n1]),
+        _chunk(narrative_responses=[n2]),
+    ])
+    assert len(out["narrative_responses"]) == 1, (
+        f"expected 1 deduped narrative, got {len(out['narrative_responses'])}"
+    )
+
+
+def test_same_page_distinct_narratives_not_merged():
+    # Guard against over-eager dedupe: two different narratives on the
+    # same printed page must stay separate.
+    n1 = _narr(header="General Body Text", section="Funding",
+               text="Most grants are required by state statute")
+    n2 = _narr(header="General Body Text", section="Public access",
+               text="To ensure your application will be deemed eligible")
+    n1["visual_page_number"] = "7"
+    n2["visual_page_number"] = "7"
+    out = merge_chunks([_chunk(narrative_responses=[n1, n2])])
+    assert len(out["narrative_responses"]) == 2
+
+
 def test_fragment_not_preferred_over_complete():
     # Even if the fragment has more rows by accident, full copy wins
     c1 = _chunk(tables=[_table(
@@ -351,6 +434,10 @@ TESTS = [
     test_doc_details_null_coalesce,
     test_merge_chunks_json_handles_parse_errors,
     test_visual_page_number_survives_dedupe_and_stitch,
+    test_stakeholder_role_dedupe_unnamed,
+    test_table_dedupe_tolerates_section_header_variance,
+    test_narrative_dedupe_tolerates_section_header_variance,
+    test_same_page_distinct_narratives_not_merged,
     test_fragment_not_preferred_over_complete,
 ]
 

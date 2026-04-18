@@ -56,22 +56,34 @@ def _hash(s: str, n: int = 12) -> str:
 def _stakeholder_fingerprint(s: dict) -> str:
     """Identity key for a stakeholder.
 
-    Email is the strongest signal when present. Falls back to
-    (last_name, first_name, institution) when not. An empty fingerprint
-    means we couldn't key this entry reliably — callers should keep it
-    rather than collapse it against other low-confidence entries.
+    Tiered: email > phone > personal name > role+org. The role+org tier
+    catches unnamed recurring references like "local environmental grant
+    specialist" that appear dozens of times across a long document — each
+    occurrence is the same role, not a separate person. An empty
+    fingerprint means we really couldn't key the entry and it passes
+    through unmerged.
     """
     email = _norm(s.get("email"))
     if email:
         return f"email:{email}"
+    phone = _norm(s.get("phone"))
+    if phone:
+        return f"phone:{phone}"
     first = _norm(s.get("first_name"))
     last = _norm(s.get("last_name"))
     full = _norm(s.get("full_name"))
     inst = _norm(s.get("institution"))
+    dept = _norm(s.get("department"))
+    position = _norm(s.get("position_title"))
+    role = _norm(s.get("stakeholder_role"))
     if last and first:
         return f"name:{last}|{first}|{inst}"
     if full:
         return f"name:{full}|{inst}"
+    if position:
+        return f"role:{position}|{inst}|{dept}"
+    if role and role != "unknown" and inst:
+        return f"orgrole:{role}|{inst}|{dept}"
     return ""
 
 
@@ -88,15 +100,21 @@ def _address_fingerprint(a: dict) -> str:
 def _table_fingerprint(t: dict) -> str:
     """Match key for tables.
 
-    Composed of: classification + preceding_section_header + header_signature
-    + first_row_hash. The preceding header disambiguates same-shape tables
-    in different sections (e.g. Year 1 vs Year 2 budgets).
+    Disambiguation is: classification + page + header_signature + first_row.
+    We prefer the printed ``visual_page_number`` for disambiguation over
+    ``preceding_section_header``: the VLM regularly assigns different
+    section headers to the same table across overlapping chunks (e.g.
+    "Funding" vs "Section 1, Table 1…"), which broke dedupe. The printed
+    page number is stable across chunks. When the printed page is missing,
+    we fall back to the section header so same-shape tables in different
+    sections (Year 1 vs Year 2 budgets) still stay separate.
     """
     cls = _norm(t.get("table_classification"))
-    section = _norm(t.get("preceding_section_header"))
+    page = _norm(t.get("visual_page_number"))
+    disambig = page if page else _norm(t.get("preceding_section_header"))
     header_sig = _norm(_table_header_signature(t))
     first_row = _norm(_table_first_row_text(t))
-    return _hash(f"tbl:{cls}|{section}|{header_sig}|{first_row}")
+    return _hash(f"tbl:{cls}|{disambig}|{header_sig}|{first_row}")
 
 
 def _table_header_signature(t: dict) -> str:
@@ -132,11 +150,19 @@ def _table_first_row_text(t: dict) -> str:
 
 
 def _narrative_fingerprint(n: dict) -> str:
-    """Match key for a narrative response."""
-    section = _norm(n.get("preceding_section_header"))
+    """Match key for a narrative response.
+
+    Same rationale as ``_table_fingerprint``: prefer the printed page for
+    cross-chunk disambiguation since the VLM can label the same narrative
+    with different ``preceding_section_header`` values in overlapping
+    chunks. ``verbatim_text`` head chars + ``prompt_or_header`` keep
+    truly distinct narratives on the same page apart.
+    """
+    page = _norm(n.get("visual_page_number"))
+    disambig = page if page else _norm(n.get("preceding_section_header"))
     header = _norm(n.get("prompt_or_header"))
     head_chars = _norm(n.get("verbatim_text", ""))[:120]
-    return _hash(f"narr:{section}|{header}|{head_chars}")
+    return _hash(f"narr:{disambig}|{header}|{head_chars}")
 
 
 # ---------------------------------------------------------------------------
