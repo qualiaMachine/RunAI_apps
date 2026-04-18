@@ -468,22 +468,22 @@ def test_empty_tables_are_dropped_in_postprocess():
     assert len(out["tables"]) == 1
     assert out["tables"][0]["preceding_section_header"] == "Real Table"
     # No lint note for the dropped empty table
-    assert not any("empty table_data" in n for n in out["boundary_notes"])
+    assert not any("empty table_data" in n for n in out["potential_issues"])
 
 
-def test_boundary_notes_lint_flags_empty_narratives():
+def test_potential_issues_lint_flags_empty_narratives():
     c = _chunk(narrative_responses=[_narr(header="Aims", text="")])
     out = merge_chunks([c])
-    assert any("empty verbatim_text" in n for n in out["boundary_notes"])
+    assert any("empty verbatim_text" in n for n in out["potential_issues"])
 
 
-def test_boundary_notes_lint_clean_when_nothing_wrong():
+def test_potential_issues_lint_clean_when_nothing_wrong():
     c = _chunk(
         tables=[_table(rows=[{"a": 1}], header="Budget")],
         narrative_responses=[_narr(header="Aims", text="Real content.")],
     )
     out = merge_chunks([c])
-    assert out["boundary_notes"] == []
+    assert out["potential_issues"] == []
 
 
 def test_stakeholders_sorted_by_visual_page_number():
@@ -618,9 +618,9 @@ TESTS = [
     test_same_page_distinct_narratives_not_merged,
     test_chunks_sidecar_from_full_records,
     test_raw_dict_input_yields_empty_sidecar,
-    test_boundary_notes_lint_flags_empty_narratives,
+    test_potential_issues_lint_flags_empty_narratives,
     test_empty_tables_are_dropped_in_postprocess,
-    test_boundary_notes_lint_clean_when_nothing_wrong,
+    test_potential_issues_lint_clean_when_nothing_wrong,
     test_stakeholders_sorted_by_visual_page_number,
     test_empty_stakeholders_filtered_out,
     test_normalize_visual_page_number,
