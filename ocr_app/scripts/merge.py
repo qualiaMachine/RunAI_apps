@@ -550,6 +550,72 @@ def _build_chunks_sidecar(records: list[dict]) -> list[dict]:
     return out
 
 
+def _table_content_tokens(t: dict) -> set[str]:
+    """Bag of normalized cell tokens — classification-agnostic.
+
+    Used for a secondary dedup pass that catches same-page duplicates the
+    fingerprint misses when the VLM emits the same table under different
+    classifications (e.g. Key_Value_Form in one chunk, Standard_Table in
+    the next).
+    """
+    tokens: set[str] = set()
+    data = t.get("table_data")
+    if isinstance(data, list):
+        for row in data:
+            if isinstance(row, dict):
+                for k, v in row.items():
+                    tokens.add(_norm(k))
+                    tokens.add(_norm(v))
+            elif isinstance(row, list):
+                for c in row:
+                    tokens.add(_norm(c))
+    elif isinstance(data, dict):
+        for k, v in data.items():
+            tokens.add(_norm(k))
+            tokens.add(_norm(v))
+    tokens.discard("")
+    return tokens
+
+
+def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
+    """Drop adjacent same-page tables whose content is substantially covered
+    by a neighbor. Runs after sort; keeps the larger/non-fragment entry.
+
+    Only collapses when the smaller table's tokens are ≥80% covered by the
+    larger one's — conservative enough that legitimately-different tables
+    on the same page (common in multi-criterion scoring rubrics) survive.
+    """
+    if not tables:
+        return tables
+    kept: list[dict] = []
+    kept_tokens: list[set[str]] = []
+    for t in tables:
+        page = t.get("visual_page_number")
+        tokens = _table_content_tokens(t)
+        absorbed = False
+        # Walk backwards through same-page neighbors only.
+        for i in range(len(kept) - 1, -1, -1):
+            if kept[i].get("visual_page_number") != page:
+                break
+            other_tokens = kept_tokens[i]
+            if not tokens or not other_tokens:
+                continue
+            overlap = len(tokens & other_tokens)
+            small = min(len(tokens), len(other_tokens))
+            if small == 0 or overlap / small < 0.8:
+                continue
+            winner = _pick_more_complete(kept[i], t, _table_size)
+            if winner is t:
+                kept[i] = t
+                kept_tokens[i] = tokens
+            absorbed = True
+            break
+        if not absorbed:
+            kept.append(t)
+            kept_tokens.append(tokens)
+    return kept
+
+
 def _is_empty_table(t: dict) -> bool:
     """A Standard_Table / Key_Value_Form / Literal_Grid with no rows/cells.
 
@@ -752,7 +818,14 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
     # Drop empty-table entries (VLM sometimes tags a section heading as a
     # Standard_Table with no rows — pure noise). Done after dedupe so any
     # chunk that actually captured rows wins via _pick_more_complete.
-    merged["tables"] = [t for t in (merged.get("tables") or []) if not _is_empty_table(t)]
+    merged["tables"] = _collapse_same_page_duplicates(sorted(
+        (t for t in (merged.get("tables") or []) if not _is_empty_table(t)),
+        key=_page_sort_key,
+    ))
+    merged["narrative_responses"] = sorted(
+        merged.get("narrative_responses") or [],
+        key=_page_sort_key,
+    )
     merged["boundary_notes"] = _lint_merged(merged)
     return merged
 
