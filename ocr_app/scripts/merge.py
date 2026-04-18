@@ -584,6 +584,9 @@ def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
     Only collapses when the smaller table's tokens are ≥80% covered by the
     larger one's — conservative enough that legitimately-different tables
     on the same page (common in multi-criterion scoring rubrics) survive.
+    Also requires matching ``preceding_section_header`` (or one empty) so
+    distinct tables that happen to share row data — e.g. Year-1 vs Year-2
+    budgets with identical line-item shapes — are not collapsed.
     """
     if not tables:
         return tables
@@ -591,12 +594,17 @@ def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
     kept_tokens: list[set[str]] = []
     for t in tables:
         page = t.get("visual_page_number")
+        header = _norm(t.get("preceding_section_header"))
         tokens = _table_content_tokens(t)
         absorbed = False
         # Walk backwards through same-page neighbors only.
         for i in range(len(kept) - 1, -1, -1):
             if kept[i].get("visual_page_number") != page:
                 break
+            other_header = _norm(kept[i].get("preceding_section_header"))
+            # Different non-empty section headers → different tables.
+            if header and other_header and header != other_header:
+                continue
             other_tokens = kept_tokens[i]
             if not tokens or not other_tokens:
                 continue
@@ -743,7 +751,10 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
             _normalize_page_numbers_inplace(e.get(field) or [])
 
     if len(extracted_list) == 1:
-        # Single chunk: pass content straight through, no dedupe/stitch work.
+        # Single chunk: no cross-chunk stitch needed, but still apply
+        # within-chunk dedup + page-sort so output shape matches the
+        # multi-chunk path (a single VLM call can still emit duplicate
+        # stakeholders or out-of-order tables).
         merged = dict(extracted_list[0])
         _strip_continuation_flags(merged)
         # Strip the per-chunk confidence_narrative from the doc-level view —
@@ -754,18 +765,29 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
         merged["experiment"] = _doc_level_experiment(records)
         if extraction_prompt:
             merged["experiment"]["extraction_prompt"] = extraction_prompt
-        # Drop empty-noise stakeholders even on the single-chunk path.
-        if merged.get("stakeholders"):
-            merged["stakeholders"] = sorted(
-                (s for s in merged["stakeholders"] if not _stakeholder_is_empty(s)),
-                key=_page_sort_key,
-            )
-        if merged.get("addresses"):
-            merged["addresses"] = sorted(merged["addresses"], key=_page_sort_key)
-        if merged.get("tables"):
-            merged["tables"] = [
-                t for t in merged["tables"] if not _is_empty_table(t)
-            ]
+        merged["stakeholders"] = sorted(
+            _merge_identity(
+                [merged.get("stakeholders") or []],
+                _stakeholder_fingerprint,
+                empty_fn=_stakeholder_is_empty,
+            ),
+            key=_page_sort_key,
+        )
+        merged["addresses"] = sorted(
+            _merge_identity(
+                [merged.get("addresses") or []],
+                _address_fingerprint,
+            ),
+            key=_page_sort_key,
+        )
+        merged["tables"] = _collapse_same_page_duplicates(sorted(
+            (t for t in (merged.get("tables") or []) if not _is_empty_table(t)),
+            key=_page_sort_key,
+        ))
+        merged["narrative_responses"] = sorted(
+            merged.get("narrative_responses") or [],
+            key=_page_sort_key,
+        )
         merged["chunks"] = _build_chunks_sidecar(records)
         merged["potential_issues"] = _lint_merged(merged)
         return merged
