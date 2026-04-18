@@ -124,10 +124,9 @@ def build_chunk_messages(
             from a partial view.
         first_pdf_page: 1-indexed PDF page number of the FIRST image in
             ``images``. Used to label each image with its absolute PDF
-            page so the model can populate ``page_number`` on
-            narratives/stakeholders/addresses accurately (``images[i]``
-            is labelled as PDF page ``first_pdf_page + i``). Default 1
-            (single-shot extraction starting at page 1).
+            page (``images[i]`` is labelled as PDF page
+            ``first_pdf_page + i``). Default 1 (single-shot extraction
+            starting at page 1).
     """
     header_parts: list[str] = []
     if filename:
@@ -258,7 +257,7 @@ def assemble_document_from_merged(
     file_meta = parse_filename_fn(filename)
 
     # --- Aggregate chunk-level metadata
-    chunk_times_ms = [c.get("elapsed_ms", 0) for c in chunk_results]
+    chunk_times_ms = [_chunk_elapsed_ms(c) for c in chunk_results]
     total_sec = round(sum(chunk_times_ms) / 1000, 1) if chunk_times_ms else 0.0
     total_pages = sum(c.get("page_end", 0) - c.get("page_start", 0) for c in chunk_results)
 
@@ -399,6 +398,13 @@ def assemble_document_from_merged(
         "ExtractionCoverage": extraction_coverage,
         "RunInfo": full_run_info,
     }
+
+
+def _chunk_elapsed_ms(c: dict) -> float:
+    """Read elapsed_ms from a chunk record, tolerating both old
+    (top-level) and new (nested under ``experiment``) shapes."""
+    exp = c.get("experiment") or {}
+    return exp.get("elapsed_ms", c.get("elapsed_ms", 0)) or 0
 
 
 def _chunk_page_range_str(c: dict) -> str:
