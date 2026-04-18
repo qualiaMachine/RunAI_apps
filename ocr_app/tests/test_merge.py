@@ -531,6 +531,21 @@ def test_normalize_visual_page_number():
     assert normalize_visual_page_number("") == ""
 
 
+def test_normalize_visual_page_number_smart_quote_and_exotic_separators():
+    # The VLM is instructed to use smart quotes inside string values and
+    # sometimes misapplies that to page-number footers — "1\u201c126"
+    # coming from a printed "1 of 126" footer. Also covers en-dash,
+    # em-dash, "of", and the general-purpose catch-all separator.
+    assert normalize_visual_page_number("1\u201c126") == "1"
+    assert normalize_visual_page_number("1\u201d126") == "1"
+    assert normalize_visual_page_number("12\u2013142") == "12"
+    assert normalize_visual_page_number("12\u2014142") == "12"
+    assert normalize_visual_page_number("12 of 142") == "12"
+    assert normalize_visual_page_number("12 -- 142") == "12"
+    # Catch-all: digits, non-word run, digits
+    assert normalize_visual_page_number("12...142") == "12"
+
+
 def test_normalize_visual_page_number_sub_form_guard():
     # Chunk covers PDF indices [24, 33) → printed pages 25..33.
     rng = (24, 33)
@@ -578,6 +593,99 @@ def test_merge_nulls_sub_form_pages_outside_chunk_range():
     assert pages.count(None) == 2
     # And we kept all four tables (no collision collapses)
     assert len(out["tables"]) == 4
+
+
+def test_cross_classification_dedup_same_page():
+    # The VLM emits the same ranking-sheet table as Standard_Table in one
+    # chunk and Key_Value_Form in the next. Same-page collapse should
+    # merge them even though classifications differ.
+    rows = [{"Applicant Name": "X", "Project Title": "Y", "PROJECT SCORE": "18"}]
+    std = _table(rows=rows, header="APPENDIX A: APPLICATION RANKING SHEETS",
+                 visual_page_number="80")
+    std["table_classification"] = "Standard_Table"
+    kv = _table(rows=rows, header="APPENDIX A: APPLICATION RANKING SHEETS",
+                visual_page_number="80")
+    kv["table_classification"] = "Key_Value_Form"
+    kv["table_data"] = {"Applicant Name": "X", "Project Title": "Y",
+                        "PROJECT SCORE": "18",
+                        "1. Project Impact (33%)": "enhance knowledge",
+                        "2. Project Design (22%)": "engaging in-person"}
+    out = merge_chunks([_chunk(tables=[std, kv])])
+    assert len(out["tables"]) == 1
+
+
+def test_same_page_dedup_survives_rev_marker_drift():
+    # Two chunks emit the same table but one header has "**REV**" prefix
+    # while the other doesn't. Header normalization should treat them
+    # as matching so ≥80% token overlap collapses them.
+    rows = [{"Category": "Education", "Cap": "$5,000", "Share": "67%"},
+            {"Category": "Planning", "Cap": "$10,000", "Share": "67%"},
+            {"Category": "Management", "Cap": "$50,000", "Share": "75%"}]
+    t1 = _table(rows=rows, header="**REV** APPENDIX A: RANKING SHEETS",
+                visual_page_number="6")
+    t2 = _table(rows=rows, header="APPENDIX A: RANKING SHEETS",
+                visual_page_number="6")
+    out = merge_chunks([_chunk(tables=[t1, t2])])
+    assert len(out["tables"]) == 1
+
+
+def test_table_row_dedup_within_single_table():
+    # Long table where the VLM repeated rows after losing its place.
+    rows = [
+        {"Rank": "1", "WBIC": "20", "Waterbody": "Lake Michigan"},
+        {"Rank": "11", "WBIC": "1179900", "Waterbody": "Wisconsin River"},
+        {"Rank": "1", "WBIC": "20", "Waterbody": "Lake Michigan"},  # dup
+        {"Rank": "32", "WBIC": "88", "Waterbody": "Sturgeon Bay"},
+        {"Rank": "11", "WBIC": "1179900", "Waterbody": "Wisconsin River"},  # dup
+    ]
+    out = merge_chunks([_chunk(tables=[
+        _table(rows=rows, header="Top 300 AIS Prevention", visual_page_number="128")
+    ])])
+    kept_rows = out["tables"][0]["table_data"]
+    assert len(kept_rows) == 3
+    # Order preserved: first occurrence wins.
+    assert [r["Rank"] for r in kept_rows] == ["1", "11", "32"]
+
+
+def test_narrative_substring_collapse_same_page():
+    # Two chunks capture the same section on page 18 — one prepends the
+    # heading, the other doesn't. Fingerprint hashes the first 120 chars
+    # so they survive primary dedup; substring collapse must drop the
+    # shorter one.
+    short = _narr(header="General Body Text", section="",
+                  text="Wetland Incentives amounting to up to $10,000 each.")
+    long_ = _narr(header="Wetland Incentives", section="SECTION 2",
+                  text=("Section heading prepended. Wetland Incentives "
+                        "amounting to up to $10,000 each."))
+    short["visual_page_number"] = "18"
+    long_["visual_page_number"] = "18"
+    out = merge_chunks([_chunk(narrative_responses=[short, long_])])
+    assert len(out["narrative_responses"]) == 1
+    # The longer (containing) text is the one kept.
+    assert "Section heading prepended" in out["narrative_responses"][0]["verbatim_text"]
+
+
+def test_lint_flags_non_ascii_page_value():
+    # If a non-ASCII char survives normalization, lint should call it out.
+    t = _table(rows=[{"a": 1}], header="H", visual_page_number="weird\u00a7page")
+    out = merge_chunks([_chunk(tables=[t])])
+    assert any(
+        "non-ASCII" in issue for issue in out["potential_issues"]
+    ), out["potential_issues"]
+
+
+def test_lint_flags_inconsistent_standard_table_keys():
+    # VLM misreads column header → one row has different keys than the rest.
+    rows = [
+        {"A": "1", "B": "2"},
+        {"A": "3", "B": "4"},
+        {"X": "garbage"},  # inconsistent
+    ]
+    t = _table(rows=rows, header="H", visual_page_number="67")
+    out = merge_chunks([_chunk(tables=[t])])
+    assert any(
+        "inconsistent column keys" in issue for issue in out["potential_issues"]
+    ), out["potential_issues"]
 
 
 def test_merge_normalizes_page_decoration_before_dedupe():
@@ -673,8 +781,15 @@ TESTS = [
     test_stakeholders_sorted_by_visual_page_number,
     test_empty_stakeholders_filtered_out,
     test_normalize_visual_page_number,
+    test_normalize_visual_page_number_smart_quote_and_exotic_separators,
     test_normalize_visual_page_number_sub_form_guard,
     test_merge_nulls_sub_form_pages_outside_chunk_range,
+    test_cross_classification_dedup_same_page,
+    test_same_page_dedup_survives_rev_marker_drift,
+    test_table_row_dedup_within_single_table,
+    test_narrative_substring_collapse_same_page,
+    test_lint_flags_non_ascii_page_value,
+    test_lint_flags_inconsistent_standard_table_keys,
     test_merge_normalizes_page_decoration_before_dedupe,
     test_extraction_prompt_recorded_in_experiment,
     test_single_chunk_full_record_passthrough,
