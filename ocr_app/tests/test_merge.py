@@ -29,7 +29,11 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent))
 
-from scripts.merge import merge_chunks, merge_chunks_json  # noqa: E402
+from scripts.merge import (  # noqa: E402
+    merge_chunks,
+    merge_chunks_json,
+    normalize_visual_page_number,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -504,6 +508,37 @@ def test_empty_stakeholders_filtered_out():
     assert out["stakeholders"][0]["last_name"] == "Smith"
 
 
+def test_normalize_visual_page_number():
+    # Footer decoration stripped to the page identifier
+    assert normalize_visual_page_number("50 | Page") == "50"
+    assert normalize_visual_page_number("50|Page") == "50"
+    assert normalize_visual_page_number("Page 12") == "12"
+    assert normalize_visual_page_number("Page 12 of 142") == "12"
+    assert normalize_visual_page_number("12 | 142") == "12"
+    assert normalize_visual_page_number("12/142") == "12"
+    # Clean identifiers passed through unchanged
+    assert normalize_visual_page_number("50") == "50"
+    assert normalize_visual_page_number("iii") == "iii"
+    assert normalize_visual_page_number("A-5") == "A-5"
+    # Null/empty preserved
+    assert normalize_visual_page_number(None) is None
+    assert normalize_visual_page_number("") == ""
+
+
+def test_merge_normalizes_page_decoration_before_dedupe():
+    # Two chunks see the same table at PDF page 51; chunk 1 captures the
+    # printed page as "50" (clean), chunk 2 captures "50 | Page" (footer
+    # text verbatim). They must dedupe to a single table.
+    rows = [{"a": 1, "b": 2}]
+    c1 = _chunk(tables=[_table(rows=rows, header="Project deliverables",
+                               visual_page_number="50")])
+    c2 = _chunk(tables=[_table(rows=rows, header="Project deliverables",
+                               visual_page_number="50 | Page")])
+    out = merge_chunks([c1, c2])
+    assert len(out["tables"]) == 1
+    assert out["tables"][0]["visual_page_number"] == "50"
+
+
 def test_extraction_prompt_recorded_in_experiment():
     prompt = "Extract tables and narratives from the given pages."
     r = {
@@ -582,6 +617,8 @@ TESTS = [
     test_boundary_notes_lint_clean_when_nothing_wrong,
     test_stakeholders_sorted_by_visual_page_number,
     test_empty_stakeholders_filtered_out,
+    test_normalize_visual_page_number,
+    test_merge_normalizes_page_decoration_before_dedupe,
     test_extraction_prompt_recorded_in_experiment,
     test_single_chunk_full_record_passthrough,
     test_fragment_not_preferred_over_complete,

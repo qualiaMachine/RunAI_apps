@@ -447,12 +447,50 @@ def _merge_other_metadata(extracted_list: list[dict]) -> dict:
     return out
 
 
+_PAGE_NUMBER_FOOTER_PATTERNS = [
+    # "50 | Page", "50 |Page", "50|Page"
+    re.compile(r"^(\d+)\s*\|\s*page\b", re.IGNORECASE),
+    # "Page 12", "Page 12 of 142"
+    re.compile(r"^page\s+(\d+)", re.IGNORECASE),
+    # "12 | 142", "12/142" (current/total) — take first
+    re.compile(r"^(\d+)\s*[|/]\s*\d+$"),
+]
+
+
+def normalize_visual_page_number(raw):
+    """Strip common footer artifacts from a printed-page-number string.
+
+    The VLM sometimes captures footer decoration verbatim (``"50 | Page"``
+    for PDF page 51, ``"Page 12 of 142"``, etc.) because the extraction
+    prompt asks for the value to be verbatim. That breaks cross-chunk
+    dedupe and page-sort ordering, so we normalize anything that matches
+    a known footer pattern to just the page identifier.
+    """
+    if raw is None or raw == "":
+        return raw
+    s = str(raw).strip()
+    for pat in _PAGE_NUMBER_FOOTER_PATTERNS:
+        m = pat.match(s)
+        if m:
+            return m.group(1)
+    return s
+
+
+def _normalize_page_numbers_inplace(items: list[dict]) -> None:
+    for it in items or []:
+        page = it.get("visual_page_number")
+        normed = normalize_visual_page_number(page)
+        if normed != page:
+            it["visual_page_number"] = normed
+
+
 def _page_sort_key(item: dict) -> tuple:
     """Stable sort key based on ``visual_page_number``.
 
     Numeric pages sort numerically; roman-numeral / appendix-style pages
     (e.g. "iii", "A-5") sort after numeric pages lexicographically. Items
-    with no printed page number sort last.
+    with no printed page number sort last. Leading digits are used when a
+    page looks like "50 something" so decoration doesn't poison the sort.
     """
     page = item.get("visual_page_number")
     if page is None or page == "":
@@ -461,7 +499,11 @@ def _page_sort_key(item: dict) -> tuple:
     try:
         return (0, int(s))
     except ValueError:
-        return (1, s.lower())
+        pass
+    m = re.match(r"^(\d+)", s)
+    if m:
+        return (0, int(m.group(1)))
+    return (1, s.lower())
 
 
 # ---------------------------------------------------------------------------
@@ -625,6 +667,13 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
         extracted_list = [c.get("extracted") or {} for c in chunks]
     else:
         extracted_list = chunks
+
+    # Normalize VLM footer-text drift ("50 | Page" → "50") before anything
+    # downstream sees the values. Both dedupe and page-sort rely on stable
+    # page identifiers; the VLM sometimes captures the decoration verbatim.
+    for e in extracted_list:
+        for field in ("tables", "narrative_responses", "stakeholders", "addresses"):
+            _normalize_page_numbers_inplace(e.get(field) or [])
 
     if len(extracted_list) == 1:
         # Single chunk: pass content straight through, no dedupe/stitch work.
