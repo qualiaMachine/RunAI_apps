@@ -458,11 +458,17 @@ def test_raw_dict_input_yields_empty_sidecar():
     assert set(out["document_tags"]) == {"A", "B"}
 
 
-def test_boundary_notes_lint_flags_empty_tables():
-    c = _chunk(tables=[_table(rows=[], header="Budget")])
-    out = merge_chunks([c])
-    assert any("empty table_data" in n for n in out["boundary_notes"]), \
-        out["boundary_notes"]
+def test_empty_tables_are_dropped_in_postprocess():
+    # VLM sometimes tags a section header as a Standard_Table with no rows
+    # ("Depreciation", "DONATED PROFESSIONAL LABOR"). These are pure noise
+    # and should be removed in merge; not even a lint warning needs to fire.
+    good = _table(rows=[{"a": 1}], header="Real Table")
+    empty = _table(rows=[], header="Depreciation")
+    out = merge_chunks([_chunk(tables=[good, empty])])
+    assert len(out["tables"]) == 1
+    assert out["tables"][0]["preceding_section_header"] == "Real Table"
+    # No lint note for the dropped empty table
+    assert not any("empty table_data" in n for n in out["boundary_notes"])
 
 
 def test_boundary_notes_lint_flags_empty_narratives():
@@ -612,8 +618,8 @@ TESTS = [
     test_same_page_distinct_narratives_not_merged,
     test_chunks_sidecar_from_full_records,
     test_raw_dict_input_yields_empty_sidecar,
-    test_boundary_notes_lint_flags_empty_tables,
     test_boundary_notes_lint_flags_empty_narratives,
+    test_empty_tables_are_dropped_in_postprocess,
     test_boundary_notes_lint_clean_when_nothing_wrong,
     test_stakeholders_sorted_by_visual_page_number,
     test_empty_stakeholders_filtered_out,

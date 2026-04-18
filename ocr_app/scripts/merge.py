@@ -550,6 +550,22 @@ def _build_chunks_sidecar(records: list[dict]) -> list[dict]:
     return out
 
 
+def _is_empty_table(t: dict) -> bool:
+    """A Standard_Table / Key_Value_Form / Literal_Grid with no rows/cells.
+
+    The VLM sometimes tags a section header (e.g. 'Depreciation',
+    'DONATED PROFESSIONAL LABOR') as a Standard_Table when there's no
+    actual table below it, producing an entry with ``table_data: []``.
+    These are pure noise — drop them in postprocess.
+    """
+    data = t.get("table_data")
+    if isinstance(data, list):
+        return len(data) == 0
+    if isinstance(data, dict):
+        return len(data) == 0
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Deterministic lint (boundary_notes)
 # ---------------------------------------------------------------------------
@@ -557,27 +573,12 @@ def _build_chunks_sidecar(records: list[dict]) -> list[dict]:
 def _lint_merged(merged: dict) -> list[str]:
     """Flag likely merge issues without calling the VLM.
 
-    Catches the structural cases a pass-2 VLM looking at the compacted
-    merged JSON might miss (or be unable to see). Empty return = clean.
+    Empty-table entries are DROPPED in postprocess (see ``_is_empty_table``),
+    not flagged here — the VLM emitting a header as a Standard_Table with
+    no rows is a known, benign failure mode that we prefer to silently
+    clean up rather than surface to the user.
     """
     notes: list[str] = []
-
-    # Tables with no rows (usually means VLM saw the heading but no data,
-    # or a classification mismatch).
-    for i, t in enumerate(merged.get("tables") or []):
-        data = t.get("table_data")
-        size = 0
-        if isinstance(data, list):
-            size = len(data)
-        elif isinstance(data, dict):
-            size = len(data)
-        if size == 0:
-            page = t.get("visual_page_number") or "?"
-            header = t.get("preceding_section_header") or "(no header)"
-            notes.append(
-                f"tables[{i}]: empty table_data on page {page} under "
-                f"'{header}' — possible classification or extraction issue"
-            )
 
     # Narratives with no text.
     for i, n in enumerate(merged.get("narrative_responses") or []):
@@ -695,6 +696,10 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
             )
         if merged.get("addresses"):
             merged["addresses"] = sorted(merged["addresses"], key=_page_sort_key)
+        if merged.get("tables"):
+            merged["tables"] = [
+                t for t in merged["tables"] if not _is_empty_table(t)
+            ]
         merged["chunks"] = _build_chunks_sidecar(records)
         merged["boundary_notes"] = _lint_merged(merged)
         return merged
@@ -744,6 +749,10 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
         "chunks": _build_chunks_sidecar(records),
     }
     _strip_continuation_flags(merged)
+    # Drop empty-table entries (VLM sometimes tags a section heading as a
+    # Standard_Table with no rows — pure noise). Done after dedupe so any
+    # chunk that actually captured rows wins via _pick_more_complete.
+    merged["tables"] = [t for t in (merged.get("tables") or []) if not _is_empty_table(t)]
     merged["boundary_notes"] = _lint_merged(merged)
     return merged
 
