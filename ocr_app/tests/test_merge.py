@@ -264,8 +264,10 @@ def test_doc_level_aggregation():
     assert set(out["document_tags"]) == {"IRB", "IACUC", "Biosafety"}
     # Confidence averaged
     assert out["confidence_percentage"] == 85.0
-    # Top-level summary is blank — pass 2 VLM synthesis fills it later.
+    # Top-level summary and confidence_narrative are blank — pass 2 VLM
+    # synthesis fills both later, avoiding a concat of 20+ chunk narratives.
     assert out["one_sentence_summary"] == ""
+    assert out["confidence_narrative"] == ""
 
 
 def test_doc_details_null_coalesce():
@@ -474,6 +476,48 @@ def test_boundary_notes_lint_clean_when_nothing_wrong():
     assert out["boundary_notes"] == []
 
 
+def test_stakeholders_sorted_by_visual_page_number():
+    # Pages are deliberately out of order in the input.
+    s_p12 = _stake(position="Reviewer", inst="Agency")
+    s_p12["visual_page_number"] = "12"
+    s_p3 = _stake(position="Program Officer", inst="Agency")
+    s_p3["visual_page_number"] = "3"
+    s_p_roman = _stake(position="Director", inst="Agency")
+    s_p_roman["visual_page_number"] = "iii"
+    s_none = _stake(position="Signatory", inst="Agency")  # no page
+    out = merge_chunks([
+        _chunk(stakeholders=[s_p12, s_p3, s_p_roman, s_none]),
+        _chunk(stakeholders=[]),
+    ])
+    positions = [s["position_title"] for s in out["stakeholders"]]
+    # Numeric pages first (3, 12), then non-numeric (iii), then no-page.
+    assert positions == ["Program Officer", "Reviewer", "Director", "Signatory"], \
+        positions
+
+
+def test_empty_stakeholders_filtered_out():
+    # An all-empty stakeholder is dropped rather than passed through.
+    empty = _stake()  # every field ""
+    named = _stake(last="Smith", first="Jane", inst="U")
+    out = merge_chunks([_chunk(stakeholders=[empty, named]), _chunk(stakeholders=[])])
+    assert len(out["stakeholders"]) == 1
+    assert out["stakeholders"][0]["last_name"] == "Smith"
+
+
+def test_extraction_prompt_recorded_in_experiment():
+    prompt = "Extract tables and narratives from the given pages."
+    r = {
+        "chunk_index": 0, "page_start": 0, "page_end": 5,
+        "experiment": {"model": "X"},
+        "extracted": _chunk(tables=[_table(rows=[{"a": 1}])]),
+    }
+    out = merge_chunks([r], extraction_prompt=prompt)
+    assert out["experiment"]["extraction_prompt"] == prompt
+    # Multi-chunk path too
+    out2 = merge_chunks([r, r], extraction_prompt=prompt)
+    assert out2["experiment"]["extraction_prompt"] == prompt
+
+
 def test_single_chunk_full_record_passthrough():
     # A doc with only one chunk: no dedupe runs, but chunks[] sidecar still
     # populated, experiment still copied.
@@ -536,6 +580,9 @@ TESTS = [
     test_boundary_notes_lint_flags_empty_tables,
     test_boundary_notes_lint_flags_empty_narratives,
     test_boundary_notes_lint_clean_when_nothing_wrong,
+    test_stakeholders_sorted_by_visual_page_number,
+    test_empty_stakeholders_filtered_out,
+    test_extraction_prompt_recorded_in_experiment,
     test_single_chunk_full_record_passthrough,
     test_fragment_not_preferred_over_complete,
 ]

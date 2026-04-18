@@ -76,7 +76,13 @@ def _hash(s: str, n: int = 12) -> str:
 
 
 def _stakeholder_fingerprint(s: dict) -> str:
-    """Tiered identity key: email > phone > personal name > role+org."""
+    """Tiered identity key: email > phone > personal name > role+org > raw text.
+
+    The raw_stakeholder_text tail is a last-resort key for recurring
+    unnamed references (a doc that repeats the same block of org contact
+    text in every chunk) — far from perfect but better than letting
+    dozens of copies through unkeyed.
+    """
     email = _norm(s.get("email"))
     if email:
         return f"email:{email}"
@@ -98,7 +104,22 @@ def _stakeholder_fingerprint(s: dict) -> str:
         return f"role:{position}|{inst}|{dept}"
     if role and role != "unknown" and inst:
         return f"orgrole:{role}|{inst}|{dept}"
+    raw = _norm(s.get("raw_stakeholder_text"))
+    if raw:
+        return f"raw:{_hash(raw[:120])}"
     return ""
+
+
+def _stakeholder_is_empty(s: dict) -> bool:
+    """True when a stakeholder has nothing usable — drop rather than keep."""
+    for field in (
+        "email", "phone", "first_name", "last_name", "full_name",
+        "institution", "department", "position_title",
+        "raw_stakeholder_text", "context_snippet",
+    ):
+        if _norm(s.get(field)):
+            return False
+    return True
 
 
 def _address_fingerprint(a: dict) -> str:
@@ -111,7 +132,7 @@ def _address_fingerprint(a: dict) -> str:
 
 
 def _table_fingerprint(t: dict) -> str:
-    """classification + page (or section fallback) + header_sig + first_row."""
+    """classification + page (fallback to section) + header_sig + first_row."""
     cls = _norm(t.get("table_classification"))
     page = _norm(t.get("visual_page_number"))
     disambig = page if page else _norm(t.get("preceding_section_header"))
@@ -194,12 +215,23 @@ def _pick_more_complete(a: dict, b: dict, size_fn) -> dict:
 def _merge_identity(
     items_by_chunk: list[list[dict]],
     fingerprint_fn: Callable[[dict], str],
+    empty_fn: Callable[[dict], bool] | None = None,
 ) -> list[dict]:
-    """Dedupe identity items by fingerprint. Empty fingerprint → pass through."""
+    """Dedupe identity items by fingerprint.
+
+    Items with an empty fingerprint are kept (we'd rather have a duplicate
+    than silently collapse low-confidence entries). When ``empty_fn`` is
+    provided, items it flags as wholly empty are dropped before they reach
+    the fingerprint step — useful for filtering out ``stakeholder_role:
+    "Unknown"`` + all-empty-fields noise that the VLM sometimes emits on
+    pages with just a page number reference.
+    """
     out: list[dict] = []
     by_key: dict[str, int] = {}
     for chunk_items in items_by_chunk:
         for item in chunk_items or []:
+            if empty_fn and empty_fn(item):
+                continue
             key = fingerprint_fn(item)
             if not key:
                 out.append(item)
@@ -392,19 +424,18 @@ def _agg_signature(extracted_list: list[dict]) -> dict:
     }
 
 
-def _agg_confidence(extracted_list: list[dict]) -> tuple[float, str]:
+def _agg_confidence(extracted_list: list[dict]) -> float:
+    """Mean confidence across chunks. Per-chunk narratives live in chunks[]
+    — concatenating 24 chunk narratives at the doc level produced a
+    multi-paragraph blob of near-identical boilerplate, so the doc-level
+    field is just the numeric mean now.
+    """
     vals = [
         e.get("confidence_percentage")
         for e in extracted_list
         if isinstance(e.get("confidence_percentage"), (int, float))
     ]
-    pct = round(sum(vals) / len(vals), 2) if vals else 0.0
-    narratives = [
-        e.get("confidence_narrative", "")
-        for e in extracted_list
-        if e.get("confidence_narrative")
-    ]
-    return pct, " | ".join(narratives)
+    return round(sum(vals) / len(vals), 2) if vals else 0.0
 
 
 def _merge_other_metadata(extracted_list: list[dict]) -> dict:
@@ -414,6 +445,23 @@ def _merge_other_metadata(extracted_list: list[dict]) -> dict:
         if isinstance(m, dict):
             out.update(m)
     return out
+
+
+def _page_sort_key(item: dict) -> tuple:
+    """Stable sort key based on ``visual_page_number``.
+
+    Numeric pages sort numerically; roman-numeral / appendix-style pages
+    (e.g. "iii", "A-5") sort after numeric pages lexicographically. Items
+    with no printed page number sort last.
+    """
+    page = item.get("visual_page_number")
+    if page is None or page == "":
+        return (2, "")
+    s = str(page).strip()
+    try:
+        return (0, int(s))
+    except ValueError:
+        return (1, s.lower())
 
 
 # ---------------------------------------------------------------------------
@@ -547,7 +595,7 @@ def _strip_continuation_flags(doc: dict) -> dict:
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def merge_chunks(chunks: list[dict]) -> dict:
+def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> dict:
     """Merge per-chunk extraction records into one doc-level JSON.
 
     ``chunks`` accepts either:
@@ -560,7 +608,13 @@ def merge_chunks(chunks: list[dict]) -> dict:
     input produces an otherwise-identical merged doc with ``experiment``
     ``{}`` and ``chunks`` ``[]``.
 
+    ``extraction_prompt``: the pass-1 prompt text used when extracting
+    chunks. If provided, it's recorded under ``experiment.extraction_prompt``
+    so the merged JSON captures exactly what the VLM was asked.
+
     Lint notes (``boundary_notes``) are always computed at the end.
+    Stakeholders and addresses are sorted by ``visual_page_number`` so
+    downstream readers get a natural top-of-doc-to-bottom reading order.
     """
     if not chunks:
         return {}
@@ -576,30 +630,55 @@ def merge_chunks(chunks: list[dict]) -> dict:
         # Single chunk: pass content straight through, no dedupe/stitch work.
         merged = dict(extracted_list[0])
         _strip_continuation_flags(merged)
+        # Strip the per-chunk confidence_narrative from the doc-level view —
+        # chunks[].extracted preserves it per-chunk.
+        # Doc-level confidence_narrative is filled by pass-2 VLM synthesis
+        # (a short summary of chunks[].extracted.confidence_narrative).
+        merged["confidence_narrative"] = ""
         merged["experiment"] = _doc_level_experiment(records)
+        if extraction_prompt:
+            merged["experiment"]["extraction_prompt"] = extraction_prompt
+        # Drop empty-noise stakeholders even on the single-chunk path.
+        if merged.get("stakeholders"):
+            merged["stakeholders"] = sorted(
+                (s for s in merged["stakeholders"] if not _stakeholder_is_empty(s)),
+                key=_page_sort_key,
+            )
+        if merged.get("addresses"):
+            merged["addresses"] = sorted(merged["addresses"], key=_page_sort_key)
         merged["chunks"] = _build_chunks_sidecar(records)
         merged["boundary_notes"] = _lint_merged(merged)
         return merged
 
-    pct, narr = _agg_confidence(extracted_list)
+    experiment = _doc_level_experiment(records)
+    if extraction_prompt:
+        experiment["extraction_prompt"] = extraction_prompt
+
+    stakeholders = _merge_identity(
+        [e.get("stakeholders", []) for e in extracted_list],
+        _stakeholder_fingerprint,
+        empty_fn=_stakeholder_is_empty,
+    )
+    addresses = _merge_identity(
+        [e.get("addresses", []) for e in extracted_list],
+        _address_fingerprint,
+    )
+
     merged = {
         "one_sentence_summary": "",  # filled by pass-2 VLM synthesis
-        "experiment": _doc_level_experiment(records),
-        "confidence_percentage": pct,
-        "confidence_narrative": narr,
+        "experiment": experiment,
+        "confidence_percentage": _agg_confidence(extracted_list),
+        # Doc-level narrative is also filled by pass-2: synthesizing the
+        # per-chunk narratives keeps this short instead of concatenating
+        # ~24 near-identical boilerplate paragraphs.
+        "confidence_narrative": "",
         "document_details": _agg_doc_details(extracted_list),
         "has_annotation": any(e.get("has_annotation") for e in extracted_list),
         "has_watermark": any(e.get("has_watermark") for e in extracted_list),
         "signature_lines": _agg_signature(extracted_list),
         "document_tags": _agg_tags(extracted_list),
-        "stakeholders": _merge_identity(
-            [e.get("stakeholders", []) for e in extracted_list],
-            _stakeholder_fingerprint,
-        ),
-        "addresses": _merge_identity(
-            [e.get("addresses", []) for e in extracted_list],
-            _address_fingerprint,
-        ),
+        "stakeholders": sorted(stakeholders, key=_page_sort_key),
+        "addresses": sorted(addresses, key=_page_sort_key),
         "tables": _merge_span(
             [e.get("tables", []) for e in extracted_list],
             _table_fingerprint,
