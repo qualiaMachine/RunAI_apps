@@ -118,7 +118,7 @@ PROCESSING RULES:
 - VISUAL_PAGE_NUMBER (every tables, narrative_responses, stakeholders, addresses item): ONLY the page identifier printed in the header/footer/margin of the page where the item starts — e.g. "12", "iii", "A-5". Do NOT include surrounding decoration ("Page", "|", "of 142", a total-page count, or any separator) — capture the identifier alone as a string. Use null if no page number is printed on the page. Do NOT infer or compute a value — only record what is visibly printed. For items that span multiple pages, record the visual page number of the page where the item begins.
 - SIGNATURES: Do NOT read handwriting. Only note if a signature LINE exists and if a signature is DETECTED.
 - STAKEHOLDER ROLES: Use ONLY the allowed stakeholder_role values listed above. If context does not make the role explicitly clear, use "Unknown". Capture raw_stakeholder_text verbatim.
-- HYPERLINKS: Include the exact URLs in the relevant narrative text or other_metadata.
+- HYPERLINKS: Include URLs up to and including the path, but strip query strings, signed tokens, JWTs, and session IDs — these are ephemeral and not useful historically.
 - ADDRESSES: Use ONLY the allowed stakeholder_type values listed above. If unclear, use "Unknown". Place "Care Of"/"Attention" lines ONLY in care_of. Capture raw_address_text verbatim.
 - Preserve ALL dollar amounts, dates, reference numbers exactly as they appear.
 - Missing fields: use null or "" as appropriate. Escape all strings.
