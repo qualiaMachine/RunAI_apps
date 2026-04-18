@@ -264,8 +264,8 @@ def test_doc_level_aggregation():
     assert set(out["document_tags"]) == {"IRB", "IACUC", "Biosafety"}
     # Confidence averaged
     assert out["confidence_percentage"] == 85.0
-    # Longest summary wins
-    assert "longer descriptive" in out["one_sentence_summary"]
+    # Top-level summary is blank — pass 2 VLM synthesis fills it later.
+    assert out["one_sentence_summary"] == ""
 
 
 def test_doc_details_null_coalesce():
@@ -398,6 +398,99 @@ def test_same_page_distinct_narratives_not_merged():
     assert len(out["narrative_responses"]) == 2
 
 
+def test_chunks_sidecar_from_full_records():
+    # When full chunk records are passed, merged output carries per-chunk
+    # summary + confidence in chunks[] and doc-level experiment settings.
+    r1 = {
+        "chunk_index": 0, "page_start": 0, "page_end": 9,
+        "experiment": {
+            "model": "Qwen-VL", "vlm_mode": "remote",
+            "max_pages_per_chunk": 9, "chunk_overlap": 3,
+            "elapsed_ms": 1234, "timestamp": "2025-04-18T10:00:00",
+        },
+        "extracted": _chunk(
+            one_sentence_summary="Chunk 1 summary.",
+            confidence_percentage=95,
+            confidence_narrative="chunk 1 narrative",
+        ),
+    }
+    r2 = {
+        "chunk_index": 1, "page_start": 7, "page_end": 15,
+        "experiment": {
+            "model": "Qwen-VL", "vlm_mode": "remote",
+            "max_pages_per_chunk": 9, "chunk_overlap": 3,
+            "elapsed_ms": 2345, "timestamp": "2025-04-18T10:01:00",
+        },
+        "extracted": _chunk(
+            one_sentence_summary="Chunk 2 summary.",
+            confidence_percentage=85,
+            confidence_narrative="chunk 2 narrative",
+        ),
+    }
+    out = merge_chunks([r1, r2])
+    # Top-level summary left blank for pass-2 VLM synthesis
+    assert out["one_sentence_summary"] == ""
+    # Doc-level experiment has the settings, not the per-chunk runtime fields
+    assert out["experiment"]["model"] == "Qwen-VL"
+    assert out["experiment"]["max_pages_per_chunk"] == 9
+    assert "elapsed_ms" not in out["experiment"]
+    assert "timestamp" not in out["experiment"]
+    # Per-chunk sidecar preserves per-chunk data
+    assert len(out["chunks"]) == 2
+    assert out["chunks"][0]["page_start"] == 0
+    assert out["chunks"][0]["extracted"]["one_sentence_summary"] == "Chunk 1 summary."
+    assert out["chunks"][0]["extracted"]["confidence_percentage"] == 95
+    assert out["chunks"][1]["experiment"]["elapsed_ms"] == 2345
+
+
+def test_raw_dict_input_yields_empty_sidecar():
+    # Backwards-compat path: raw extracted dicts produce a valid merge
+    # with experiment={} and chunks=[].
+    out = merge_chunks([_chunk(document_tags=["A"]), _chunk(document_tags=["B"])])
+    assert out["experiment"] == {}
+    assert out["chunks"] == []
+    assert set(out["document_tags"]) == {"A", "B"}
+
+
+def test_boundary_notes_lint_flags_empty_tables():
+    c = _chunk(tables=[_table(rows=[], header="Budget")])
+    out = merge_chunks([c])
+    assert any("empty table_data" in n for n in out["boundary_notes"]), \
+        out["boundary_notes"]
+
+
+def test_boundary_notes_lint_flags_empty_narratives():
+    c = _chunk(narrative_responses=[_narr(header="Aims", text="")])
+    out = merge_chunks([c])
+    assert any("empty verbatim_text" in n for n in out["boundary_notes"])
+
+
+def test_boundary_notes_lint_clean_when_nothing_wrong():
+    c = _chunk(
+        tables=[_table(rows=[{"a": 1}], header="Budget")],
+        narrative_responses=[_narr(header="Aims", text="Real content.")],
+    )
+    out = merge_chunks([c])
+    assert out["boundary_notes"] == []
+
+
+def test_single_chunk_full_record_passthrough():
+    # A doc with only one chunk: no dedupe runs, but chunks[] sidecar still
+    # populated, experiment still copied.
+    r = {
+        "chunk_index": 0, "page_start": 0, "page_end": 5,
+        "experiment": {"model": "X", "elapsed_ms": 999},
+        "extracted": _chunk(
+            tables=[_table(rows=[{"a": 1}])],
+            one_sentence_summary="Whole-doc summary from chunk.",
+        ),
+    }
+    out = merge_chunks([r])
+    assert len(out["tables"]) == 1
+    assert len(out["chunks"]) == 1
+    assert out["experiment"] == {"model": "X"}  # elapsed_ms stripped
+
+
 def test_fragment_not_preferred_over_complete():
     # Even if the fragment has more rows by accident, full copy wins
     c1 = _chunk(tables=[_table(
@@ -438,6 +531,12 @@ TESTS = [
     test_table_dedupe_tolerates_section_header_variance,
     test_narrative_dedupe_tolerates_section_header_variance,
     test_same_page_distinct_narratives_not_merged,
+    test_chunks_sidecar_from_full_records,
+    test_raw_dict_input_yields_empty_sidecar,
+    test_boundary_notes_lint_flags_empty_tables,
+    test_boundary_notes_lint_flags_empty_narratives,
+    test_boundary_notes_lint_clean_when_nothing_wrong,
+    test_single_chunk_full_record_passthrough,
     test_fragment_not_preferred_over_complete,
 ]
 
