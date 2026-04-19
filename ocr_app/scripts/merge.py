@@ -281,6 +281,24 @@ def _walk_strings(value):
             yield from _walk_strings(v)
 
 
+def _walk_dict_keys(value):
+    """Yield every dict KEY found inside nested dicts/lists.
+
+    Separate from ``_walk_strings`` because the VLM sometimes corrupts
+    JSON keys themselves with CJK drift (e.g. emitting
+    ``"visual_page世_number"`` instead of ``"visual_page_number"``). A
+    corrupted key won't be caught by a value-only scan.
+    """
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if isinstance(k, str):
+                yield k
+            yield from _walk_dict_keys(v)
+    elif isinstance(value, list):
+        for v in value:
+            yield from _walk_dict_keys(v)
+
+
 def _narrative_fingerprint(n: dict) -> str:
     page = _norm(n.get("visual_page_number"))
     disambig = page if page else _norm(n.get("preceding_section_header"))
@@ -1005,6 +1023,11 @@ def _lint_merged(merged: dict) -> list[str]:
     # a glitched token (e.g. "Wis.牌" where "Wis. Stats" was expected,
     # "[cite: 世]" where a digit was expected). Flag but don't auto-strip
     # — legit foreign-language quotes are rare but possible.
+    #
+    # Scans both cell VALUES and dict KEYS — the VLM occasionally emits
+    # corrupted keys like "visual_page世_number" that a value-only scan
+    # misses. A corrupted key is the stronger signal of drift since keys
+    # should be stable schema names.
     exotic_hits: list[str] = []
     for i, n in enumerate(merged.get("narrative_responses") or []):
         ex = _find_exotic_unicode(n.get("verbatim_text") or "")
@@ -1014,6 +1037,17 @@ def _lint_merged(merged: dict) -> list[str]:
                 f"narrative_responses[{i}] on page {page}: contains "
                 f"exotic unicode {ex!r} (VLM token drift)"
             )
+        # Key scan on the narrative entry itself — detects corrupted
+        # field names like "visual_page世_number".
+        for k in _walk_dict_keys(n):
+            kex = _find_exotic_unicode(k)
+            if kex:
+                exotic_hits.append(
+                    f"narrative_responses[{i}]: dict key {k!r} contains "
+                    f"exotic unicode {kex!r} (VLM corrupted a JSON key "
+                    f"— structural issue, worse than a value glitch)"
+                )
+                break
     for i, t in enumerate(merged.get("tables") or []):
         data = t.get("table_data")
         found = ""
@@ -1028,6 +1062,19 @@ def _lint_merged(merged: dict) -> list[str]:
                 f"tables[{i}] on page {page}: cell contains exotic unicode "
                 f"{found!r} (VLM token drift)"
             )
+        # Key scan on the table entry (including nested row dicts in
+        # table_data) — catches both outer-level corrupted keys and
+        # corrupted column-header names.
+        for k in _walk_dict_keys(t):
+            kex = _find_exotic_unicode(k)
+            if kex:
+                page = t.get("visual_page_number") or "?"
+                exotic_hits.append(
+                    f"tables[{i}] on page {page}: dict key {k!r} contains "
+                    f"exotic unicode {kex!r} (VLM corrupted a JSON key "
+                    f"— structural issue, worse than a value glitch)"
+                )
+                break
     # Cap at 10 to avoid drowning the lint output on pathological docs.
     for note in exotic_hits[:10]:
         notes.append(note)

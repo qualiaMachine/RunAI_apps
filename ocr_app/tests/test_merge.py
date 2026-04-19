@@ -918,6 +918,37 @@ def test_lint_does_not_flag_smart_quotes_or_accents():
     ), out["potential_issues"]
 
 
+def test_lint_flags_exotic_unicode_in_json_keys():
+    # VLM tokenizer drift on schema keys themselves — e.g., emits
+    # "visual_page世_number" instead of "visual_page_number". Worse than
+    # a value glitch because it's structural (downstream code looking
+    # up the normal key name silently gets None).
+    n = _narr(
+        header="General Body Text",
+        text="Normal narrative text without any exotic characters.",
+    )
+    n["visual_page世_number"] = "42"  # type: ignore
+    out = merge_chunks([_chunk(narrative_responses=[n])])
+    assert any(
+        "dict key" in issue and "exotic unicode" in issue
+        for issue in out["potential_issues"]
+    ), out["potential_issues"]
+
+
+def test_lint_flags_exotic_unicode_in_table_column_headers():
+    # Column-header drift: VLM corrupts a Standard_Table column name.
+    rows = [
+        {"Form": "Mileage Log", "Nu世mber": "8700-012"},  # corrupted key
+    ]
+    out = merge_chunks([_chunk(tables=[
+        _table(rows=rows, header="APPENDIX K", visual_page_number="141")
+    ])])
+    assert any(
+        "dict key" in issue and "exotic unicode" in issue
+        for issue in out["potential_issues"]
+    ), out["potential_issues"]
+
+
 def test_fragment_not_preferred_over_complete():
     # Even if the fragment has more rows by accident, full copy wins
     c1 = _chunk(tables=[_table(
@@ -988,6 +1019,8 @@ TESTS = [
     test_lint_flags_exotic_unicode_in_narrative,
     test_lint_flags_exotic_unicode_in_table_cells,
     test_lint_does_not_flag_smart_quotes_or_accents,
+    test_lint_flags_exotic_unicode_in_json_keys,
+    test_lint_flags_exotic_unicode_in_table_column_headers,
     test_fragment_not_preferred_over_complete,
 ]
 
