@@ -345,6 +345,45 @@ def _find_exotic_unicode(s) -> str:
     return m.group(0) if m else ""
 
 
+def _strip_exotic_unicode(s) -> str:
+    """Drop exotic-unicode chars (CJK/Cyrillic/etc) from a string.
+
+    These chars in English-language grant docs are VLM tokenizer drift
+    — the model emitted a Han ideograph or Cyrillic letter where an
+    ASCII char belonged (e.g. "1.\u724c" for "1.91", "highest_\u4e16ducation"
+    for "highest_education"). Removing the glitched chars typically
+    leaves the surrounding context intact and readable. We strip the
+    char rather than try to guess what was meant; the lint pass still
+    flags so a human can spot-check.
+    """
+    if not isinstance(s, str) or not s:
+        return s
+    return _EXOTIC_UNICODE_RE.sub("", s)
+
+
+def _strip_exotic_unicode_inplace(items: list[dict]) -> None:
+    """Walk every string value in a list of dicts and strip drift chars.
+
+    Mutates each item in place. Skips dict KEYS (those are schema names;
+    if they're glitched we want the lint to surface that — silently
+    dropping a char from a key would change the field name and silently
+    drop data downstream).
+    """
+    def _scrub(v):
+        if isinstance(v, str):
+            return _strip_exotic_unicode(v)
+        if isinstance(v, list):
+            return [_scrub(x) for x in v]
+        if isinstance(v, dict):
+            return {k: _scrub(x) for k, x in v.items()}
+        return v
+    for it in items or []:
+        if not isinstance(it, dict):
+            continue
+        for k in list(it.keys()):
+            it[k] = _scrub(it[k])
+
+
 def _walk_strings(value):
     """Yield every string leaf inside nested dicts/lists (for scanning)."""
     if isinstance(value, str):
@@ -725,28 +764,43 @@ def _normalize_page_numbers_inplace(items: list[dict], chunk_page_range=None) ->
             it["visual_page_number"] = normed
 
 
-def _validate_pdf_page_indices_inplace(items: list[dict], chunk_page_range=None) -> None:
-    """Null out any pdf_page_index that falls outside the chunk's PDF range.
+def _derive_pdf_page_indices_inplace(items: list[dict], chunk_page_range=None) -> None:
+    """Compute pdf_page_index from chunk_relative_page_index + chunk page_start.
 
-    ``chunk_page_range`` is the 0-based half-open ``(page_start, page_end)``
-    from ``chunk_page_ranges``; the corresponding 1-based PDF page range
-    visible to the VLM is ``[page_start+1, page_end]``. Values outside
-    that range are VLM hallucinations (the model copied the wrong number
-    or invented one) and shouldn't survive into the merged output. Also
-    coerces string-typed integers to int so downstream consumers don't
-    have to defend against type drift.
+    The VLM emits ``chunk_relative_page_index`` as a small integer 1..M
+    naming WHICH image in the chunk an item came from (the N in the
+    "[PAGE IMAGE N of M — PDF page X]" header). The merger turns that
+    into the absolute 1-based PDF page index deterministically:
+
+        pdf_page_index = chunk.page_start + (chunk_relative_page_index - 1) + 1
+                       = chunk.page_start + chunk_relative_page_index
+
+    where ``page_start`` is the 0-based half-open chunk start. Values
+    outside ``[1..M]`` (i.e. the VLM mis-counted) are nulled and the
+    item gets ``pdf_page_index: null``. The relative field is stripped
+    from the item after derivation to keep the doc-level output clean —
+    downstream consumers should use ``pdf_page_index``.
+
+    This replaces the earlier "ask VLM for absolute pdf_page_index"
+    approach, which was unreliable: the VLM frequently mirrored
+    ``visual_page_number`` into ``pdf_page_index`` instead of reading
+    the deterministic image label, producing wrong values whenever
+    visual ≠ pdf.
     """
     if chunk_page_range is None:
         return
     start, end = chunk_page_range
     if start is None or end is None:
         return
-    lo, hi = start + 1, end  # inclusive 1-based PDF page bounds
+    chunk_size = end - start  # number of images in this chunk
+    lo, hi = 1, chunk_size
     for it in items or []:
-        if "pdf_page_index" not in it:
-            continue
-        raw = it.get("pdf_page_index")
+        # Migration support: if VLM emitted the legacy pdf_page_index
+        # field, ignore it — we'll always recompute.
+        it.pop("pdf_page_index", None)
+        raw = it.pop("chunk_relative_page_index", None)
         if raw is None:
+            it["pdf_page_index"] = None
             continue
         try:
             n = int(raw)
@@ -756,7 +810,7 @@ def _validate_pdf_page_indices_inplace(items: list[dict], chunk_page_range=None)
         if n < lo or n > hi:
             it["pdf_page_index"] = None
         else:
-            it["pdf_page_index"] = n
+            it["pdf_page_index"] = start + n  # 0-based start + 1-based offset
 
 
 def _page_sort_key(item: dict) -> tuple:
@@ -1080,6 +1134,41 @@ def _reclassify_self_keyed_standard_table(table: dict) -> dict:
     return out
 
 
+def _reclassify_array_valued_standard_table(table: dict) -> dict:
+    """Convert ``Standard_Table`` to ``Literal_Grid`` when row values are arrays.
+
+    Pattern seen in the WI DNR doc's APPENDIX K (List of Forms): the
+    section title became the row key and the bulleted list of forms
+    became a single array value, e.g.
+    ``{"Application forms": ["Form A", "Form B", ...]}``. That isn't
+    really a table row — it's a section header followed by a list.
+    Convert to Literal_Grid where each form occupies its own row,
+    preserving the section header as the leading cell of the first row
+    in each group.
+    """
+    if table.get("table_classification") != "Standard_Table":
+        return table
+    rows = table.get("table_data")
+    if not isinstance(rows, list) or not rows:
+        return table
+    for row in rows:
+        if not isinstance(row, dict) or not row:
+            return table
+        for v in row.values():
+            if not isinstance(v, list):
+                return table
+    grid: list[list[str]] = []
+    for row in rows:
+        for k, items in row.items():
+            grid.append([str(k)])
+            for item in items:
+                grid.append([str(item)])
+    out = dict(table)
+    out["table_classification"] = "Literal_Grid"
+    out["table_data"] = grid
+    return out
+
+
 def _dedupe_table_rows(table: dict) -> dict:
     """Drop fully-duplicate rows within a single table's ``table_data``.
 
@@ -1114,8 +1203,7 @@ def _dedupe_table_rows(table: dict) -> dict:
 
 
 def _collapse_narrative_same_page_substrings(narratives: list[dict]) -> list[dict]:
-    """Drop same-page narratives whose ``verbatim_text`` is contained in
-    another entry's text.
+    """Drop narratives whose ``verbatim_text`` is contained in another's text.
 
     Overlapping chunks often produce two near-identical entries for the
     same section: one prepends the section heading, the other picks up
@@ -1123,13 +1211,23 @@ def _collapse_narrative_same_page_substrings(narratives: list[dict]) -> list[dic
     hashes the first 120 chars, so those leading-text variants survive
     as "distinct". A substring containment pass after dedup collapses
     the pair, keeping the longer text.
+
+    Two-stage:
+      1. Per-page: same ``visual_page_number`` → cheap O(n²) within
+         small groups, also catches near-dupes that share a page.
+      2. Globally for null-page items: any narrative with no
+         ``visual_page_number`` AND no ``pdf_page_index`` whose text
+         is contained in a paginated narrative is a chunk-overlap
+         fragment that escaped earlier dedupe. Drop it.
     """
     if not narratives:
         return narratives
+    drop: set[int] = set()
+
+    # Stage 1: same-page substring containment.
     by_page: dict[str, list[int]] = {}
     for i, n in enumerate(narratives):
         by_page.setdefault(_norm(n.get("visual_page_number")), []).append(i)
-    drop: set[int] = set()
     for indices in by_page.values():
         if len(indices) < 2:
             continue
@@ -1151,6 +1249,35 @@ def _collapse_narrative_same_page_substrings(narratives: list[dict]) -> list[dic
                     continue
                 if len(a_t) >= len(b_t) and b_t in a_t:
                     drop.add(b_i)
+
+    # Stage 2: orphaned null-page fragments. Anything with null
+    # visual_page_number AND null pdf_page_index that's contained
+    # in a paginated narrative is almost certainly a chunk-overlap
+    # leftover the per-page step couldn't catch.
+    null_idxs = [
+        i for i, n in enumerate(narratives)
+        if i not in drop
+        and not _norm(n.get("visual_page_number"))
+        and n.get("pdf_page_index") is None
+    ]
+    if null_idxs:
+        paginated = [
+            (i, _norm(_strip_cite_markers(n.get("verbatim_text", ""))))
+            for i, n in enumerate(narratives)
+            if i not in drop
+            and (_norm(n.get("visual_page_number"))
+                 or n.get("pdf_page_index") is not None)
+        ]
+        for i in null_idxs:
+            t = _norm(_strip_cite_markers(narratives[i].get("verbatim_text", "")))
+            if not t or len(t) < 20:
+                # Too short to confidently dedupe — keep.
+                continue
+            for _, full in paginated:
+                if t in full:
+                    drop.add(i)
+                    break
+
     if not drop:
         return narratives
     return [n for i, n in enumerate(narratives) if i not in drop]
@@ -1414,7 +1541,8 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
     for e, rng in zip(extracted_list, chunk_ranges):
         for field in ("tables", "narrative_responses", "stakeholders", "addresses"):
             _normalize_page_numbers_inplace(e.get(field) or [], rng)
-            _validate_pdf_page_indices_inplace(e.get(field) or [], rng)
+            _derive_pdf_page_indices_inplace(e.get(field) or [], rng)
+            _strip_exotic_unicode_inplace(e.get(field) or [])
 
     if len(extracted_list) == 1:
         # Single chunk: no cross-chunk stitch needed, but still apply
@@ -1449,7 +1577,7 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
             key=_page_sort_key,
         )
         merged["tables"] = _collapse_supertable_runs([
-            _dedupe_table_rows(_reclassify_self_keyed_standard_table(t))
+            _dedupe_table_rows(_reclassify_array_valued_standard_table(_reclassify_self_keyed_standard_table(t)))
             for t in _collapse_same_page_duplicates(sorted(
                 (t for t in (merged.get("tables") or []) if not _is_empty_table(t)),
                 key=_page_sort_key,

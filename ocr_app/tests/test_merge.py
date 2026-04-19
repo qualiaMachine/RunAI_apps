@@ -878,22 +878,23 @@ def test_malformed_cite_stripping_preserves_well_formed_tail():
     assert "[cite: 1a]" not in text  # mixed alpha
 
 
-def test_lint_flags_exotic_unicode_in_narrative():
-    # CJK char dropped into English narrative = VLM token drift.
+def test_exotic_unicode_stripped_from_narrative():
+    # CJK char dropped into English narrative = VLM token drift. The
+    # merger strips the glitched chars from values (keys are flagged
+    # separately, see test_lint_flags_exotic_unicode_in_json_keys).
     n = _narr(
         header="General Body Text",
         text="Please refer to the code. Ch. NR 1.91, Wis.牌. Code.",
     )
     n["visual_page_number"] = "8"
     out = merge_chunks([_chunk(narrative_responses=[n])])
-    assert any(
-        "exotic unicode" in issue and "narrative_responses" in issue
-        for issue in out["potential_issues"]
-    ), out["potential_issues"]
+    assert "牌" not in out["narrative_responses"][0]["verbatim_text"]
+    # The surrounding context survives — only the glitched char drops.
+    assert "Wis.. Code." in out["narrative_responses"][0]["verbatim_text"]
 
 
-def test_lint_flags_exotic_unicode_in_table_cells():
-    # CJK char inside a table cell (form number glitch).
+def test_exotic_unicode_stripped_from_table_cells():
+    # CJK char inside a table cell (form number glitch). Stripped.
     rows = [
         {"Form": "Grant Payment Request", "Number": "8700-001"},
         {"Form": "Mileage Log", "Number": "世700-012"},  # CJK drift
@@ -902,10 +903,12 @@ def test_lint_flags_exotic_unicode_in_table_cells():
         _table(rows=rows, header="APPENDIX K: LIST OF FORMS",
                visual_page_number="141")
     ])])
-    assert any(
-        "exotic unicode" in issue and "tables" in issue
-        for issue in out["potential_issues"]
-    ), out["potential_issues"]
+    cells = out["tables"][0]["table_data"]
+    for row in cells:
+        for v in row.values():
+            assert "世" not in v
+    # The drift char in the second row's Number is gone.
+    assert any(r.get("Number") == "700-012" for r in cells)
 
 
 def test_lint_does_not_flag_smart_quotes_or_accents():
@@ -1075,28 +1078,32 @@ def test_self_keyed_reclassifier_skips_mixed_rows():
     assert t["table_classification"] == "Standard_Table"
 
 
-def test_pdf_page_index_in_range_preserved():
+def test_pdf_page_index_derived_from_chunk_relative():
     # Chunk covers PDF pages 11-20 (page_start=10, page_end=20 half-open).
-    # An item with pdf_page_index=15 is inside the range and should survive.
+    # An item with chunk_relative_page_index=5 came from the 5th image
+    # of the chunk, which is PDF page 10 + 5 = 15.
     n = _narr(header="Section", text="body")
     n["visual_page_number"] = "15"
-    n["pdf_page_index"] = 15
+    n["chunk_relative_page_index"] = 5
     r = {
         "chunk_index": 1, "page_start": 10, "page_end": 20,
         "experiment": {},
         "extracted": _chunk(narrative_responses=[n]),
     }
     out = merge_chunks([r])
-    assert out["narrative_responses"][0]["pdf_page_index"] == 15
+    item = out["narrative_responses"][0]
+    assert item["pdf_page_index"] == 15
+    # chunk_relative_page_index is consumed during derivation; not in output.
+    assert "chunk_relative_page_index" not in item
 
 
 def test_pdf_page_index_out_of_range_nulled():
-    # Chunk covers PDF pages 11-20. pdf_page_index=99 is outside the
-    # chunk's range — VLM hallucinated. Should be nulled (the merger
-    # can't trust it) but the rest of the item is kept.
+    # Chunk covers PDF pages 11-20 (10 images total). chunk_relative=99
+    # is outside the chunk's image range — VLM mis-counted. Should be
+    # nulled but the rest of the item is kept.
     n = _narr(header="Section", text="body")
     n["visual_page_number"] = "15"
-    n["pdf_page_index"] = 99
+    n["chunk_relative_page_index"] = 99
     r = {
         "chunk_index": 1, "page_start": 10, "page_end": 20,
         "experiment": {},
@@ -1109,12 +1116,12 @@ def test_pdf_page_index_out_of_range_nulled():
 
 
 def test_pdf_page_index_string_coerced_to_int():
-    # VLM occasionally emits "15" instead of 15. Coerce to int when in
+    # VLM occasionally emits "5" instead of 5. Coerce to int when in
     # range; null when not parseable.
     n_ok = _narr(header="A", text="x")
-    n_ok["pdf_page_index"] = "15"
+    n_ok["chunk_relative_page_index"] = "5"
     n_bad = _narr(header="B", text="y")
-    n_bad["pdf_page_index"] = "not-a-number"
+    n_bad["chunk_relative_page_index"] = "not-a-number"
     r = {
         "chunk_index": 0, "page_start": 10, "page_end": 20,
         "experiment": {},
@@ -1124,15 +1131,32 @@ def test_pdf_page_index_string_coerced_to_int():
     items = out["narrative_responses"]
     ok = [n for n in items if n.get("verbatim_text") == "x"][0]
     bad = [n for n in items if n.get("verbatim_text") == "y"][0]
-    assert ok["pdf_page_index"] == 15
+    assert ok["pdf_page_index"] == 15  # 10 + 5
     assert bad["pdf_page_index"] is None
+
+
+def test_pdf_page_index_legacy_field_is_ignored():
+    # Migration: if VLM still emits the legacy pdf_page_index field
+    # directly (mirror of visual_page_number — wrong), the deriver
+    # ignores it and uses chunk_relative_page_index instead.
+    n = _narr(header="A", text="x")
+    n["pdf_page_index"] = 999  # legacy/wrong
+    n["chunk_relative_page_index"] = 3
+    r = {
+        "chunk_index": 0, "page_start": 10, "page_end": 20,
+        "experiment": {},
+        "extracted": _chunk(narrative_responses=[n]),
+    }
+    out = merge_chunks([r])
+    assert out["narrative_responses"][0]["pdf_page_index"] == 13
 
 
 def test_pdf_page_index_left_alone_without_chunk_range():
     # Raw-dict input (no chunk_page_range available) means the merger
-    # has no way to validate; pdf_page_index should pass through as-is.
+    # can't derive pdf_page_index; the field passes through unchanged
+    # whatever the caller put on the item.
     n = _narr(header="A", text="x")
-    n["pdf_page_index"] = 999  # would normally be flagged out-of-range
+    n["pdf_page_index"] = 999
     out = merge_chunks([_chunk(narrative_responses=[n])])
     assert out["narrative_responses"][0]["pdf_page_index"] == 999
 
@@ -1245,6 +1269,63 @@ def test_supertable_collapse_skips_when_pdf_page_index_missing():
     assert len(out["tables"]) == 2
 
 
+def test_array_valued_standard_table_reclassified_to_literal_grid():
+    # APPENDIX K LIST OF FORMS pattern: each row's value is a list of
+    # forms under a section header. The VLM emitted as Standard_Table
+    # but the cells are arrays — convert to Literal_Grid where the
+    # section header opens a group and each form gets its own row.
+    rows = [
+        {"Application forms": ["Form 8700-284", "Form 8700-035"]},
+        {"Reimbursement forms": ["Form 8700-001", "Form 8700-349A"]},
+    ]
+    out = merge_chunks([_chunk(tables=[
+        _table(rows=rows, header="APPENDIX K", visual_page_number="141")
+    ])])
+    t = out["tables"][0]
+    assert t["table_classification"] == "Literal_Grid"
+    # Section header followed by its forms, then next section.
+    assert t["table_data"][0] == ["Application forms"]
+    assert t["table_data"][1] == ["Form 8700-284"]
+    assert t["table_data"][2] == ["Form 8700-035"]
+    assert t["table_data"][3] == ["Reimbursement forms"]
+
+
+def test_array_valued_reclassifier_skips_mixed_rows():
+    # Even one row with a non-array value blocks reclassification.
+    rows = [
+        {"key": ["a", "b"]},
+        {"key": "scalar"},
+    ]
+    out = merge_chunks([_chunk(tables=[
+        _table(rows=rows, header="Mixed", visual_page_number="1")
+    ])])
+    assert out["tables"][0]["table_classification"] == "Standard_Table"
+
+
+def test_null_page_narrative_absorbed_by_paginated():
+    # Chunk-overlap leftover: a null-page narrative whose text is a
+    # substring of a paginated narrative should be dropped.
+    full = _narr(header="Section A", text="The full body of section A spans multiple sentences.")
+    full["visual_page_number"] = "5"
+    fragment = _narr(header="Section A", text="The full body of section A")
+    fragment["visual_page_number"] = None
+    out = merge_chunks([_chunk(narrative_responses=[full, fragment])])
+    assert len(out["narrative_responses"]) == 1
+    assert out["narrative_responses"][0]["visual_page_number"] == "5"
+
+
+def test_null_page_narrative_kept_when_text_unique():
+    # If the null-page narrative's text isn't a substring of any
+    # paginated entry, it should be kept (might be real content from
+    # a pinned page or unnumbered figure).
+    paged = _narr(header="A", text="Completely different content about topic Z.")
+    paged["visual_page_number"] = "5"
+    orphan = _narr(header="B", text="Standalone text from an unnumbered figure caption.")
+    orphan["visual_page_number"] = None
+    out = merge_chunks([_chunk(narrative_responses=[paged, orphan])])
+    assert len(out["narrative_responses"]) == 2
+
+
 def test_fragment_not_preferred_over_complete():
     # Even if the fragment has more rows by accident, full copy wins
     c1 = _chunk(tables=[_table(
@@ -1312,8 +1393,8 @@ TESTS = [
     test_narrative_fingerprint_collapses_across_cite_drift,
     test_malformed_cite_markers_stripped_from_output,
     test_malformed_cite_stripping_preserves_well_formed_tail,
-    test_lint_flags_exotic_unicode_in_narrative,
-    test_lint_flags_exotic_unicode_in_table_cells,
+    test_exotic_unicode_stripped_from_narrative,
+    test_exotic_unicode_stripped_from_table_cells,
     test_lint_does_not_flag_smart_quotes_or_accents,
     test_lint_flags_exotic_unicode_in_json_keys,
     test_lint_flags_exotic_unicode_in_table_column_headers,
@@ -1324,7 +1405,12 @@ TESTS = [
     test_self_keyed_standard_table_reclassified_to_literal_grid,
     test_self_keyed_reclassifier_leaves_real_standard_table_alone,
     test_self_keyed_reclassifier_skips_mixed_rows,
-    test_pdf_page_index_in_range_preserved,
+    test_array_valued_standard_table_reclassified_to_literal_grid,
+    test_array_valued_reclassifier_skips_mixed_rows,
+    test_null_page_narrative_absorbed_by_paginated,
+    test_null_page_narrative_kept_when_text_unique,
+    test_pdf_page_index_derived_from_chunk_relative,
+    test_pdf_page_index_legacy_field_is_ignored,
     test_pdf_page_index_out_of_range_nulled,
     test_pdf_page_index_string_coerced_to_int,
     test_pdf_page_index_left_alone_without_chunk_range,
