@@ -725,6 +725,40 @@ def _normalize_page_numbers_inplace(items: list[dict], chunk_page_range=None) ->
             it["visual_page_number"] = normed
 
 
+def _validate_pdf_page_indices_inplace(items: list[dict], chunk_page_range=None) -> None:
+    """Null out any pdf_page_index that falls outside the chunk's PDF range.
+
+    ``chunk_page_range`` is the 0-based half-open ``(page_start, page_end)``
+    from ``chunk_page_ranges``; the corresponding 1-based PDF page range
+    visible to the VLM is ``[page_start+1, page_end]``. Values outside
+    that range are VLM hallucinations (the model copied the wrong number
+    or invented one) and shouldn't survive into the merged output. Also
+    coerces string-typed integers to int so downstream consumers don't
+    have to defend against type drift.
+    """
+    if chunk_page_range is None:
+        return
+    start, end = chunk_page_range
+    if start is None or end is None:
+        return
+    lo, hi = start + 1, end  # inclusive 1-based PDF page bounds
+    for it in items or []:
+        if "pdf_page_index" not in it:
+            continue
+        raw = it.get("pdf_page_index")
+        if raw is None:
+            continue
+        try:
+            n = int(raw)
+        except (TypeError, ValueError):
+            it["pdf_page_index"] = None
+            continue
+        if n < lo or n > hi:
+            it["pdf_page_index"] = None
+        else:
+            it["pdf_page_index"] = n
+
+
 def _page_sort_key(item: dict) -> tuple:
     """Stable sort key based on ``visual_page_number``.
 
@@ -1294,6 +1328,7 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
     for e, rng in zip(extracted_list, chunk_ranges):
         for field in ("tables", "narrative_responses", "stakeholders", "addresses"):
             _normalize_page_numbers_inplace(e.get(field) or [], rng)
+            _validate_pdf_page_indices_inplace(e.get(field) or [], rng)
 
     if len(extracted_list) == 1:
         # Single chunk: no cross-chunk stitch needed, but still apply

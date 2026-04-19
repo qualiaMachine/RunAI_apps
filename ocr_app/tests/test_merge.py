@@ -1075,6 +1075,68 @@ def test_self_keyed_reclassifier_skips_mixed_rows():
     assert t["table_classification"] == "Standard_Table"
 
 
+def test_pdf_page_index_in_range_preserved():
+    # Chunk covers PDF pages 11-20 (page_start=10, page_end=20 half-open).
+    # An item with pdf_page_index=15 is inside the range and should survive.
+    n = _narr(header="Section", text="body")
+    n["visual_page_number"] = "15"
+    n["pdf_page_index"] = 15
+    r = {
+        "chunk_index": 1, "page_start": 10, "page_end": 20,
+        "experiment": {},
+        "extracted": _chunk(narrative_responses=[n]),
+    }
+    out = merge_chunks([r])
+    assert out["narrative_responses"][0]["pdf_page_index"] == 15
+
+
+def test_pdf_page_index_out_of_range_nulled():
+    # Chunk covers PDF pages 11-20. pdf_page_index=99 is outside the
+    # chunk's range — VLM hallucinated. Should be nulled (the merger
+    # can't trust it) but the rest of the item is kept.
+    n = _narr(header="Section", text="body")
+    n["visual_page_number"] = "15"
+    n["pdf_page_index"] = 99
+    r = {
+        "chunk_index": 1, "page_start": 10, "page_end": 20,
+        "experiment": {},
+        "extracted": _chunk(narrative_responses=[n]),
+    }
+    out = merge_chunks([r])
+    item = out["narrative_responses"][0]
+    assert item["pdf_page_index"] is None
+    assert item["verbatim_text"] == "body"
+
+
+def test_pdf_page_index_string_coerced_to_int():
+    # VLM occasionally emits "15" instead of 15. Coerce to int when in
+    # range; null when not parseable.
+    n_ok = _narr(header="A", text="x")
+    n_ok["pdf_page_index"] = "15"
+    n_bad = _narr(header="B", text="y")
+    n_bad["pdf_page_index"] = "not-a-number"
+    r = {
+        "chunk_index": 0, "page_start": 10, "page_end": 20,
+        "experiment": {},
+        "extracted": _chunk(narrative_responses=[n_ok, n_bad]),
+    }
+    out = merge_chunks([r])
+    items = out["narrative_responses"]
+    ok = [n for n in items if n.get("verbatim_text") == "x"][0]
+    bad = [n for n in items if n.get("verbatim_text") == "y"][0]
+    assert ok["pdf_page_index"] == 15
+    assert bad["pdf_page_index"] is None
+
+
+def test_pdf_page_index_left_alone_without_chunk_range():
+    # Raw-dict input (no chunk_page_range available) means the merger
+    # has no way to validate; pdf_page_index should pass through as-is.
+    n = _narr(header="A", text="x")
+    n["pdf_page_index"] = 999  # would normally be flagged out-of-range
+    out = merge_chunks([_chunk(narrative_responses=[n])])
+    assert out["narrative_responses"][0]["pdf_page_index"] == 999
+
+
 def test_fragment_not_preferred_over_complete():
     # Even if the fragment has more rows by accident, full copy wins
     c1 = _chunk(tables=[_table(
@@ -1154,6 +1216,10 @@ TESTS = [
     test_self_keyed_standard_table_reclassified_to_literal_grid,
     test_self_keyed_reclassifier_leaves_real_standard_table_alone,
     test_self_keyed_reclassifier_skips_mixed_rows,
+    test_pdf_page_index_in_range_preserved,
+    test_pdf_page_index_out_of_range_nulled,
+    test_pdf_page_index_string_coerced_to_int,
+    test_pdf_page_index_left_alone_without_chunk_range,
     test_fragment_not_preferred_over_complete,
 ]
 

@@ -31,6 +31,7 @@ Task: You are given a contiguous run of pages from ONE document. Extract all dat
   "tables": [
     {
       "visual_page_number": "<ONLY the page identifier printed on the page (header/footer/margin), e.g. '12', 'iii', 'A-5'. Do NOT include surrounding decoration such as 'Page', '|', 'of 142', or any separator — capture the identifier alone as a string. Use null if no page number is printed.>",
+      "pdf_page_index": <integer or null — the 1-based PDF page number from the image header label "[PAGE IMAGE N of M — PDF page X]" where this item starts. Copy X exactly. See PDF_PAGE_INDEX rule below.>,
       "preceding_section_header": "<nearest section/heading text above this table, '' if none>",
       "table_classification": "<Literal_Grid | Key_Value_Form | Standard_Table>",
       "continues_from_previous_chunk": <boolean>,
@@ -41,6 +42,7 @@ Task: You are given a contiguous run of pages from ONE document. Extract all dat
   "narrative_responses": [
     {
       "visual_page_number": "<ONLY the page identifier printed where this narrative starts. Do NOT include 'Page', '|', 'of 142', or any decoration — capture the identifier alone. Use null if no page number is printed.>",
+      "pdf_page_index": <integer or null — see PDF_PAGE_INDEX rule below>,
       "preceding_section_header": "<nearest section/heading text above this narrative, '' if none>",
       "prompt_or_header": "<exact question, section header, or 'General Body Text'>",
       "continues_from_previous_chunk": <boolean>,
@@ -51,6 +53,7 @@ Task: You are given a contiguous run of pages from ONE document. Extract all dat
   "stakeholders": [
     {
       "visual_page_number": "<ONLY the page identifier printed where the stakeholder info appears. Do NOT include 'Page', '|', 'of 142', or any decoration — capture the identifier alone. Use null if no page number is printed.>",
+      "pdf_page_index": <integer or null — see PDF_PAGE_INDEX rule below>,
       "context_snippet": "<3-5 words near the stakeholder info>",
       "stakeholder_role": "<Principal Investigator | Co-Investigator | Collaborator | Key Personnel | Grants Administrative Contact | Sponsor Contact | Authorized Organizational Representative | Unknown>",
       "full_name": "", "first_name": "", "last_name": "",
@@ -62,6 +65,7 @@ Task: You are given a contiguous run of pages from ONE document. Extract all dat
   "addresses": [
     {
       "visual_page_number": "<ONLY the page identifier printed where the address appears. Do NOT include 'Page', '|', 'of 142', or any decoration — capture the identifier alone. Use null if no page number is printed.>",
+      "pdf_page_index": <integer or null — see PDF_PAGE_INDEX rule below>,
       "context_snippet": "<3-5 words near the address>",
       "addressee": "", "care_of": null,
       "address_line1": "", "address_line2": "",
@@ -121,6 +125,7 @@ PROCESSING RULES:
 - CITATIONS: Add [cite: N] numbered tags after each distinct statement in narrative text, incrementing N from 1 within each narrative_responses entry.
 - PRECEDING_SECTION_HEADER: For every table and narrative, capture the nearest section heading above it (e.g. "Year 1 Budget", "Specific Aims", "Biographical Sketch"). This is used to disambiguate items that have similar content in different sections of the document. If there is no clear preceding header, use "".
 - VISUAL_PAGE_NUMBER (every tables, narrative_responses, stakeholders, addresses item): ONLY the page identifier printed in the header/footer/margin of the page where the item starts — e.g. "12", "iii", "A-5". Do NOT include surrounding decoration ("Page", "|", "of 142", a total-page count, or any separator) — capture the identifier alone as a string. Use null if no page number is printed on the page. Do NOT infer or compute a value — only record what is visibly printed. For items that span multiple pages, record the visual page number of the page where the item begins.
+- PDF_PAGE_INDEX (every tables, narrative_responses, stakeholders, addresses item): A deterministic 1-based PDF page number, separate from visual_page_number. Each page image is preceded by a label of the form "[PAGE IMAGE N of M — PDF page X]". Copy X verbatim into pdf_page_index for any item that starts on that page. This field is REQUIRED whenever the item is on a labeled page; use null only if the item came from a [PINNED CONTEXT] image (which has no PDF-page label). Do NOT infer the value from the printed page number — read it from the image label.
 - SIGNATURES: Do NOT read handwriting. Only note if a signature LINE exists and if a signature is DETECTED.
 - STAKEHOLDER ROLES: Use ONLY the allowed stakeholder_role values listed above. If context does not make the role explicitly clear, use "Unknown". Capture raw_stakeholder_text verbatim.
 - HYPERLINKS: Include URLs up to and including the path, but strip query strings, signed tokens, JWTs, and session IDs — these are ephemeral and not useful historically.
