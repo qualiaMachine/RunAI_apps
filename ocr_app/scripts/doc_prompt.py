@@ -41,8 +41,6 @@ Task: You are given a contiguous run of pages from ONE document. Extract all dat
   ],
   "narrative_responses": [
     {
-      "visual_page_number": "<ONLY the page identifier printed where this narrative starts. Do NOT include 'Page', '|', 'of 142', or any decoration — capture the identifier alone. Use null if no page number is printed.>",
-      "chunk_relative_page_index": <integer or null — see CHUNK_RELATIVE_PAGE_INDEX rule below>,
       "preceding_section_header": "<nearest section/heading text above this narrative, '' if none>",
       "prompt_or_header": "<exact question, section header, or 'General Body Text'>",
       "continues_from_previous_chunk": <boolean>,
@@ -52,8 +50,6 @@ Task: You are given a contiguous run of pages from ONE document. Extract all dat
   ],
   "stakeholders": [
     {
-      "visual_page_number": "<ONLY the page identifier printed where the stakeholder info appears. Do NOT include 'Page', '|', 'of 142', or any decoration — capture the identifier alone. Use null if no page number is printed.>",
-      "chunk_relative_page_index": <integer or null — see CHUNK_RELATIVE_PAGE_INDEX rule below>,
       "context_snippet": "<3-5 words near the stakeholder info>",
       "stakeholder_role": "<Principal Investigator | Co-Investigator | Collaborator | Key Personnel | Grants Administrative Contact | Sponsor Contact | Authorized Organizational Representative | Unknown>",
       "full_name": "", "first_name": "", "last_name": "",
@@ -64,8 +60,6 @@ Task: You are given a contiguous run of pages from ONE document. Extract all dat
   ],
   "addresses": [
     {
-      "visual_page_number": "<ONLY the page identifier printed where the address appears. Do NOT include 'Page', '|', 'of 142', or any decoration — capture the identifier alone. Use null if no page number is printed.>",
-      "chunk_relative_page_index": <integer or null — see CHUNK_RELATIVE_PAGE_INDEX rule below>,
       "context_snippet": "<3-5 words near the address>",
       "addressee": "", "care_of": null,
       "address_line1": "", "address_line2": "",
@@ -92,8 +86,17 @@ CONTINUATION FLAGS (CRITICAL — read carefully):
 - When you set a continuation flag, still extract whatever text/rows you DO see on the visible pages. Do not drop partial content.
 
 PROCESSING RULES:
+- NOT A TABLE (read BEFORE deciding what to emit as a table):
+  * STYLING ALONE DOES NOT DECIDE TABULARITY. Borders, shading, colored headers, rounded boxes, two-column layouts, horizontal rules, and sidebars appear on BOTH real tables AND narrative callouts in grant documents. The deciding signal is parallel structure (next bullet), not styling. A styled block with genuine parallel rows IS a table — keep it as Standard_Table with cells preserved verbatim. A styled block without parallel rows is narrative, even when bordered.
+  * A table has MULTIPLE ROWS OF PARALLEL STRUCTURE — each row describes the same kind of thing (a date, a cost, a practice, a grant type) using the same attributes. If you cannot describe what every row "is" in one phrase, it is not a table.
+  * Styled callout boxes / sidebar sections with heading labels like "PREREQUISITES", "FUNDING", "REIMBURSEMENTS", "ELIGIBLE PROJECTS", "CONDITIONS", "ELIGIBILITY", "TIMELINE" followed by prose are STRUCTURED NARRATIVE, not tables — even when visually bordered, shaded, or boxed. Extract each one as a narrative_responses entry with prompt_or_header set to the label (e.g. "PREREQUISITES") and verbatim_text holding the prose underneath.
+  * Single-cell "Note:", "Important:", "REV:", and similar inline callouts are NARRATIVE, not tables.
+  * A "table" with only one row or one column is almost never a real table — emit as narrative.
+  * Bulleted or numbered lists, even inside a box, are narrative.
+  * Table-of-contents entries are narrative, not tables.
+  * When the content could plausibly be rewritten as flowing prose without losing meaning, it is narrative, not a table.
 - TABLE EXTRACTION (HIGHEST PRIORITY — read carefully):
-  * If any page in this chunk contains tabular content, you MUST populate the tables array with every table, and every row of every table.
+  * If any page in this chunk contains tabular content (that passes the NOT A TABLE filter above), you MUST populate the tables array with every table, and every row of every table.
   * table_classification MUST be EXACTLY ONE OF: "Literal_Grid", "Key_Value_Form", or "Standard_Table". Do NOT invent new values like "Simple", "Table", "Normal", etc. If a table has clear column headers (even if the styling is fancy — colored headers, alternating row shading, embedded hyperlinks), classify it as Standard_Table.
   * Cells may contain multiple sentences, full paragraphs, or embedded hyperlinks. You MUST preserve the COMPLETE cell text verbatim — do not summarize, truncate with "...", or describe cells as "long paragraph". Copy every word exactly as printed. If a cell contains a hyperlink, include the visible link text in the cell value (the URL itself goes in other_metadata).
   * Every row of the table goes in table_data. If a table has 17 rows across the pages you can see, there must be 17 entries in table_data. Do not stop early.
@@ -119,13 +122,12 @@ PROCESSING RULES:
     HOMOGENEOUS KEYS RULE — CRITICAL: Every row object in a Standard_Table MUST have the IDENTICAL set of keys as every other row. Before emitting Standard_Table, mentally check: "Does row 1 have the same keys as row 2, row 3, ... row N?" If ANY row has a different key set (e.g., row 1 has keys [A, B, C] but row 2 has keys [X, Y, Z]), the table is NOT a Standard_Table.
       - Ranking sheets / scoring rubrics where each row has a different criterion label in column 1 (e.g., "1. Project Impact", "2. Project Design", ...) are NOT Standard_Tables, even though they look tabular. The row labels are CONTENT, not column headers. Emit these as Literal_Grid instead, preserving the 2D layout.
       - Form cover sheets with label-value pairs where labels vary per row are Key_Value_Form, not Standard_Table.
-      - When in doubt between Standard_Table and Literal_Grid, prefer Literal_Grid — it preserves layout faithfully without forcing a schema that doesn't fit.
 - STAKEHOLDER EXTRACTION (CRITICAL): Every grant document has AT LEAST two stakeholders: a funding agency/sponsor AND a recipient institution. ALWAYS extract both. The funding/granting agency (e.g. NSF, NIH, NHPRC, DOE) must be extracted as a stakeholder with role "Sponsor Contact" even if only mentioned in a header, award number prefix, or letterhead. The recipient institution must be extracted as role "Authorized Organizational Representative" or "Unknown". Also extract all individuals mentioned as investigators, collaborators, points of contact, or key personnel.
 - NARRATIVE EXTRACTION (CRITICAL FOR RAG): Extract ALL body text, paragraphs, memos, and application answers VERBATIM to ensure 100% document coverage. If text is part of a Q&A form, include the question in prompt_or_header. For unstructured letter/memo body, use "General Body Text". Do NOT summarize, truncate, or condense.
 - CITATIONS: Add [cite: N] numbered tags after each distinct statement in narrative text, incrementing N from 1 within each narrative_responses entry.
 - PRECEDING_SECTION_HEADER: For every table and narrative, capture the nearest section heading above it (e.g. "Year 1 Budget", "Specific Aims", "Biographical Sketch"). This is used to disambiguate items that have similar content in different sections of the document. If there is no clear preceding header, use "".
-- VISUAL_PAGE_NUMBER (every tables, narrative_responses, stakeholders, addresses item): ONLY the page identifier printed in the header/footer/margin of the page where the item starts — e.g. "12", "iii", "A-5". Do NOT include surrounding decoration ("Page", "|", "of 142", a total-page count, or any separator) — capture the identifier alone as a string. Use null if no page number is printed on the page. Do NOT infer or compute a value — only record what is visibly printed. For items that span multiple pages, record the visual page number of the page where the item begins.
-- CHUNK_RELATIVE_PAGE_INDEX (every tables, narrative_responses, stakeholders, addresses item): a small integer 1..M telling us WHICH chunk image the item came from. Each page image is preceded by a label "[PAGE IMAGE N of M — PDF page X]"; copy the value of N (NOT X, NOT the printed page number, NOT the visual_page_number) into chunk_relative_page_index. M is the number of images in this chunk (the same M for every item). Use null only when the item came from a [PINNED CONTEXT] image (no [PAGE IMAGE N of M] label). The downstream merger uses this to compute an absolute pdf_page_index — do NOT compute pdf_page_index yourself, do NOT include the field at all.
+- VISUAL_PAGE_NUMBER (tables only): ONLY the page identifier printed in the header/footer/margin of the page where the table starts — e.g. "12", "iii", "A-5". Do NOT include surrounding decoration ("Page", "|", "of 142", a total-page count, or any separator) — capture the identifier alone as a string. Use null if no page number is printed on the page. Do NOT infer or compute a value — only record what is visibly printed. For tables that span multiple pages, record the visual page number of the page where the table begins. Narrative responses, stakeholders, and addresses do NOT carry a visual_page_number — do not emit the field for those items.
+- CHUNK_RELATIVE_PAGE_INDEX (tables only): a small integer 1..M telling us WHICH chunk image the table came from. Each page image is preceded by a label "[PAGE IMAGE N of M — PDF page X]"; copy the value of N (NOT X, NOT the printed page number, NOT the visual_page_number) into chunk_relative_page_index. M is the number of images in this chunk (the same M for every table). Use null only when the table came from a [PINNED CONTEXT] image (no [PAGE IMAGE N of M] label). The downstream merger uses this to compute an absolute pdf_page_index — do NOT compute pdf_page_index yourself, do NOT include the field at all. Narrative responses, stakeholders, and addresses do NOT carry chunk_relative_page_index — do not emit the field for those items.
 - SIGNATURES: Do NOT read handwriting. Only note if a signature LINE exists and if a signature is DETECTED.
 - STAKEHOLDER ROLES: Use ONLY the allowed stakeholder_role values listed above. If context does not make the role explicitly clear, use "Unknown". Capture raw_stakeholder_text verbatim.
 - HYPERLINKS: Include URLs up to and including the path, but strip query strings, signed tokens, JWTs, and session IDs — these are ephemeral and not useful historically.
