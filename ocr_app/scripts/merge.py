@@ -725,6 +725,40 @@ def _normalize_page_numbers_inplace(items: list[dict], chunk_page_range=None) ->
             it["visual_page_number"] = normed
 
 
+def _validate_pdf_page_indices_inplace(items: list[dict], chunk_page_range=None) -> None:
+    """Null out any pdf_page_index that falls outside the chunk's PDF range.
+
+    ``chunk_page_range`` is the 0-based half-open ``(page_start, page_end)``
+    from ``chunk_page_ranges``; the corresponding 1-based PDF page range
+    visible to the VLM is ``[page_start+1, page_end]``. Values outside
+    that range are VLM hallucinations (the model copied the wrong number
+    or invented one) and shouldn't survive into the merged output. Also
+    coerces string-typed integers to int so downstream consumers don't
+    have to defend against type drift.
+    """
+    if chunk_page_range is None:
+        return
+    start, end = chunk_page_range
+    if start is None or end is None:
+        return
+    lo, hi = start + 1, end  # inclusive 1-based PDF page bounds
+    for it in items or []:
+        if "pdf_page_index" not in it:
+            continue
+        raw = it.get("pdf_page_index")
+        if raw is None:
+            continue
+        try:
+            n = int(raw)
+        except (TypeError, ValueError):
+            it["pdf_page_index"] = None
+            continue
+        if n < lo or n > hi:
+            it["pdf_page_index"] = None
+        else:
+            it["pdf_page_index"] = n
+
+
 def _page_sort_key(item: dict) -> tuple:
     """Stable sort key based on ``visual_page_number``.
 
@@ -923,6 +957,127 @@ def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
             kept.append(t)
             kept_tokens.append(tokens)
     return kept
+
+
+def _table_column_signature(table: dict) -> tuple | None:
+    """Normalized signature of a Standard_Table's column-header keys.
+
+    Returns the sorted tuple of normalized row keys (their union across
+    all rows, to tolerate minor row-shape variance the VLM occasionally
+    produces). Returns None for non-Standard_Table inputs or empty rows.
+    Used by the supertable collapser to detect adjacent tables that
+    share the same column shape.
+    """
+    if table.get("table_classification") != "Standard_Table":
+        return None
+    rows = table.get("table_data")
+    if not isinstance(rows, list) or not rows:
+        return None
+    keys: set[str] = set()
+    for row in rows:
+        if isinstance(row, dict):
+            keys.update(row.keys())
+    if not keys:
+        return None
+    return tuple(sorted(_norm(k) for k in keys))
+
+
+def _supertable_mergeable(
+    a: dict, b: dict, a_trailing_page: int | None, max_page_gap: int,
+) -> bool:
+    """Predicate: should b's rows be appended into a as part of a supertable?
+
+    Triggers only when two adjacent Standard_Tables share an identical
+    column-key signature AND sit within ``max_page_gap`` PDF pages of
+    each other. ``a_trailing_page`` is the page index of the latest
+    table folded into ``a`` (so a 5-page run at pages 80..84 keeps
+    advancing the comparison page rather than always measuring back to
+    80). Continuation-flagged tables are excluded — those are handled
+    by the cross-chunk stitcher and shouldn't double-stitch here.
+    """
+    if a.get("continues_to_next_chunk") or b.get("continues_from_previous_chunk"):
+        return False
+    sig_a = _table_column_signature(a)
+    sig_b = _table_column_signature(b)
+    if sig_a is None or sig_a != sig_b:
+        return False
+    pa = a_trailing_page if a_trailing_page is not None else a.get("pdf_page_index")
+    pb = b.get("pdf_page_index")
+    if not isinstance(pa, int) or not isinstance(pb, int):
+        return False
+    return 0 <= (pb - pa) <= max_page_gap
+
+
+def _collapse_supertable_runs(tables: list[dict], max_page_gap: int = 2) -> list[dict]:
+    """Merge adjacent Standard_Tables that look like one logical "supertable".
+
+    Common pattern in long grant-admin docs: a section heading is
+    followed by several subtables across consecutive pages, each with
+    identical column headers but different ``preceding_section_header``
+    values (the subtable subtitle). The VLM correctly emits each
+    subtable separately; this pass folds them into a single table whose
+    ``preceding_section_header`` is the supertable's heading (the first
+    subtable's). Rows are appended in page order via ``_concat_tables``.
+
+    Assumes the input is already page-sorted. The merge is iterative
+    (each new merge can enable the next), so a run of N matching tables
+    collapses to one entry. The ``trailing`` parallel list tracks the
+    latest absorbed page so a long run at pages 80, 81, 82, 83, 84
+    isn't gated on the original 80→83 gap when checking page 83.
+    """
+    if not tables:
+        return tables
+    out: list[dict] = []
+    trailing: list[int | None] = []
+    for t in tables:
+        if not out:
+            out.append(t)
+            trailing.append(t.get("pdf_page_index") if isinstance(t.get("pdf_page_index"), int) else None)
+            continue
+        if _supertable_mergeable(out[-1], t, trailing[-1], max_page_gap):
+            out[-1] = _concat_tables(out[-1], t)
+            tp = t.get("pdf_page_index")
+            if isinstance(tp, int):
+                trailing[-1] = tp
+        else:
+            out.append(t)
+            trailing.append(t.get("pdf_page_index") if isinstance(t.get("pdf_page_index"), int) else None)
+    return out
+
+
+def _reclassify_self_keyed_standard_table(table: dict) -> dict:
+    """Convert ``Standard_Table`` to ``Literal_Grid`` when rows are self-keyed.
+
+    The VLM occasionally emits a tabular section as a Standard_Table where
+    every row is a dict with ``key == value`` for every entry — the model
+    has stuffed cell text into both positions because there are no real
+    column headers. These rows carry no schema information and would
+    fail the homogeneous-keys check downstream. Convert to Literal_Grid
+    (a 2D string array, one inner array per row) so the layout survives
+    without forcing a phantom schema.
+
+    Triggers only when ALL rows are dicts and EVERY cell satisfies
+    ``str(key).strip() == str(value).strip()`` (after collapsing
+    whitespace). One real header cell is enough to leave the table
+    alone — better to keep an awkward Standard_Table than to throw away
+    a real schema.
+    """
+    if table.get("table_classification") != "Standard_Table":
+        return table
+    rows = table.get("table_data")
+    if not isinstance(rows, list) or not rows:
+        return table
+    for row in rows:
+        if not isinstance(row, dict) or not row:
+            return table
+        for k, v in row.items():
+            if _norm(k) != _norm(v):
+                return table
+    grid = [list(row.keys()) for row in rows]
+    out = dict(table)
+    out["table_classification"] = "Literal_Grid"
+    out["table_data"] = grid
+    return out
 
 
 def _dedupe_table_rows(table: dict) -> dict:
@@ -1259,6 +1414,7 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
     for e, rng in zip(extracted_list, chunk_ranges):
         for field in ("tables", "narrative_responses", "stakeholders", "addresses"):
             _normalize_page_numbers_inplace(e.get(field) or [], rng)
+            _validate_pdf_page_indices_inplace(e.get(field) or [], rng)
 
     if len(extracted_list) == 1:
         # Single chunk: no cross-chunk stitch needed, but still apply
@@ -1266,7 +1422,9 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
         # multi-chunk path (a single VLM call can still emit duplicate
         # stakeholders or out-of-order tables).
         merged = dict(extracted_list[0])
-        _strip_continuation_flags(merged)
+        # NOTE: continuation-flag stripping is deferred until after the
+        # supertable collapser runs — that pass uses the flags to skip
+        # tables already handled by the cross-chunk stitcher.
         # Strip the per-chunk confidence_narrative from the doc-level view —
         # chunks[].extracted preserves it per-chunk.
         # Doc-level confidence_narrative is filled by pass-2 VLM synthesis
@@ -1290,18 +1448,19 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
             ),
             key=_page_sort_key,
         )
-        merged["tables"] = [
-            _dedupe_table_rows(t)
+        merged["tables"] = _collapse_supertable_runs([
+            _dedupe_table_rows(_reclassify_self_keyed_standard_table(t))
             for t in _collapse_same_page_duplicates(sorted(
                 (t for t in (merged.get("tables") or []) if not _is_empty_table(t)),
                 key=_page_sort_key,
             ))
-        ]
+        ])
         merged["narrative_responses"] = _collapse_narrative_same_page_substrings(sorted(
             merged.get("narrative_responses") or [],
             key=_page_sort_key,
         ))
         _strip_malformed_cites_from_narratives(merged["narrative_responses"])
+        _strip_continuation_flags(merged)
         merged["chunks"] = _build_chunks_sidecar(records)
         merged["potential_issues"] = _lint_merged(merged)
         return merged
@@ -1350,24 +1509,27 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
         "other_metadata": _merge_other_metadata(extracted_list),
         "chunks": _build_chunks_sidecar(records),
     }
-    _strip_continuation_flags(merged)
+    # NOTE: continuation-flag stripping is deferred until after the
+    # supertable collapser runs — that pass uses the flags to skip
+    # tables already handled by the cross-chunk stitcher.
     # Drop empty-table entries (VLM sometimes tags a section heading as a
     # Standard_Table with no rows — pure noise). Done after dedupe so any
     # chunk that actually captured rows wins via _pick_more_complete.
     # Dedupe rows within each surviving table to clean up runaway-loop
     # repetition the VLM sometimes emits in long tabular sections.
-    merged["tables"] = [
-        _dedupe_table_rows(t)
+    merged["tables"] = _collapse_supertable_runs([
+        _dedupe_table_rows(_reclassify_self_keyed_standard_table(t))
         for t in _collapse_same_page_duplicates(sorted(
             (t for t in (merged.get("tables") or []) if not _is_empty_table(t)),
             key=_page_sort_key,
         ))
-    ]
+    ])
     merged["narrative_responses"] = _collapse_narrative_same_page_substrings(sorted(
         merged.get("narrative_responses") or [],
         key=_page_sort_key,
     ))
     _strip_malformed_cites_from_narratives(merged["narrative_responses"])
+    _strip_continuation_flags(merged)
     merged["potential_issues"] = _lint_merged(merged)
     return merged
 

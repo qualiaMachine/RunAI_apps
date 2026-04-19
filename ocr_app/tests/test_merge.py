@@ -1023,6 +1023,228 @@ def test_finalize_stakeholders_keeps_distinct_emails_apart():
     assert len(out["stakeholders"]) == 2
 
 
+def test_self_keyed_standard_table_reclassified_to_literal_grid():
+    # VLM emitted a tabular section as Standard_Table with rows that have
+    # key == value for every cell — no real schema. Reclassifier should
+    # convert to Literal_Grid and preserve the cell layout as a 2D array.
+    rows = [
+        {"Planning Needs Assessment": "Planning Needs Assessment",
+         "Data Gap Analysis": "Data Gap Analysis"},
+        {"Write Plan": "Write Plan",
+         "Plan & Implementation": "Plan & Implementation"},
+    ]
+    out = merge_chunks([_chunk(tables=[
+        _table(rows=rows, header="APPENDIX B: MANAGEMENT PLANNING",
+               visual_page_number="106")
+    ])])
+    t = out["tables"][0]
+    assert t["table_classification"] == "Literal_Grid", t["table_classification"]
+    assert t["table_data"] == [
+        ["Planning Needs Assessment", "Data Gap Analysis"],
+        ["Write Plan", "Plan & Implementation"],
+    ], t["table_data"]
+
+
+def test_self_keyed_reclassifier_leaves_real_standard_table_alone():
+    # A Standard_Table with real column headers (key != value) should
+    # NOT be reclassified — only fully self-keyed rows trigger conversion.
+    rows = [
+        {"Date": "May 1", "Action": "Confirm eligibility"},
+        {"Date": "Nov 15", "Action": "Submit application"},
+    ]
+    out = merge_chunks([_chunk(tables=[
+        _table(rows=rows, header="Grant cycle timeline", visual_page_number="7")
+    ])])
+    t = out["tables"][0]
+    assert t["table_classification"] == "Standard_Table"
+    assert isinstance(t["table_data"][0], dict)
+
+
+def test_self_keyed_reclassifier_skips_mixed_rows():
+    # Even one cell with a real header (key != value) is enough to
+    # leave the table alone — better an awkward Standard_Table than to
+    # discard a real schema.
+    rows = [
+        {"Header A": "Header A", "Header B": "Header B"},
+        {"Header A": "real value", "Header B": "real value 2"},
+    ]
+    out = merge_chunks([_chunk(tables=[
+        _table(rows=rows, header="Mixed table", visual_page_number="42")
+    ])])
+    t = out["tables"][0]
+    assert t["table_classification"] == "Standard_Table"
+
+
+def test_pdf_page_index_in_range_preserved():
+    # Chunk covers PDF pages 11-20 (page_start=10, page_end=20 half-open).
+    # An item with pdf_page_index=15 is inside the range and should survive.
+    n = _narr(header="Section", text="body")
+    n["visual_page_number"] = "15"
+    n["pdf_page_index"] = 15
+    r = {
+        "chunk_index": 1, "page_start": 10, "page_end": 20,
+        "experiment": {},
+        "extracted": _chunk(narrative_responses=[n]),
+    }
+    out = merge_chunks([r])
+    assert out["narrative_responses"][0]["pdf_page_index"] == 15
+
+
+def test_pdf_page_index_out_of_range_nulled():
+    # Chunk covers PDF pages 11-20. pdf_page_index=99 is outside the
+    # chunk's range — VLM hallucinated. Should be nulled (the merger
+    # can't trust it) but the rest of the item is kept.
+    n = _narr(header="Section", text="body")
+    n["visual_page_number"] = "15"
+    n["pdf_page_index"] = 99
+    r = {
+        "chunk_index": 1, "page_start": 10, "page_end": 20,
+        "experiment": {},
+        "extracted": _chunk(narrative_responses=[n]),
+    }
+    out = merge_chunks([r])
+    item = out["narrative_responses"][0]
+    assert item["pdf_page_index"] is None
+    assert item["verbatim_text"] == "body"
+
+
+def test_pdf_page_index_string_coerced_to_int():
+    # VLM occasionally emits "15" instead of 15. Coerce to int when in
+    # range; null when not parseable.
+    n_ok = _narr(header="A", text="x")
+    n_ok["pdf_page_index"] = "15"
+    n_bad = _narr(header="B", text="y")
+    n_bad["pdf_page_index"] = "not-a-number"
+    r = {
+        "chunk_index": 0, "page_start": 10, "page_end": 20,
+        "experiment": {},
+        "extracted": _chunk(narrative_responses=[n_ok, n_bad]),
+    }
+    out = merge_chunks([r])
+    items = out["narrative_responses"]
+    ok = [n for n in items if n.get("verbatim_text") == "x"][0]
+    bad = [n for n in items if n.get("verbatim_text") == "y"][0]
+    assert ok["pdf_page_index"] == 15
+    assert bad["pdf_page_index"] is None
+
+
+def test_pdf_page_index_left_alone_without_chunk_range():
+    # Raw-dict input (no chunk_page_range available) means the merger
+    # has no way to validate; pdf_page_index should pass through as-is.
+    n = _narr(header="A", text="x")
+    n["pdf_page_index"] = 999  # would normally be flagged out-of-range
+    out = merge_chunks([_chunk(narrative_responses=[n])])
+    assert out["narrative_responses"][0]["pdf_page_index"] == 999
+
+
+def _table_with_pdf(rows, pdf_page, header="", visual_page=None):
+    t = _table(rows=rows, header=header,
+               visual_page_number=visual_page or str(pdf_page))
+    t["pdf_page_index"] = pdf_page
+    return t
+
+
+def test_supertable_collapse_merges_consecutive_pages():
+    # Real-world pattern: a "Program-approved protocols" supertable spans
+    # pages 45-47 with one subtable per page, all sharing identical
+    # column headers but distinct preceding_section_header values.
+    cols = ["Category", "Protocol", "Link"]
+    t1 = _table_with_pdf(
+        [{"Category": "Decon", "Protocol": "Boat Decon", "Link": "url1"}],
+        pdf_page=45, header="Program-approved protocols",
+    )
+    t2 = _table_with_pdf(
+        [{"Category": "Citizen", "Protocol": "Secchi", "Link": "url2"}],
+        pdf_page=46, header="CITIZEN MONITORING",
+    )
+    t3 = _table_with_pdf(
+        [{"Category": "AIS", "Protocol": "Early Det", "Link": "url3"}],
+        pdf_page=47, header="AIS MONITORING",
+    )
+    out = merge_chunks([_chunk(tables=[t1, t2, t3])])
+    assert len(out["tables"]) == 1, [t.get("preceding_section_header") for t in out["tables"]]
+    merged = out["tables"][0]
+    # First table's section header is the supertable heading; survives.
+    assert merged["preceding_section_header"] == "Program-approved protocols"
+    # All three subtables' rows are present, in page order.
+    assert len(merged["table_data"]) == 3
+    assert [r["Protocol"] for r in merged["table_data"]] == [
+        "Boat Decon", "Secchi", "Early Det",
+    ]
+
+
+def test_supertable_collapse_skips_when_columns_differ():
+    # Adjacent Standard_Tables on consecutive pages but with different
+    # column shapes — these are unrelated tables; do not merge.
+    t1 = _table_with_pdf(
+        [{"A": "1", "B": "2"}], pdf_page=10, header="Table A",
+    )
+    t2 = _table_with_pdf(
+        [{"X": "9", "Y": "8"}], pdf_page=11, header="Table B",
+    )
+    out = merge_chunks([_chunk(tables=[t1, t2])])
+    assert len(out["tables"]) == 2
+
+
+def test_supertable_collapse_respects_page_gap():
+    # Same column shape but the gap between subtables exceeds the
+    # max_page_gap threshold — likely two unrelated tables, not a
+    # supertable. Default threshold is 2; pages 10 and 14 differ by 4.
+    cols = ["Date", "Action"]
+    t1 = _table_with_pdf(
+        [{"Date": "May 1", "Action": "X"}], pdf_page=10, header="Schedule A",
+    )
+    t2 = _table_with_pdf(
+        [{"Date": "Nov 15", "Action": "Y"}], pdf_page=14, header="Schedule B",
+    )
+    out = merge_chunks([_chunk(tables=[t1, t2])])
+    assert len(out["tables"]) == 2
+
+
+def test_supertable_collapse_chains_three_in_a_row():
+    # Five matching subtables on pages 80, 81, 82, 83, 84 should all
+    # collapse into a single entry.
+    rows = [
+        ({"Col": "v1"}, 80, "Supertable header"),
+        ({"Col": "v2"}, 81, "Sub A"),
+        ({"Col": "v3"}, 82, "Sub B"),
+        ({"Col": "v4"}, 83, "Sub C"),
+        ({"Col": "v5"}, 84, "Sub D"),
+    ]
+    tables = [_table_with_pdf([r], pdf_page=p, header=h) for r, p, h in rows]
+    out = merge_chunks([_chunk(tables=tables)])
+    assert len(out["tables"]) == 1
+    assert len(out["tables"][0]["table_data"]) == 5
+    assert out["tables"][0]["preceding_section_header"] == "Supertable header"
+
+
+def test_supertable_collapse_skips_continuation_flagged():
+    # A table marked continues_to_next_chunk is the cross-chunk stitch's
+    # job; the supertable collapser should skip it to avoid double-stitch.
+    t1 = _table_with_pdf(
+        [{"Col": "a"}], pdf_page=10, header="Continuation candidate",
+    )
+    t1["continues_to_next_chunk"] = True
+    t2 = _table_with_pdf(
+        [{"Col": "b"}], pdf_page=11, header="Other",
+    )
+    out = merge_chunks([_chunk(tables=[t1, t2])])
+    # Both survive — the continuation flag is stripped by post-processing
+    # but the supertable check ran before strip, so they stayed separate.
+    assert len(out["tables"]) == 2
+
+
+def test_supertable_collapse_skips_when_pdf_page_index_missing():
+    # Without pdf_page_index, the merger has no way to confirm adjacency.
+    # Don't merge — better to keep two tables than risk a wrong merge.
+    cols = ["Col"]
+    t1 = _table(rows=[{"Col": "a"}], header="A", visual_page_number="10")
+    # Note: no pdf_page_index set
+    t2 = _table(rows=[{"Col": "b"}], header="B", visual_page_number="11")
+    out = merge_chunks([_chunk(tables=[t1, t2])])
+    assert len(out["tables"]) == 2
+
+
 def test_fragment_not_preferred_over_complete():
     # Even if the fragment has more rows by accident, full copy wins
     c1 = _chunk(tables=[_table(
@@ -1099,6 +1321,19 @@ TESTS = [
     test_finalize_stakeholders_keeps_entries_with_conflicting_fields,
     test_finalize_stakeholders_prefers_paginated_survivor,
     test_finalize_stakeholders_keeps_distinct_emails_apart,
+    test_self_keyed_standard_table_reclassified_to_literal_grid,
+    test_self_keyed_reclassifier_leaves_real_standard_table_alone,
+    test_self_keyed_reclassifier_skips_mixed_rows,
+    test_pdf_page_index_in_range_preserved,
+    test_pdf_page_index_out_of_range_nulled,
+    test_pdf_page_index_string_coerced_to_int,
+    test_pdf_page_index_left_alone_without_chunk_range,
+    test_supertable_collapse_merges_consecutive_pages,
+    test_supertable_collapse_skips_when_columns_differ,
+    test_supertable_collapse_respects_page_gap,
+    test_supertable_collapse_chains_three_in_a_row,
+    test_supertable_collapse_skips_continuation_flagged,
+    test_supertable_collapse_skips_when_pdf_page_index_missing,
     test_fragment_not_preferred_over_complete,
 ]
 
