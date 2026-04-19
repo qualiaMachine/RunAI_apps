@@ -199,11 +199,31 @@ def _table_first_row_text(t: dict) -> str:
     return ""
 
 
+_CITE_MARKER_RE = re.compile(r"\[cite:\s*\d+\]", re.IGNORECASE)
+
+
+def _strip_cite_markers(s: str) -> str:
+    """Remove ``[cite: N]`` tokens the VLM injects into verbatim text.
+
+    Cite numbers are scoped per-narrative-entry (numbered from 1 within
+    each entry), so two chunks that capture the same section emit the
+    same prose with *different* cite numbers embedded throughout. Leaving
+    them in would defeat substring / fingerprint comparisons across
+    chunks.
+    """
+    if not s:
+        return s
+    return _CITE_MARKER_RE.sub("", s)
+
+
 def _narrative_fingerprint(n: dict) -> str:
     page = _norm(n.get("visual_page_number"))
     disambig = page if page else _norm(n.get("preceding_section_header"))
     header = _norm(n.get("prompt_or_header"))
-    head_chars = _norm(n.get("verbatim_text", ""))[:120]
+    # Strip cite markers before hashing the head: two copies of the same
+    # section have different cite numbers (per-entry scope) that would
+    # otherwise make the hash diverge.
+    head_chars = _norm(_strip_cite_markers(n.get("verbatim_text", "")))[:120]
     return _hash(f"narr:{disambig}|{header}|{head_chars}")
 
 
@@ -639,20 +659,55 @@ def _table_content_tokens(t: dict) -> set[str]:
     return tokens
 
 
-def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
-    """Drop adjacent same-page tables whose content is substantially covered
-    by a neighbor. Runs after sort; keeps the larger/non-fragment entry.
+_CROSS_PAGE_GAP = 3
+_CROSS_PAGE_MIN_TOKENS = 20
+_CROSS_PAGE_COVERAGE = 0.95
 
-    Two-tier rule:
-      1. Headers agree (after ``_normalize_section_header``, or one is
-         empty) AND ≥80% token coverage of the smaller → collapse.
-      2. Headers disagree but ≥95% coverage AND both tables have ≥10
-         distinct tokens → collapse. Covers the common case where the
-         VLM picks different ``preceding_section_header`` text across
-         overlapping chunks for the same table (e.g. ``"APPENDIX A"``
-         vs ``"COMPREHENSIVE MANAGEMENT PLANNING"``). The 10-token
-         floor protects legitimately-different same-shape tables like
-         Year-1 vs Year-2 budgets from collapsing.
+
+def _page_as_int(raw) -> int | None:
+    """Return the numeric part of a visual_page_number, or None if the
+    identifier isn't numeric (e.g. 'A-5', 'iii'). Used for page-gap math
+    only; non-numeric pages just skip the cross-page rule.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    m = re.match(r"^(\d+)", s)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return None
+
+
+def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
+    """Drop near-duplicate tables whose content is substantially covered
+    by a kept neighbor. Runs after sort; keeps the larger/non-fragment entry.
+
+    Three-tier rule (checked against each prior kept table in reverse):
+      1. Same page + headers agree (after ``_normalize_section_header``,
+         or one is empty) + ≥80% token coverage of the smaller → collapse.
+      2. Same page + ≥95% coverage + ≥10 tokens → collapse. Covers the
+         common case where the VLM picks different ``preceding_section_header``
+         text across overlapping chunks for the same table.
+      3. Different page (gap ≤ 3, both numeric) + ≥95% coverage + ≥20
+         tokens → collapse. Covers the case where a single logical table
+         straddles a chunk boundary and the VLM records a different page
+         number for each copy (chunk A emits it labeled p.108, chunk B
+         labels the overlapping re-extraction p.112). The higher token
+         floor and stricter coverage protect legitimately-different
+         same-shape tables on nearby pages.
+
+    Walk stops when the page gap exceeds the threshold (no reason to keep
+    searching further back in the doc once we're past the window).
+
+    The ≥10/≥20-token floors protect same-shape distinct tables (Year-1
+    vs Year-2 budgets, repeated ranking rubrics) from collapsing; in
+    practice those have diverging cell values that drop coverage below
+    the threshold.
     """
     if not tables:
         return tables
@@ -660,13 +715,19 @@ def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
     kept_tokens: list[set[str]] = []
     for t in tables:
         page = t.get("visual_page_number")
+        page_n = _page_as_int(page)
         header = _normalize_section_header(t.get("preceding_section_header"))
         tokens = _table_content_tokens(t)
         absorbed = False
-        # Walk backwards through same-page neighbors only.
         for i in range(len(kept) - 1, -1, -1):
-            if kept[i].get("visual_page_number") != page:
-                break
+            other_page = kept[i].get("visual_page_number")
+            other_page_n = _page_as_int(other_page)
+            same_page = other_page == page
+            # Page gap bail-out: once we're more than _CROSS_PAGE_GAP
+            # pages back and both pages are numeric, stop searching.
+            if not same_page and page_n is not None and other_page_n is not None:
+                if abs(page_n - other_page_n) > _CROSS_PAGE_GAP:
+                    break
             other_header = _normalize_section_header(kept[i].get("preceding_section_header"))
             other_tokens = kept_tokens[i]
             if not tokens or not other_tokens:
@@ -677,10 +738,21 @@ def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
                 continue
             coverage = overlap / small
             header_match = not header or not other_header or header == other_header
-            if not (
-                (header_match and coverage >= 0.8)
-                or (coverage >= 0.95 and small >= 10)
-            ):
+            if same_page:
+                eligible = (
+                    (header_match and coverage >= 0.8)
+                    or (coverage >= 0.95 and small >= 10)
+                )
+            else:
+                # Cross-page: require both pages to be numeric (gap
+                # comparable) and apply the stricter threshold.
+                if page_n is None or other_page_n is None:
+                    continue
+                eligible = (
+                    coverage >= _CROSS_PAGE_COVERAGE
+                    and small >= _CROSS_PAGE_MIN_TOKENS
+                )
+            if not eligible:
                 continue
             winner = _pick_more_complete(kept[i], t, _table_size)
             if winner is t:
@@ -747,7 +819,13 @@ def _collapse_narrative_same_page_substrings(narratives: list[dict]) -> list[dic
     for indices in by_page.values():
         if len(indices) < 2:
             continue
-        items = [(i, _norm(narratives[i].get("verbatim_text", ""))) for i in indices]
+        # Strip cite markers before comparison: two copies of the same
+        # section emit different cite numbers (per-entry scope) that
+        # would otherwise break exact substring containment.
+        items = [
+            (i, _norm(_strip_cite_markers(narratives[i].get("verbatim_text", ""))))
+            for i in indices
+        ]
         # Sort by length desc so shorter candidates are checked against
         # longer ones first.
         items.sort(key=lambda p: -len(p[1]))

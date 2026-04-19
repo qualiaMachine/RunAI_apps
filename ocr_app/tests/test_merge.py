@@ -733,6 +733,116 @@ def test_single_chunk_full_record_passthrough():
     assert out["experiment"] == {"model": "X"}  # elapsed_ms stripped
 
 
+def test_cross_page_table_dedup_same_content():
+    # A single logical table is labeled with different page numbers by
+    # two overlapping chunks. Chunk A extracts 30 rows and labels the
+    # copy p.128. Chunk B overlaps into the same region plus the
+    # continuation and extracts 35 rows (superset), labeling the copy
+    # p.129. Section headers also diverge between chunks ("APPENDIX G"
+    # vs "Top 300 AIS") because the VLM latched onto different nearby
+    # headings. Cross-page rule should collapse and keep the larger.
+    rows_a = [
+        {"Rank": str(i), "WBIC": str(100 + i), "Waterbody": f"Lake {i}"}
+        for i in range(1, 31)
+    ]
+    rows_b = rows_a + [
+        {"Rank": str(i), "WBIC": str(100 + i), "Waterbody": f"Lake {i}"}
+        for i in range(31, 36)
+    ]
+    t1 = _table(rows=rows_a, header="APPENDIX G: AIS PREVENTION",
+                visual_page_number="128")
+    t2 = _table(rows=rows_b, header="Top 300 AIS Prevention",
+                visual_page_number="129")
+    out = merge_chunks([_chunk(tables=[t1, t2])])
+    assert len(out["tables"]) == 1, (
+        f"expected cross-page collapse, got {len(out['tables'])}"
+    )
+    # Winner is the larger table.
+    assert len(out["tables"][0]["table_data"]) == 35
+
+
+def test_cross_page_collapse_respects_page_gap():
+    # Identical tables legitimately recur far apart in the doc (e.g.,
+    # same summary table reprinted as an appendix). Page gap larger than
+    # the window means they should NOT collapse.
+    rows = [
+        {"Cat": f"Item {i}", "Val": str(i)} for i in range(1, 15)
+    ]
+    t_front = _table(rows=rows, header="Summary",
+                     visual_page_number="5")
+    t_appendix = _table(rows=rows, header="Summary",
+                        visual_page_number="140")
+    out = merge_chunks([_chunk(tables=[t_front, t_appendix])])
+    assert len(out["tables"]) == 2, (
+        f"expected no cross-page collapse across large gap, "
+        f"got {len(out['tables'])}"
+    )
+
+
+def test_cross_page_collapse_respects_token_floor():
+    # Two near-empty tables on adjacent pages with identical content
+    # should NOT collapse via the cross-page rule — token floor protects
+    # same-shape distinct tables from being collapsed just because they
+    # look similar.
+    rows = [{"Col": "A", "Val": "1"}]  # tiny: < 20 tokens
+    t1 = _table(rows=rows, header="Y1 Budget", visual_page_number="10")
+    t2 = _table(rows=rows, header="Y2 Budget", visual_page_number="11")
+    out = merge_chunks([_chunk(tables=[t1, t2])])
+    assert len(out["tables"]) == 2, (
+        f"token floor should protect small same-shape tables, "
+        f"got {len(out['tables'])}"
+    )
+
+
+def test_narrative_dedupe_ignores_cite_markers():
+    # Two chunks capture the same section on the same page. Cite markers
+    # are numbered per-entry so they differ between the two copies —
+    # without stripping, substring containment fails.
+    body_a = (
+        "Ordinance Development projects create local regulations to "
+        "benefit surface waters. [cite: 56] They relate to topics like "
+        "boating, AIS prevention, erosion control. [cite: 57]"
+    )
+    body_b = (
+        "Ordinance Development projects create local regulations to "
+        "benefit surface waters. [cite: 3] They relate to topics like "
+        "boating, AIS prevention, erosion control. [cite: 4]"
+    )
+    n1 = _narr(header="General Body Text", section="Ordinance Development",
+               text=body_a)
+    n2 = _narr(header="Ordinance Development", section="SECTION 2",
+               text=body_b)
+    n1["visual_page_number"] = "20"
+    n2["visual_page_number"] = "20"
+    out = merge_chunks([
+        _chunk(narrative_responses=[n1]),
+        _chunk(narrative_responses=[n2]),
+    ])
+    assert len(out["narrative_responses"]) == 1, (
+        f"cite-marker noise blocked collapse: "
+        f"{len(out['narrative_responses'])} narratives kept"
+    )
+
+
+def test_narrative_fingerprint_collapses_across_cite_drift():
+    # Same narrative, same page, same header — just different cite
+    # numbers embedded in the first 120 chars. Fingerprint must strip
+    # them so primary dedupe catches it (not just the substring pass).
+    body_a = "Budget submission deadline is November 15. [cite: 1] All " \
+             "projects must include a cover letter. [cite: 2]"
+    body_b = "Budget submission deadline is November 15. [cite: 9] All " \
+             "projects must include a cover letter. [cite: 10]"
+    n1 = _narr(header="General Body Text", section="Deadlines", text=body_a)
+    n2 = _narr(header="General Body Text", section="Deadlines", text=body_b)
+    n1["visual_page_number"] = "7"
+    n2["visual_page_number"] = "7"
+    out = merge_chunks([
+        _chunk(narrative_responses=[n1]),
+        _chunk(narrative_responses=[n2]),
+    ])
+    assert len(out["narrative_responses"]) == 1
+
+
 def test_fragment_not_preferred_over_complete():
     # Even if the fragment has more rows by accident, full copy wins
     c1 = _chunk(tables=[_table(
@@ -793,6 +903,11 @@ TESTS = [
     test_merge_normalizes_page_decoration_before_dedupe,
     test_extraction_prompt_recorded_in_experiment,
     test_single_chunk_full_record_passthrough,
+    test_cross_page_table_dedup_same_content,
+    test_cross_page_collapse_respects_page_gap,
+    test_cross_page_collapse_respects_token_floor,
+    test_narrative_dedupe_ignores_cite_markers,
+    test_narrative_fingerprint_collapses_across_cite_drift,
     test_fragment_not_preferred_over_complete,
 ]
 
