@@ -925,6 +925,41 @@ def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
     return kept
 
 
+def _reclassify_self_keyed_standard_table(table: dict) -> dict:
+    """Convert ``Standard_Table`` to ``Literal_Grid`` when rows are self-keyed.
+
+    The VLM occasionally emits a tabular section as a Standard_Table where
+    every row is a dict with ``key == value`` for every entry — the model
+    has stuffed cell text into both positions because there are no real
+    column headers. These rows carry no schema information and would
+    fail the homogeneous-keys check downstream. Convert to Literal_Grid
+    (a 2D string array, one inner array per row) so the layout survives
+    without forcing a phantom schema.
+
+    Triggers only when ALL rows are dicts and EVERY cell satisfies
+    ``str(key).strip() == str(value).strip()`` (after collapsing
+    whitespace). One real header cell is enough to leave the table
+    alone — better to keep an awkward Standard_Table than to throw away
+    a real schema.
+    """
+    if table.get("table_classification") != "Standard_Table":
+        return table
+    rows = table.get("table_data")
+    if not isinstance(rows, list) or not rows:
+        return table
+    for row in rows:
+        if not isinstance(row, dict) or not row:
+            return table
+        for k, v in row.items():
+            if _norm(k) != _norm(v):
+                return table
+    grid = [list(row.keys()) for row in rows]
+    out = dict(table)
+    out["table_classification"] = "Literal_Grid"
+    out["table_data"] = grid
+    return out
+
+
 def _dedupe_table_rows(table: dict) -> dict:
     """Drop fully-duplicate rows within a single table's ``table_data``.
 
@@ -1291,7 +1326,7 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
             key=_page_sort_key,
         )
         merged["tables"] = [
-            _dedupe_table_rows(t)
+            _dedupe_table_rows(_reclassify_self_keyed_standard_table(t))
             for t in _collapse_same_page_duplicates(sorted(
                 (t for t in (merged.get("tables") or []) if not _is_empty_table(t)),
                 key=_page_sort_key,

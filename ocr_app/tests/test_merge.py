@@ -1023,6 +1023,58 @@ def test_finalize_stakeholders_keeps_distinct_emails_apart():
     assert len(out["stakeholders"]) == 2
 
 
+def test_self_keyed_standard_table_reclassified_to_literal_grid():
+    # VLM emitted a tabular section as Standard_Table with rows that have
+    # key == value for every cell — no real schema. Reclassifier should
+    # convert to Literal_Grid and preserve the cell layout as a 2D array.
+    rows = [
+        {"Planning Needs Assessment": "Planning Needs Assessment",
+         "Data Gap Analysis": "Data Gap Analysis"},
+        {"Write Plan": "Write Plan",
+         "Plan & Implementation": "Plan & Implementation"},
+    ]
+    out = merge_chunks([_chunk(tables=[
+        _table(rows=rows, header="APPENDIX B: MANAGEMENT PLANNING",
+               visual_page_number="106")
+    ])])
+    t = out["tables"][0]
+    assert t["table_classification"] == "Literal_Grid", t["table_classification"]
+    assert t["table_data"] == [
+        ["Planning Needs Assessment", "Data Gap Analysis"],
+        ["Write Plan", "Plan & Implementation"],
+    ], t["table_data"]
+
+
+def test_self_keyed_reclassifier_leaves_real_standard_table_alone():
+    # A Standard_Table with real column headers (key != value) should
+    # NOT be reclassified — only fully self-keyed rows trigger conversion.
+    rows = [
+        {"Date": "May 1", "Action": "Confirm eligibility"},
+        {"Date": "Nov 15", "Action": "Submit application"},
+    ]
+    out = merge_chunks([_chunk(tables=[
+        _table(rows=rows, header="Grant cycle timeline", visual_page_number="7")
+    ])])
+    t = out["tables"][0]
+    assert t["table_classification"] == "Standard_Table"
+    assert isinstance(t["table_data"][0], dict)
+
+
+def test_self_keyed_reclassifier_skips_mixed_rows():
+    # Even one cell with a real header (key != value) is enough to
+    # leave the table alone — better an awkward Standard_Table than to
+    # discard a real schema.
+    rows = [
+        {"Header A": "Header A", "Header B": "Header B"},
+        {"Header A": "real value", "Header B": "real value 2"},
+    ]
+    out = merge_chunks([_chunk(tables=[
+        _table(rows=rows, header="Mixed table", visual_page_number="42")
+    ])])
+    t = out["tables"][0]
+    assert t["table_classification"] == "Standard_Table"
+
+
 def test_fragment_not_preferred_over_complete():
     # Even if the fragment has more rows by accident, full copy wins
     c1 = _chunk(tables=[_table(
@@ -1099,6 +1151,9 @@ TESTS = [
     test_finalize_stakeholders_keeps_entries_with_conflicting_fields,
     test_finalize_stakeholders_prefers_paginated_survivor,
     test_finalize_stakeholders_keeps_distinct_emails_apart,
+    test_self_keyed_standard_table_reclassified_to_literal_grid,
+    test_self_keyed_reclassifier_leaves_real_standard_table_alone,
+    test_self_keyed_reclassifier_skips_mixed_rows,
     test_fragment_not_preferred_over_complete,
 ]
 
