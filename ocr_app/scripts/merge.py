@@ -122,6 +122,82 @@ def _stakeholder_is_empty(s: dict) -> bool:
     return True
 
 
+# Fields that identify a stakeholder for the subset-compat dedup pass.
+# Two entries merge only if, for every field here, their values are
+# identical OR at least one side is empty. Any real disagreement
+# (different email, different name, different department string) keeps
+# them separate. Fields intentionally omitted — raw_stakeholder_text,
+# context_snippet, visual_page_number — are informational or positional;
+# they inform which entry survives but don't block merging.
+_STAKEHOLDER_IDENTITY_FIELDS = (
+    "stakeholder_role",
+    "institution",
+    "department",
+    "email",
+    "phone",
+    "full_name",
+    "first_name",
+    "last_name",
+    "position_title",
+    "highest_education",
+)
+
+
+def _stakeholders_subset_compatible(a: dict, b: dict) -> bool:
+    """True when a and b have no conflicting identity fields.
+
+    Requires at least one field to match on both sides so wholly-empty
+    pairs don't silently collapse — those carry no identity signal and
+    ``_merge_identity`` already handled them via raw-text fingerprint.
+    """
+    any_match = False
+    for field in _STAKEHOLDER_IDENTITY_FIELDS:
+        av = _norm(a.get(field))
+        bv = _norm(b.get(field))
+        if av and bv:
+            if av != bv:
+                return False
+            any_match = True
+    return any_match
+
+
+def _finalize_stakeholders(stakeholders: list[dict]) -> list[dict]:
+    """Final post-processing pass to collapse compatible stakeholder dupes.
+
+    Runs after ``_merge_identity`` to catch the common pattern where the
+    same organization appears multiple times with slight field-population
+    variations — e.g. one entry fills institution+department, a second
+    has just institution, a third only raw_stakeholder_text. When no
+    identity field conflicts, fold into the most-complete entry.
+
+    Conservative by design: any conflict on an identity field
+    (different email, different department string) preserves both
+    entries. Entries with an already-populated
+    ``visual_page_number`` are preferred as the merge base so the
+    survivor keeps its page reference.
+    """
+    out: list[dict] = []
+    for item in stakeholders or []:
+        merged_idx = None
+        for i, existing in enumerate(out):
+            if _stakeholders_subset_compatible(existing, item):
+                base, other = existing, item
+                # Prefer the entry with a non-null page number as the
+                # survivor — _coalesce_fields picks the longer/non-empty
+                # value per field but won't reorder the base-vs-other.
+                if (
+                    not _norm(base.get("visual_page_number"))
+                    and _norm(other.get("visual_page_number"))
+                ):
+                    base, other = other, base
+                out[i] = _coalesce_fields(base, other)
+                merged_idx = i
+                break
+        if merged_idx is None:
+            out.append(dict(item))
+    return out
+
+
 def _address_fingerprint(a: dict) -> str:
     line1 = _norm(a.get("address_line1"))
     postal = _norm(a.get("postal_code"))
@@ -1200,11 +1276,11 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
         if extraction_prompt:
             merged["experiment"]["extraction_prompt"] = extraction_prompt
         merged["stakeholders"] = sorted(
-            _merge_identity(
+            _finalize_stakeholders(_merge_identity(
                 [merged.get("stakeholders") or []],
                 _stakeholder_fingerprint,
                 empty_fn=_stakeholder_is_empty,
-            ),
+            )),
             key=_page_sort_key,
         )
         merged["addresses"] = sorted(
@@ -1234,11 +1310,11 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
     if extraction_prompt:
         experiment["extraction_prompt"] = extraction_prompt
 
-    stakeholders = _merge_identity(
+    stakeholders = _finalize_stakeholders(_merge_identity(
         [e.get("stakeholders", []) for e in extracted_list],
         _stakeholder_fingerprint,
         empty_fn=_stakeholder_is_empty,
-    )
+    ))
     addresses = _merge_identity(
         [e.get("addresses", []) for e in extracted_list],
         _address_fingerprint,
