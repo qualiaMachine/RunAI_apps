@@ -86,8 +86,16 @@ CONTINUATION FLAGS (CRITICAL — read carefully):
 - When you set a continuation flag, still extract whatever text/rows you DO see on the visible pages. Do not drop partial content.
 
 PROCESSING RULES:
+- NOT A TABLE (read BEFORE deciding what to emit as a table):
+  * A table has MULTIPLE ROWS OF PARALLEL STRUCTURE — each row describes the same kind of thing (a date, a cost, a practice, a grant type) using the same attributes. If you cannot describe what every row "is" in one phrase, it is not a table.
+  * Styled callout boxes / sidebar sections with heading labels like "PREREQUISITES", "FUNDING", "REIMBURSEMENTS", "ELIGIBLE PROJECTS", "CONDITIONS", "ELIGIBILITY", "TIMELINE" followed by prose are STRUCTURED NARRATIVE, not tables — even when visually bordered, shaded, or boxed. Extract each one as a narrative_responses entry with prompt_or_header set to the label (e.g. "PREREQUISITES") and verbatim_text holding the prose underneath.
+  * Single-cell "Note:", "Important:", "REV:", and similar inline callouts are NARRATIVE, not tables.
+  * A "table" with only one row or one column is almost never a real table — emit as narrative.
+  * Bulleted or numbered lists, even inside a box, are narrative.
+  * Table-of-contents entries are narrative, not tables.
+  * When the content could plausibly be rewritten as flowing prose without losing meaning, it is narrative, not a table.
 - TABLE EXTRACTION (HIGHEST PRIORITY — read carefully):
-  * If any page in this chunk contains tabular content, you MUST populate the tables array with every table, and every row of every table.
+  * If any page in this chunk contains tabular content (that passes the NOT A TABLE filter above), you MUST populate the tables array with every table, and every row of every table.
   * table_classification MUST be EXACTLY ONE OF: "Literal_Grid", "Key_Value_Form", or "Standard_Table". Do NOT invent new values like "Simple", "Table", "Normal", etc. If a table has clear column headers (even if the styling is fancy — colored headers, alternating row shading, embedded hyperlinks), classify it as Standard_Table.
   * Cells may contain multiple sentences, full paragraphs, or embedded hyperlinks. You MUST preserve the COMPLETE cell text verbatim — do not summarize, truncate with "...", or describe cells as "long paragraph". Copy every word exactly as printed. If a cell contains a hyperlink, include the visible link text in the cell value (the URL itself goes in other_metadata).
   * Every row of the table goes in table_data. If a table has 17 rows across the pages you can see, there must be 17 entries in table_data. Do not stop early.
