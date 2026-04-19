@@ -343,9 +343,13 @@ def test_stakeholder_role_dedupe_unnamed():
     c2 = _chunk(stakeholders=[s2])
     c3 = _chunk(stakeholders=[s3])
     out = merge_chunks([c1, c2, c3])
-    # s1+s2 merge; s3 is distinct (empty inst/dept); s4 distinct
-    assert len(out["stakeholders"]) == 3, (
-        f"expected 3 unique roles, got {len(out['stakeholders'])}"
+    # s1+s2 merge via _merge_identity (identical fingerprint). s3 has
+    # empty inst/dept so _merge_identity keeps it separate, but the
+    # subsequent _finalize_stakeholders pass recognizes it as a subset
+    # of s1 (same position_title, no conflicting fields) and folds it
+    # in. s4 has a different position_title and stays distinct.
+    assert len(out["stakeholders"]) == 2, (
+        f"expected 2 unique roles, got {len(out['stakeholders'])}"
     )
 
 
@@ -949,6 +953,76 @@ def test_lint_flags_exotic_unicode_in_table_column_headers():
     ), out["potential_issues"]
 
 
+def test_finalize_stakeholders_folds_subset_into_fuller():
+    # Same org, same role; one entry fills department, the other leaves
+    # it empty. No field conflicts => collapse into single survivor.
+    fuller = _stake(
+        role="Sponsor Contact", inst="Wisconsin DNR",
+        dept="Bureau of Water Quality",
+    )
+    fuller["visual_page_number"] = "6"
+    sparse = _stake(role="Sponsor Contact", inst="Wisconsin DNR")
+    sparse["visual_page_number"] = None
+    out = merge_chunks([_chunk(stakeholders=[fuller]), _chunk(stakeholders=[sparse])])
+    stakeholders = out["stakeholders"]
+    assert len(stakeholders) == 1, stakeholders
+    assert stakeholders[0]["department"] == "Bureau of Water Quality"
+    assert stakeholders[0]["visual_page_number"] == "6"
+
+
+def test_finalize_stakeholders_keeps_entries_with_conflicting_fields():
+    # Same institution, same role, but DIFFERENT department strings
+    # (neither empty). Real conflict => both survive.
+    a = _stake(
+        role="Sponsor Contact", inst="Wisconsin DNR",
+        dept="Bureau of Water Quality",
+    )
+    a["visual_page_number"] = "6"
+    b = _stake(
+        role="Sponsor Contact", inst="Wisconsin DNR",
+        dept="Bureau of Community Financial Assistance",
+    )
+    b["visual_page_number"] = "6"
+    out = merge_chunks([_chunk(stakeholders=[a, b])])
+    assert len(out["stakeholders"]) == 2, out["stakeholders"]
+
+
+def test_finalize_stakeholders_prefers_paginated_survivor():
+    # If compatible, the entry with a real visual_page_number should
+    # survive (and absorb the null-page one), not the other way around.
+    paginated = _stake(role="Sponsor Contact", inst="Wisconsin DNR")
+    paginated["visual_page_number"] = "6"
+    null_page = _stake(
+        role="Sponsor Contact", inst="Wisconsin DNR",
+        dept="Bureau of Water Quality",
+    )
+    null_page["visual_page_number"] = None
+    # Feed null-page one FIRST so paginated would normally land in out[1].
+    out = merge_chunks([_chunk(stakeholders=[null_page]), _chunk(stakeholders=[paginated])])
+    stakeholders = out["stakeholders"]
+    assert len(stakeholders) == 1
+    assert stakeholders[0]["visual_page_number"] == "6"
+    # Department from the null-page entry carries over via _coalesce_fields.
+    assert stakeholders[0]["department"] == "Bureau of Water Quality"
+
+
+def test_finalize_stakeholders_keeps_distinct_emails_apart():
+    # Two grant admin contacts at the same institution with different
+    # emails are distinct people, even if every other field matches.
+    cbcw = _stake(
+        role="Grants Administrative Contact",
+        inst="Wisconsin DNR",
+        email="DNRCBCWGrants@wisconsin.gov",
+    )
+    swims = _stake(
+        role="Grants Administrative Contact",
+        inst="Wisconsin DNR",
+        email="DNRSWIMS@wisconsin.gov",
+    )
+    out = merge_chunks([_chunk(stakeholders=[cbcw, swims])])
+    assert len(out["stakeholders"]) == 2
+
+
 def test_fragment_not_preferred_over_complete():
     # Even if the fragment has more rows by accident, full copy wins
     c1 = _chunk(tables=[_table(
@@ -1021,6 +1095,10 @@ TESTS = [
     test_lint_does_not_flag_smart_quotes_or_accents,
     test_lint_flags_exotic_unicode_in_json_keys,
     test_lint_flags_exotic_unicode_in_table_column_headers,
+    test_finalize_stakeholders_folds_subset_into_fuller,
+    test_finalize_stakeholders_keeps_entries_with_conflicting_fields,
+    test_finalize_stakeholders_prefers_paginated_survivor,
+    test_finalize_stakeholders_keeps_distinct_emails_apart,
     test_fragment_not_preferred_over_complete,
 ]
 
