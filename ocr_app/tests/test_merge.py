@@ -1137,6 +1137,57 @@ def test_supertable_collapse_skips_continuation_flagged():
     assert len(out["tables"]) == 2
 
 
+def test_bulleted_list_masquerade_dropped():
+    # WI DNR p.41 "INELIGIBLE PROJECTS" pattern: VLM wrapped a prose
+    # bulleted list as a single-row Literal_Grid. Should be dropped —
+    # prompt already tells it not to do this; this is the post-filter.
+    bullet_prose = (
+        "• Shoreland mitigation projects. "
+        "• Installation of sanitary sewers. "
+        "• Dredging for enhancing navigation or recreation. "
+        "• Maintenance and operation of aeration systems, stormwater "
+        "detention ponds, dams, sanitary sewers."
+    )
+    masquerade = _table(
+        classification="Literal_Grid",
+        rows=[[bullet_prose]],
+        header="IF YOU CHOOSE TO HIRE A CONSULTANT OR CONTRACTOR",
+        visual_page_number="41",
+    )
+    out = merge_chunks([_chunk(tables=[masquerade])])
+    assert out["tables"] == []
+
+
+def test_bulleted_list_masquerade_spares_real_single_row_table():
+    # Single-row Literal_Grid whose content is SHORT and not bullet-heavy —
+    # e.g., a small note cell — should NOT be dropped by the masquerade
+    # filter. (The 150-char floor + 2-bullet rule protects these.)
+    short_note = _table(
+        classification="Literal_Grid",
+        rows=[["Note: See Appendix A for ranking criteria."]],
+        header="Scoring",
+        visual_page_number="10",
+    )
+    out = merge_chunks([_chunk(tables=[short_note])])
+    assert len(out["tables"]) == 1
+
+
+def test_bulleted_list_masquerade_spares_multi_row_literal_grid():
+    # Multi-row Literal_Grids are real table-ish content (ranking sheets,
+    # etc.) and must survive regardless of bullet content in cells.
+    many_rows = _table(
+        classification="Literal_Grid",
+        rows=[
+            ["• Criterion A: detailed prose " + "x" * 200],
+            ["• Criterion B: more detailed prose " + "y" * 200],
+        ],
+        header="RANKING RUBRIC",
+        visual_page_number="80",
+    )
+    out = merge_chunks([_chunk(tables=[many_rows])])
+    assert len(out["tables"]) == 1
+
+
 def test_array_valued_standard_table_reclassified_to_literal_grid():
     # APPENDIX K LIST OF FORMS pattern: each row's value is a list of
     # forms under a section header. The VLM emitted as Standard_Table

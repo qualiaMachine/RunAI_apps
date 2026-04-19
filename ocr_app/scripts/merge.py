@@ -1221,6 +1221,55 @@ def _is_empty_table(t: dict) -> bool:
     return True
 
 
+# Bullet-marker characters / prefixes that indicate a list, not a table cell.
+# Unicode bullets (• U+2022, ○ U+25CB, ◦ U+25E6, ▪ U+25AA), ASCII "o "
+# continuation markers, and the leading-number form "1. 2. 3. ..." that
+# appears on ordered lists. We keep this list narrow on purpose — a
+# regulation-citation cell ("1. NRCS standard ...") would otherwise get
+# swept up, which is why the masquerade check ALSO requires >= 2 bullet
+# occurrences below.
+_BULLET_PATTERN = re.compile(r"[\u2022\u25CB\u25E6\u25AA]|(?<=\s)o\s|^\s*\d+[.)]\s", re.MULTILINE)
+
+
+def _is_bulleted_list_masquerade(t: dict) -> bool:
+    """True when a Literal_Grid is really just a bulleted list in a box.
+
+    The VLM occasionally wraps a plain prose bulleted list (e.g., the
+    "INELIGIBLE PROJECTS" sidebar on p.41 of the WI DNR doc) as a
+    single-row Literal_Grid. Our prompt already tells the model not to
+    do this, but it ignores the rule about half the time. This post-
+    filter catches the residual cases without touching real tables.
+
+    Fingerprint (all must hold):
+      1. classification == Literal_Grid
+      2. exactly ONE row
+      3. combined row text >= 150 chars (real tables use short cells;
+         a long single cell is almost always prose)
+      4. >= 2 bullet markers in the combined text (a single isolated
+         bullet could appear inside a real table cell as a decoration;
+         two or more means it's actually a list)
+
+    Tables that pass any of these filters stay untouched; this only
+    removes the narrow false-positive pattern.
+    """
+    if t.get("table_classification") != "Literal_Grid":
+        return False
+    rows = t.get("table_data")
+    if not isinstance(rows, list) or len(rows) != 1:
+        return False
+    row = rows[0]
+    if isinstance(row, list):
+        cells = [str(c) for c in row if c is not None]
+    elif isinstance(row, str):
+        cells = [row]
+    else:
+        return False
+    text = " ".join(cells)
+    if len(text) < 150:
+        return False
+    return len(_BULLET_PATTERN.findall(text)) >= 2
+
+
 # ---------------------------------------------------------------------------
 # Deterministic lint (potential_issues)
 # ---------------------------------------------------------------------------
@@ -1513,7 +1562,7 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
         merged["tables"] = _collapse_supertable_runs([
             _dedupe_table_rows(_reclassify_array_valued_standard_table(_reclassify_self_keyed_standard_table(t)))
             for t in _collapse_same_page_duplicates(sorted(
-                (t for t in (merged.get("tables") or []) if not _is_empty_table(t)),
+                (t for t in (merged.get("tables") or []) if not _is_empty_table(t) and not _is_bulleted_list_masquerade(t)),
                 key=_page_sort_key,
             ))
         ])
@@ -1583,7 +1632,7 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
     merged["tables"] = _collapse_supertable_runs([
         _dedupe_table_rows(_reclassify_self_keyed_standard_table(t))
         for t in _collapse_same_page_duplicates(sorted(
-            (t for t in (merged.get("tables") or []) if not _is_empty_table(t)),
+            (t for t in (merged.get("tables") or []) if not _is_empty_table(t) and not _is_bulleted_list_masquerade(t)),
             key=_page_sort_key,
         ))
     ])
