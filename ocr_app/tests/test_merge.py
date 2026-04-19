@@ -843,6 +843,81 @@ def test_narrative_fingerprint_collapses_across_cite_drift():
     assert len(out["narrative_responses"]) == 1
 
 
+def test_malformed_cite_markers_stripped_from_output():
+    # VLM tokenizer drift: "[cite: 世]" where a digit should be. Well-formed
+    # "[cite: 3]" markers should be preserved.
+    n = _narr(
+        header="General Body Text",
+        text="First statement. [cite: 1] Second statement. [cite: 世] "
+             "Third statement. [cite: 3] Fourth with weird body. [cite: abc]",
+    )
+    n["visual_page_number"] = "5"
+    out = merge_chunks([_chunk(narrative_responses=[n])])
+    text = out["narrative_responses"][0]["verbatim_text"]
+    assert "[cite: 1]" in text
+    assert "[cite: 3]" in text
+    assert "[cite: 世]" not in text
+    assert "[cite: abc]" not in text
+
+
+def test_malformed_cite_stripping_preserves_well_formed_tail():
+    # Edge case: large cite numbers, multi-digit, mixed with malformed.
+    n = _narr(
+        header="Prose",
+        text="A. [cite: 42] B. [cite: ] C. [cite: 100] D. [cite: 1a]",
+    )
+    n["visual_page_number"] = "1"
+    out = merge_chunks([_chunk(narrative_responses=[n])])
+    text = out["narrative_responses"][0]["verbatim_text"]
+    assert "[cite: 42]" in text and "[cite: 100]" in text
+    assert "[cite: ]" not in text  # empty body
+    assert "[cite: 1a]" not in text  # mixed alpha
+
+
+def test_lint_flags_exotic_unicode_in_narrative():
+    # CJK char dropped into English narrative = VLM token drift.
+    n = _narr(
+        header="General Body Text",
+        text="Please refer to the code. Ch. NR 1.91, Wis.牌. Code.",
+    )
+    n["visual_page_number"] = "8"
+    out = merge_chunks([_chunk(narrative_responses=[n])])
+    assert any(
+        "exotic unicode" in issue and "narrative_responses" in issue
+        for issue in out["potential_issues"]
+    ), out["potential_issues"]
+
+
+def test_lint_flags_exotic_unicode_in_table_cells():
+    # CJK char inside a table cell (form number glitch).
+    rows = [
+        {"Form": "Grant Payment Request", "Number": "8700-001"},
+        {"Form": "Mileage Log", "Number": "世700-012"},  # CJK drift
+    ]
+    out = merge_chunks([_chunk(tables=[
+        _table(rows=rows, header="APPENDIX K: LIST OF FORMS",
+               visual_page_number="141")
+    ])])
+    assert any(
+        "exotic unicode" in issue and "tables" in issue
+        for issue in out["potential_issues"]
+    ), out["potential_issues"]
+
+
+def test_lint_does_not_flag_smart_quotes_or_accents():
+    # Smart quotes and Latin accented chars are legitimate — don't flag.
+    n = _narr(
+        header="General Body Text",
+        text="Include a “quoted phrase” and an accented word: café. "
+             "Also the department\u2019s policy.",
+    )
+    n["visual_page_number"] = "1"
+    out = merge_chunks([_chunk(narrative_responses=[n])])
+    assert not any(
+        "exotic unicode" in issue for issue in out["potential_issues"]
+    ), out["potential_issues"]
+
+
 def test_fragment_not_preferred_over_complete():
     # Even if the fragment has more rows by accident, full copy wins
     c1 = _chunk(tables=[_table(
@@ -908,6 +983,11 @@ TESTS = [
     test_cross_page_collapse_respects_token_floor,
     test_narrative_dedupe_ignores_cite_markers,
     test_narrative_fingerprint_collapses_across_cite_drift,
+    test_malformed_cite_markers_stripped_from_output,
+    test_malformed_cite_stripping_preserves_well_formed_tail,
+    test_lint_flags_exotic_unicode_in_narrative,
+    test_lint_flags_exotic_unicode_in_table_cells,
+    test_lint_does_not_flag_smart_quotes_or_accents,
     test_fragment_not_preferred_over_complete,
 ]
 

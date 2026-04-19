@@ -201,6 +201,10 @@ def _table_first_row_text(t: dict) -> str:
 
 _CITE_MARKER_RE = re.compile(r"\[cite:\s*\d+\]", re.IGNORECASE)
 
+# Matches ANY [cite: ...] token including malformed bodies (e.g. "[cite: 世]"
+# when the VLM tokenizer drifts and drops a CJK char where a digit should be).
+_ANY_CITE_MARKER_RE = re.compile(r"\[cite:([^\]]*)\]", re.IGNORECASE)
+
 
 def _strip_cite_markers(s: str) -> str:
     """Remove ``[cite: N]`` tokens the VLM injects into verbatim text.
@@ -214,6 +218,67 @@ def _strip_cite_markers(s: str) -> str:
     if not s:
         return s
     return _CITE_MARKER_RE.sub("", s)
+
+
+def _strip_malformed_cite_markers(s: str) -> str:
+    """Remove ``[cite: X]`` tokens whose body isn't a plain number.
+
+    Well-formed markers like ``[cite: 3]`` are preserved for downstream
+    citation tracking. Malformed markers like ``[cite: 世]`` or
+    ``[cite: abc]`` are VLM tokenizer drift (usually a CJK char emitted
+    where a digit belongs) and should be stripped from the stored output.
+    """
+    if not s:
+        return s
+
+    def repl(m):
+        body = m.group(1).strip()
+        return m.group(0) if body.isdigit() else ""
+
+    return _ANY_CITE_MARKER_RE.sub(repl, s)
+
+
+# Unicode ranges that are almost never legitimate in English-language grant
+# admin documents. When the VLM's tokenizer drifts it occasionally substitutes
+# a CJK or Cyrillic char where an ASCII one belongs (e.g. "Wis.牌" for
+# "Wis. Stats", "8700-世" for "8700-349"). Flag these so they can be
+# triaged in potential_issues — don't strip, since legit foreign-language
+# quotations are rare but possible.
+_EXOTIC_UNICODE_RE = re.compile(
+    "["
+    "\u0400-\u052f"        # Cyrillic + Cyrillic Supplement
+    "\u0531-\u058f"        # Armenian
+    "\u0590-\u05ff"        # Hebrew
+    "\u0600-\u06ff"        # Arabic
+    "\u3000-\u303f"        # CJK Symbols & Punctuation
+    "\u3040-\u309f"        # Hiragana
+    "\u30a0-\u30ff"        # Katakana
+    "\u3400-\u4dbf"        # CJK Unified Ideographs Ext A
+    "\u4e00-\u9fff"        # CJK Unified Ideographs
+    "\uac00-\ud7af"        # Hangul
+    "\uff00-\uffef"        # Halfwidth/Fullwidth forms
+    "]"
+)
+
+
+def _find_exotic_unicode(s) -> str:
+    """Return a sample exotic-unicode run if found, else empty string."""
+    if not isinstance(s, str) or not s:
+        return ""
+    m = _EXOTIC_UNICODE_RE.search(s)
+    return m.group(0) if m else ""
+
+
+def _walk_strings(value):
+    """Yield every string leaf inside nested dicts/lists (for scanning)."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for v in value.values():
+            yield from _walk_strings(v)
+    elif isinstance(value, list):
+        for v in value:
+            yield from _walk_strings(v)
 
 
 def _narrative_fingerprint(n: dict) -> str:
@@ -935,6 +1000,43 @@ def _lint_merged(merged: dict) -> list[str]:
             f"(VLM may have misread a header cell)"
         )
 
+    # VLM tokenizer drift: CJK / Cyrillic / other non-Latin chars
+    # appearing inside English-language grant text almost always indicate
+    # a glitched token (e.g. "Wis.牌" where "Wis. Stats" was expected,
+    # "[cite: 世]" where a digit was expected). Flag but don't auto-strip
+    # — legit foreign-language quotes are rare but possible.
+    exotic_hits: list[str] = []
+    for i, n in enumerate(merged.get("narrative_responses") or []):
+        ex = _find_exotic_unicode(n.get("verbatim_text") or "")
+        if ex:
+            page = n.get("visual_page_number") or "?"
+            exotic_hits.append(
+                f"narrative_responses[{i}] on page {page}: contains "
+                f"exotic unicode {ex!r} (VLM token drift)"
+            )
+    for i, t in enumerate(merged.get("tables") or []):
+        data = t.get("table_data")
+        found = ""
+        for s in _walk_strings(data):
+            ex = _find_exotic_unicode(s)
+            if ex:
+                found = ex
+                break
+        if found:
+            page = t.get("visual_page_number") or "?"
+            exotic_hits.append(
+                f"tables[{i}] on page {page}: cell contains exotic unicode "
+                f"{found!r} (VLM token drift)"
+            )
+    # Cap at 10 to avoid drowning the lint output on pathological docs.
+    for note in exotic_hits[:10]:
+        notes.append(note)
+    if len(exotic_hits) > 10:
+        notes.append(
+            f"...{len(exotic_hits) - 10} additional exotic-unicode hits "
+            f"suppressed"
+        )
+
     # Items that still carry continuation flags (shouldn't after strip).
     stale_flags = sum(
         1 for t in (merged.get("tables") or [])
@@ -966,6 +1068,20 @@ def _strip_continuation_flags(doc: dict) -> dict:
         item.pop("continues_from_previous_chunk", None)
         item.pop("continues_to_next_chunk", None)
     return doc
+
+
+def _strip_malformed_cites_from_narratives(narratives: list[dict]) -> None:
+    """Rewrite verbatim_text to drop cite markers whose body isn't numeric.
+
+    Mutates in place. Legitimate ``[cite: 3]`` markers are preserved; only
+    VLM-glitched ones like ``[cite: 世]`` are removed.
+    """
+    for n in narratives or []:
+        t = n.get("verbatim_text")
+        if isinstance(t, str) and "[cite:" in t:
+            cleaned = _strip_malformed_cite_markers(t)
+            if cleaned != t:
+                n["verbatim_text"] = cleaned
 
 
 # ---------------------------------------------------------------------------
@@ -1062,6 +1178,7 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
             merged.get("narrative_responses") or [],
             key=_page_sort_key,
         ))
+        _strip_malformed_cites_from_narratives(merged["narrative_responses"])
         merged["chunks"] = _build_chunks_sidecar(records)
         merged["potential_issues"] = _lint_merged(merged)
         return merged
@@ -1127,6 +1244,7 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
         merged.get("narrative_responses") or [],
         key=_page_sort_key,
     ))
+    _strip_malformed_cites_from_narratives(merged["narrative_responses"])
     merged["potential_issues"] = _lint_merged(merged)
     return merged
 
