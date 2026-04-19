@@ -490,23 +490,25 @@ def test_potential_issues_lint_clean_when_nothing_wrong():
     assert out["potential_issues"] == []
 
 
-def test_stakeholders_sorted_by_visual_page_number():
-    # Pages are deliberately out of order in the input.
-    s_p12 = _stake(position="Reviewer", inst="Agency")
-    s_p12["visual_page_number"] = "12"
-    s_p3 = _stake(position="Program Officer", inst="Agency")
-    s_p3["visual_page_number"] = "3"
-    s_p_roman = _stake(position="Director", inst="Agency")
-    s_p_roman["visual_page_number"] = "iii"
-    s_none = _stake(position="Signatory", inst="Agency")  # no page
+def test_stakeholders_preserve_source_order():
+    # Stakeholders no longer carry page metadata; preserve the order the
+    # VLM emitted them in (which mirrors top-of-doc-to-bottom reading
+    # order from the chunk loop).
+    s1 = _stake(position="Reviewer", inst="Agency")
+    s2 = _stake(position="Program Officer", inst="Agency")
+    s3 = _stake(position="Director", inst="Agency")
+    s4 = _stake(position="Signatory", inst="Agency")
     out = merge_chunks([
-        _chunk(stakeholders=[s_p12, s_p3, s_p_roman, s_none]),
+        _chunk(stakeholders=[s1, s2, s3, s4]),
         _chunk(stakeholders=[]),
     ])
     positions = [s["position_title"] for s in out["stakeholders"]]
-    # Numeric pages first (3, 12), then non-numeric (iii), then no-page.
-    assert positions == ["Program Officer", "Reviewer", "Director", "Signatory"], \
+    assert positions == ["Reviewer", "Program Officer", "Director", "Signatory"], \
         positions
+    # Defensive: page fields should NOT appear on stakeholder output.
+    for s in out["stakeholders"]:
+        assert "visual_page_number" not in s
+        assert "pdf_page_index" not in s
 
 
 def test_empty_stakeholders_filtered_out():
@@ -963,14 +965,11 @@ def test_finalize_stakeholders_folds_subset_into_fuller():
         role="Sponsor Contact", inst="Wisconsin DNR",
         dept="Bureau of Water Quality",
     )
-    fuller["visual_page_number"] = "6"
     sparse = _stake(role="Sponsor Contact", inst="Wisconsin DNR")
-    sparse["visual_page_number"] = None
     out = merge_chunks([_chunk(stakeholders=[fuller]), _chunk(stakeholders=[sparse])])
     stakeholders = out["stakeholders"]
     assert len(stakeholders) == 1, stakeholders
     assert stakeholders[0]["department"] == "Bureau of Water Quality"
-    assert stakeholders[0]["visual_page_number"] == "6"
 
 
 def test_finalize_stakeholders_keeps_entries_with_conflicting_fields():
@@ -980,33 +979,12 @@ def test_finalize_stakeholders_keeps_entries_with_conflicting_fields():
         role="Sponsor Contact", inst="Wisconsin DNR",
         dept="Bureau of Water Quality",
     )
-    a["visual_page_number"] = "6"
     b = _stake(
         role="Sponsor Contact", inst="Wisconsin DNR",
         dept="Bureau of Community Financial Assistance",
     )
-    b["visual_page_number"] = "6"
     out = merge_chunks([_chunk(stakeholders=[a, b])])
     assert len(out["stakeholders"]) == 2, out["stakeholders"]
-
-
-def test_finalize_stakeholders_prefers_paginated_survivor():
-    # If compatible, the entry with a real visual_page_number should
-    # survive (and absorb the null-page one), not the other way around.
-    paginated = _stake(role="Sponsor Contact", inst="Wisconsin DNR")
-    paginated["visual_page_number"] = "6"
-    null_page = _stake(
-        role="Sponsor Contact", inst="Wisconsin DNR",
-        dept="Bureau of Water Quality",
-    )
-    null_page["visual_page_number"] = None
-    # Feed null-page one FIRST so paginated would normally land in out[1].
-    out = merge_chunks([_chunk(stakeholders=[null_page]), _chunk(stakeholders=[paginated])])
-    stakeholders = out["stakeholders"]
-    assert len(stakeholders) == 1
-    assert stakeholders[0]["visual_page_number"] == "6"
-    # Department from the null-page entry carries over via _coalesce_fields.
-    assert stakeholders[0]["department"] == "Bureau of Water Quality"
 
 
 def test_finalize_stakeholders_keeps_distinct_emails_apart():
@@ -1078,20 +1056,26 @@ def test_self_keyed_reclassifier_skips_mixed_rows():
     assert t["table_classification"] == "Standard_Table"
 
 
+def _table_crel(crel, **kw):
+    kw.setdefault("rows", [{"x": 1}])
+    t = _table(**kw)
+    t["chunk_relative_page_index"] = crel
+    return t
+
+
 def test_pdf_page_index_derived_from_chunk_relative():
     # Chunk covers PDF pages 11-20 (page_start=10, page_end=20 half-open).
-    # An item with chunk_relative_page_index=5 came from the 5th image
-    # of the chunk, which is PDF page 10 + 5 = 15.
-    n = _narr(header="Section", text="body")
-    n["visual_page_number"] = "15"
-    n["chunk_relative_page_index"] = 5
+    # A table with chunk_relative_page_index=5 came from the 5th image
+    # of the chunk, which is PDF page 10 + 5 = 15. Page fields live on
+    # tables only.
+    t = _table_crel(5, header="Section", visual_page_number="15")
     r = {
         "chunk_index": 1, "page_start": 10, "page_end": 20,
         "experiment": {},
-        "extracted": _chunk(narrative_responses=[n]),
+        "extracted": _chunk(tables=[t]),
     }
     out = merge_chunks([r])
-    item = out["narrative_responses"][0]
+    item = out["tables"][0]
     assert item["pdf_page_index"] == 15
     # chunk_relative_page_index is consumed during derivation; not in output.
     assert "chunk_relative_page_index" not in item
@@ -1100,37 +1084,33 @@ def test_pdf_page_index_derived_from_chunk_relative():
 def test_pdf_page_index_out_of_range_nulled():
     # Chunk covers PDF pages 11-20 (10 images total). chunk_relative=99
     # is outside the chunk's image range — VLM mis-counted. Should be
-    # nulled but the rest of the item is kept.
-    n = _narr(header="Section", text="body")
-    n["visual_page_number"] = "15"
-    n["chunk_relative_page_index"] = 99
+    # nulled but the rest of the table is kept.
+    t = _table_crel(99, header="Section", visual_page_number="15")
     r = {
         "chunk_index": 1, "page_start": 10, "page_end": 20,
         "experiment": {},
-        "extracted": _chunk(narrative_responses=[n]),
+        "extracted": _chunk(tables=[t]),
     }
     out = merge_chunks([r])
-    item = out["narrative_responses"][0]
+    item = out["tables"][0]
     assert item["pdf_page_index"] is None
-    assert item["verbatim_text"] == "body"
+    assert item["preceding_section_header"] == "Section"
 
 
 def test_pdf_page_index_string_coerced_to_int():
     # VLM occasionally emits "5" instead of 5. Coerce to int when in
     # range; null when not parseable.
-    n_ok = _narr(header="A", text="x")
-    n_ok["chunk_relative_page_index"] = "5"
-    n_bad = _narr(header="B", text="y")
-    n_bad["chunk_relative_page_index"] = "not-a-number"
+    t_ok = _table_crel("5", header="A")
+    t_bad = _table_crel("not-a-number", header="B")
     r = {
         "chunk_index": 0, "page_start": 10, "page_end": 20,
         "experiment": {},
-        "extracted": _chunk(narrative_responses=[n_ok, n_bad]),
+        "extracted": _chunk(tables=[t_ok, t_bad]),
     }
     out = merge_chunks([r])
-    items = out["narrative_responses"]
-    ok = [n for n in items if n.get("verbatim_text") == "x"][0]
-    bad = [n for n in items if n.get("verbatim_text") == "y"][0]
+    items = out["tables"]
+    ok = [t for t in items if t.get("preceding_section_header") == "A"][0]
+    bad = [t for t in items if t.get("preceding_section_header") == "B"][0]
     assert ok["pdf_page_index"] == 15  # 10 + 5
     assert bad["pdf_page_index"] is None
 
@@ -1139,26 +1119,26 @@ def test_pdf_page_index_legacy_field_is_ignored():
     # Migration: if VLM still emits the legacy pdf_page_index field
     # directly (mirror of visual_page_number — wrong), the deriver
     # ignores it and uses chunk_relative_page_index instead.
-    n = _narr(header="A", text="x")
-    n["pdf_page_index"] = 999  # legacy/wrong
-    n["chunk_relative_page_index"] = 3
+    t = _table(header="A", rows=[{"x": 1}])
+    t["pdf_page_index"] = 999  # legacy/wrong
+    t["chunk_relative_page_index"] = 3
     r = {
         "chunk_index": 0, "page_start": 10, "page_end": 20,
         "experiment": {},
-        "extracted": _chunk(narrative_responses=[n]),
+        "extracted": _chunk(tables=[t]),
     }
     out = merge_chunks([r])
-    assert out["narrative_responses"][0]["pdf_page_index"] == 13
+    assert out["tables"][0]["pdf_page_index"] == 13
 
 
 def test_pdf_page_index_left_alone_without_chunk_range():
     # Raw-dict input (no chunk_page_range available) means the merger
     # can't derive pdf_page_index; the field passes through unchanged
-    # whatever the caller put on the item.
-    n = _narr(header="A", text="x")
-    n["pdf_page_index"] = 999
-    out = merge_chunks([_chunk(narrative_responses=[n])])
-    assert out["narrative_responses"][0]["pdf_page_index"] == 999
+    # whatever the caller put on the table.
+    t = _table(header="A", rows=[{"x": 1}])
+    t["pdf_page_index"] = 999
+    out = merge_chunks([_chunk(tables=[t])])
+    assert out["tables"][0]["pdf_page_index"] == 999
 
 
 def _table_with_pdf(rows, pdf_page, header="", visual_page=None):
@@ -1302,27 +1282,21 @@ def test_array_valued_reclassifier_skips_mixed_rows():
     assert out["tables"][0]["table_classification"] == "Standard_Table"
 
 
-def test_null_page_narrative_absorbed_by_paginated():
-    # Chunk-overlap leftover: a null-page narrative whose text is a
-    # substring of a paginated narrative should be dropped.
+def test_narrative_fragment_absorbed_by_longer():
+    # Chunk-overlap leftover: a shorter narrative whose text is a
+    # substring of a longer narrative should be dropped.
     full = _narr(header="Section A", text="The full body of section A spans multiple sentences.")
-    full["visual_page_number"] = "5"
     fragment = _narr(header="Section A", text="The full body of section A")
-    fragment["visual_page_number"] = None
     out = merge_chunks([_chunk(narrative_responses=[full, fragment])])
     assert len(out["narrative_responses"]) == 1
-    assert out["narrative_responses"][0]["visual_page_number"] == "5"
+    assert "multiple sentences" in out["narrative_responses"][0]["verbatim_text"]
 
 
-def test_null_page_narrative_kept_when_text_unique():
-    # If the null-page narrative's text isn't a substring of any
-    # paginated entry, it should be kept (might be real content from
-    # a pinned page or unnumbered figure).
-    paged = _narr(header="A", text="Completely different content about topic Z.")
-    paged["visual_page_number"] = "5"
-    orphan = _narr(header="B", text="Standalone text from an unnumbered figure caption.")
-    orphan["visual_page_number"] = None
-    out = merge_chunks([_chunk(narrative_responses=[paged, orphan])])
+def test_narrative_kept_when_text_unique():
+    # If a narrative's text isn't a substring of another, keep both.
+    a = _narr(header="A", text="Completely different content about topic Z.")
+    b = _narr(header="B", text="Standalone text from an unnumbered figure caption.")
+    out = merge_chunks([_chunk(narrative_responses=[a, b])])
     assert len(out["narrative_responses"]) == 2
 
 
@@ -1371,7 +1345,7 @@ TESTS = [
     test_potential_issues_lint_flags_empty_narratives,
     test_empty_tables_are_dropped_in_postprocess,
     test_potential_issues_lint_clean_when_nothing_wrong,
-    test_stakeholders_sorted_by_visual_page_number,
+    test_stakeholders_preserve_source_order,
     test_empty_stakeholders_filtered_out,
     test_normalize_visual_page_number,
     test_normalize_visual_page_number_smart_quote_and_exotic_separators,
@@ -1400,15 +1374,14 @@ TESTS = [
     test_lint_flags_exotic_unicode_in_table_column_headers,
     test_finalize_stakeholders_folds_subset_into_fuller,
     test_finalize_stakeholders_keeps_entries_with_conflicting_fields,
-    test_finalize_stakeholders_prefers_paginated_survivor,
     test_finalize_stakeholders_keeps_distinct_emails_apart,
     test_self_keyed_standard_table_reclassified_to_literal_grid,
     test_self_keyed_reclassifier_leaves_real_standard_table_alone,
     test_self_keyed_reclassifier_skips_mixed_rows,
     test_array_valued_standard_table_reclassified_to_literal_grid,
     test_array_valued_reclassifier_skips_mixed_rows,
-    test_null_page_narrative_absorbed_by_paginated,
-    test_null_page_narrative_kept_when_text_unique,
+    test_narrative_fragment_absorbed_by_longer,
+    test_narrative_kept_when_text_unique,
     test_pdf_page_index_derived_from_chunk_relative,
     test_pdf_page_index_legacy_field_is_ignored,
     test_pdf_page_index_out_of_range_nulled,

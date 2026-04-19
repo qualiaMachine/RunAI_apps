@@ -172,25 +172,17 @@ def _finalize_stakeholders(stakeholders: list[dict]) -> list[dict]:
 
     Conservative by design: any conflict on an identity field
     (different email, different department string) preserves both
-    entries. Entries with an already-populated
-    ``visual_page_number`` are preferred as the merge base so the
-    survivor keeps its page reference.
+    entries. ``_coalesce_fields`` binds ``visual_page_number`` and
+    ``pdf_page_index`` as a pair, so the survivor's page anchor is
+    always internally consistent — the page fields can't cross-
+    contaminate from two different chunks.
     """
     out: list[dict] = []
     for item in stakeholders or []:
         merged_idx = None
         for i, existing in enumerate(out):
             if _stakeholders_subset_compatible(existing, item):
-                base, other = existing, item
-                # Prefer the entry with a non-null page number as the
-                # survivor — _coalesce_fields picks the longer/non-empty
-                # value per field but won't reorder the base-vs-other.
-                if (
-                    not _norm(base.get("visual_page_number"))
-                    and _norm(other.get("visual_page_number"))
-                ):
-                    base, other = other, base
-                out[i] = _coalesce_fields(base, other)
+                out[i] = _coalesce_fields(existing, item)
                 merged_idx = i
                 break
         if merged_idx is None:
@@ -490,10 +482,56 @@ def _merge_identity(
     return out
 
 
+# visual_page_number and pdf_page_index identify the SAME page and must
+# move together. Independent field-by-field coalescing produces
+# Frankenstein items (visual from one source, pdf from another) when the
+# same entity is mentioned in multiple chunks — see _pick_page_pair.
+_PAGE_PAIR_FIELDS = ("visual_page_number", "pdf_page_index")
+
+
+def _pick_page_pair(a: dict, b: dict) -> tuple:
+    """Pick (visual_page_number, pdf_page_index) atomically from a or b.
+
+    pdf_page_index is the authoritative anchor (derived deterministically
+    from chunk position); visual_page_number is OCR'd from the page
+    footer and is only meaningful paired with its pdf_page_index.
+
+    Selection rule:
+      1. Both sides have a pdf_page_index: keep the earlier one (the
+         first chunk to mention this entity).
+      2. Exactly one side has a pdf_page_index: take that side's pair.
+      3. Neither has a pdf_page_index: prefer the side with a non-empty
+         visual_page_number.
+    """
+    ap = a.get("pdf_page_index") if isinstance(a, dict) else None
+    bp = b.get("pdf_page_index") if isinstance(b, dict) else None
+    if isinstance(ap, int) and isinstance(bp, int):
+        source = a if ap <= bp else b
+    elif isinstance(ap, int):
+        source = a
+    elif isinstance(bp, int):
+        source = b
+    else:
+        av = a.get("visual_page_number") if isinstance(a, dict) else None
+        source = a if not _is_empty(av) else b
+    if not isinstance(source, dict):
+        return (None, None)
+    return (source.get("visual_page_number"), source.get("pdf_page_index"))
+
+
 def _coalesce_fields(a: dict, b: dict) -> dict:
     out = dict(a)
     for k, v_b in b.items():
+        if k in _PAGE_PAIR_FIELDS:
+            continue
         out[k] = _pick_value(out.get(k), v_b)
+    # Only rebind page fields if at least one side actually carries one
+    # — non-table items (stakeholders, addresses, narratives) don't have
+    # page metadata and we don't want to inject null keys.
+    if any(k in a or k in b for k in _PAGE_PAIR_FIELDS):
+        v, p = _pick_page_pair(a, b)
+        out["visual_page_number"] = v
+        out["pdf_page_index"] = p
     return out
 
 
@@ -1212,71 +1250,32 @@ def _collapse_narrative_same_page_substrings(narratives: list[dict]) -> list[dic
     as "distinct". A substring containment pass after dedup collapses
     the pair, keeping the longer text.
 
-    Two-stage:
-      1. Per-page: same ``visual_page_number`` → cheap O(n²) within
-         small groups, also catches near-dupes that share a page.
-      2. Globally for null-page items: any narrative with no
-         ``visual_page_number`` AND no ``pdf_page_index`` whose text
-         is contained in a paginated narrative is a chunk-overlap
-         fragment that escaped earlier dedupe. Drop it.
+    Narratives no longer carry page metadata, so we run a single
+    containment pass across the whole list (O(n²) in narrative count,
+    fine for typical docs with up to low thousands of narratives).
     """
     if not narratives:
         return narratives
     drop: set[int] = set()
 
-    # Stage 1: same-page substring containment.
-    by_page: dict[str, list[int]] = {}
-    for i, n in enumerate(narratives):
-        by_page.setdefault(_norm(n.get("visual_page_number")), []).append(i)
-    for indices in by_page.values():
-        if len(indices) < 2:
-            continue
-        # Strip cite markers before comparison: two copies of the same
-        # section emit different cite numbers (per-entry scope) that
-        # would otherwise break exact substring containment.
-        items = [
-            (i, _norm(_strip_cite_markers(narratives[i].get("verbatim_text", ""))))
-            for i in indices
-        ]
-        # Sort by length desc so shorter candidates are checked against
-        # longer ones first.
-        items.sort(key=lambda p: -len(p[1]))
-        for j, (a_i, a_t) in enumerate(items):
-            if a_i in drop or not a_t:
-                continue
-            for b_i, b_t in items[j + 1:]:
-                if b_i in drop or not b_t:
-                    continue
-                if len(a_t) >= len(b_t) and b_t in a_t:
-                    drop.add(b_i)
-
-    # Stage 2: orphaned null-page fragments. Anything with null
-    # visual_page_number AND null pdf_page_index that's contained
-    # in a paginated narrative is almost certainly a chunk-overlap
-    # leftover the per-page step couldn't catch.
-    null_idxs = [
-        i for i, n in enumerate(narratives)
-        if i not in drop
-        and not _norm(n.get("visual_page_number"))
-        and n.get("pdf_page_index") is None
+    # Strip cite markers before comparison: two copies of the same
+    # section emit different cite numbers (per-entry scope) that
+    # would otherwise break exact substring containment.
+    items = [
+        (i, _norm(_strip_cite_markers(n.get("verbatim_text", ""))))
+        for i, n in enumerate(narratives)
     ]
-    if null_idxs:
-        paginated = [
-            (i, _norm(_strip_cite_markers(n.get("verbatim_text", ""))))
-            for i, n in enumerate(narratives)
-            if i not in drop
-            and (_norm(n.get("visual_page_number"))
-                 or n.get("pdf_page_index") is not None)
-        ]
-        for i in null_idxs:
-            t = _norm(_strip_cite_markers(narratives[i].get("verbatim_text", "")))
-            if not t or len(t) < 20:
-                # Too short to confidently dedupe — keep.
+    # Sort by length desc so shorter candidates are checked against
+    # longer ones first.
+    items.sort(key=lambda p: -len(p[1]))
+    for j, (a_i, a_t) in enumerate(items):
+        if a_i in drop or not a_t:
+            continue
+        for b_i, b_t in items[j + 1:]:
+            if b_i in drop or not b_t:
                 continue
-            for _, full in paginated:
-                if t in full:
-                    drop.add(i)
-                    break
+            if len(a_t) >= len(b_t) and b_t in a_t:
+                drop.add(b_i)
 
     if not drop:
         return narratives
@@ -1511,8 +1510,9 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
     so the merged JSON captures exactly what the VLM was asked.
 
     Lint notes (``potential_issues``) are always computed at the end.
-    Stakeholders and addresses are sorted by ``visual_page_number`` so
-    downstream readers get a natural top-of-doc-to-bottom reading order.
+    Tables are sorted by ``visual_page_number``; stakeholders, addresses,
+    and narrative responses no longer carry page metadata and preserve
+    the order they were emitted in by the VLM.
     """
     if not chunks:
         return {}
@@ -1538,11 +1538,20 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
             chunk_ranges.append((ps, pe) if ps is not None and pe is not None else None)
     else:
         chunk_ranges = [None] * len(extracted_list)
+    # Page fields (visual_page_number + pdf_page_index) live on TABLES ONLY.
+    # The VLM prompt no longer asks for them on narratives / stakeholders /
+    # addresses, but we defensively strip any stray copies (older cached
+    # outputs, or a drifting VLM) so downstream lookups stay consistent.
     for e, rng in zip(extracted_list, chunk_ranges):
+        _normalize_page_numbers_inplace(e.get("tables") or [], rng)
+        _derive_pdf_page_indices_inplace(e.get("tables") or [], rng)
         for field in ("tables", "narrative_responses", "stakeholders", "addresses"):
-            _normalize_page_numbers_inplace(e.get(field) or [], rng)
-            _derive_pdf_page_indices_inplace(e.get(field) or [], rng)
             _strip_exotic_unicode_inplace(e.get(field) or [])
+        for field in ("narrative_responses", "stakeholders", "addresses"):
+            for it in e.get(field) or []:
+                if isinstance(it, dict):
+                    for k in ("visual_page_number", "pdf_page_index", "chunk_relative_page_index"):
+                        it.pop(k, None)
 
     if len(extracted_list) == 1:
         # Single chunk: no cross-chunk stitch needed, but still apply
@@ -1561,20 +1570,16 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
         merged["experiment"] = _doc_level_experiment(records)
         if extraction_prompt:
             merged["experiment"]["extraction_prompt"] = extraction_prompt
-        merged["stakeholders"] = sorted(
-            _finalize_stakeholders(_merge_identity(
-                [merged.get("stakeholders") or []],
-                _stakeholder_fingerprint,
-                empty_fn=_stakeholder_is_empty,
-            )),
-            key=_page_sort_key,
-        )
-        merged["addresses"] = sorted(
-            _merge_identity(
-                [merged.get("addresses") or []],
-                _address_fingerprint,
-            ),
-            key=_page_sort_key,
+        # Stakeholders / addresses / narratives are kept in source order
+        # (no page-based sort) since they no longer carry page metadata.
+        merged["stakeholders"] = _finalize_stakeholders(_merge_identity(
+            [merged.get("stakeholders") or []],
+            _stakeholder_fingerprint,
+            empty_fn=_stakeholder_is_empty,
+        ))
+        merged["addresses"] = _merge_identity(
+            [merged.get("addresses") or []],
+            _address_fingerprint,
         )
         merged["tables"] = _collapse_supertable_runs([
             _dedupe_table_rows(_reclassify_array_valued_standard_table(_reclassify_self_keyed_standard_table(t)))
@@ -1583,10 +1588,9 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
                 key=_page_sort_key,
             ))
         ])
-        merged["narrative_responses"] = _collapse_narrative_same_page_substrings(sorted(
-            merged.get("narrative_responses") or [],
-            key=_page_sort_key,
-        ))
+        merged["narrative_responses"] = _collapse_narrative_same_page_substrings(
+            merged.get("narrative_responses") or []
+        )
         _strip_malformed_cites_from_narratives(merged["narrative_responses"])
         _strip_continuation_flags(merged)
         merged["chunks"] = _build_chunks_sidecar(records)
@@ -1620,8 +1624,10 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
         "has_watermark": any(e.get("has_watermark") for e in extracted_list),
         "signature_lines": _agg_signature(extracted_list),
         "document_tags": _agg_tags(extracted_list),
-        "stakeholders": sorted(stakeholders, key=_page_sort_key),
-        "addresses": sorted(addresses, key=_page_sort_key),
+        # Stakeholders / addresses no longer carry page metadata; preserve
+        # source (chunk) order rather than sorting by a field that's gone.
+        "stakeholders": stakeholders,
+        "addresses": addresses,
         "tables": _merge_span(
             [e.get("tables", []) for e in extracted_list],
             _table_fingerprint,
@@ -1652,10 +1658,9 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
             key=_page_sort_key,
         ))
     ])
-    merged["narrative_responses"] = _collapse_narrative_same_page_substrings(sorted(
-        merged.get("narrative_responses") or [],
-        key=_page_sort_key,
-    ))
+    merged["narrative_responses"] = _collapse_narrative_same_page_substrings(
+        merged.get("narrative_responses") or []
+    )
     _strip_malformed_cites_from_narratives(merged["narrative_responses"])
     _strip_continuation_flags(merged)
     merged["potential_issues"] = _lint_merged(merged)
