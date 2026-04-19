@@ -87,6 +87,7 @@ CONTINUATION FLAGS (CRITICAL — read carefully):
 
 PROCESSING RULES:
 - NOT A TABLE (read BEFORE deciding what to emit as a table):
+  * VISUAL STYLING IS NOT EVIDENCE OF TABULARITY. Grant documents use borders, shaded backgrounds, colored headers, rounded boxes, two-column layouts, horizontal rules, and sidebars for visual hierarchy — callouts, pull-quotes, section dividers, info cards. None of these make the content a table. ONLY parallel-structure rows with comparable attributes make something a table. Ignore the styling and ask "do these rows describe the same kind of thing using the same attributes?". If no, it is narrative.
   * A table has MULTIPLE ROWS OF PARALLEL STRUCTURE — each row describes the same kind of thing (a date, a cost, a practice, a grant type) using the same attributes. If you cannot describe what every row "is" in one phrase, it is not a table.
   * Styled callout boxes / sidebar sections with heading labels like "PREREQUISITES", "FUNDING", "REIMBURSEMENTS", "ELIGIBLE PROJECTS", "CONDITIONS", "ELIGIBILITY", "TIMELINE" followed by prose are STRUCTURED NARRATIVE, not tables — even when visually bordered, shaded, or boxed. Extract each one as a narrative_responses entry with prompt_or_header set to the label (e.g. "PREREQUISITES") and verbatim_text holding the prose underneath.
   * Single-cell "Note:", "Important:", "REV:", and similar inline callouts are NARRATIVE, not tables.
