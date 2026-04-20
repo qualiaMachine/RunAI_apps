@@ -172,10 +172,7 @@ def _finalize_stakeholders(stakeholders: list[dict]) -> list[dict]:
 
     Conservative by design: any conflict on an identity field
     (different email, different department string) preserves both
-    entries. ``_coalesce_fields`` binds ``visual_page_number`` and
-    ``pdf_page_index`` as a pair, so the survivor's page anchor is
-    always internally consistent — the page fields can't cross-
-    contaminate from two different chunks.
+    entries.
     """
     out: list[dict] = []
     for item in stakeholders or []:
@@ -482,56 +479,38 @@ def _merge_identity(
     return out
 
 
-# visual_page_number and pdf_page_index identify the SAME page and must
-# move together. Independent field-by-field coalescing produces
-# Frankenstein items (visual from one source, pdf from another) when the
-# same entity is mentioned in multiple chunks — see _pick_page_pair.
-_PAGE_PAIR_FIELDS = ("visual_page_number", "pdf_page_index")
+def _pick_visual_page_number(a: dict, b: dict):
+    """Pick visual_page_number from a or b when merging duplicate items.
 
-
-def _pick_page_pair(a: dict, b: dict) -> tuple:
-    """Pick (visual_page_number, pdf_page_index) atomically from a or b.
-
-    pdf_page_index is the authoritative anchor (derived deterministically
-    from chunk position); visual_page_number is OCR'd from the page
-    footer and is only meaningful paired with its pdf_page_index.
-
-    Selection rule:
-      1. Both sides have a pdf_page_index: keep the earlier one (the
-         first chunk to mention this entity).
-      2. Exactly one side has a pdf_page_index: take that side's pair.
-      3. Neither has a pdf_page_index: prefer the side with a non-empty
-         visual_page_number.
+    Prefer the side with a non-empty value; when both have one, prefer
+    the numerically smaller printed page (earliest occurrence).
     """
-    ap = a.get("pdf_page_index") if isinstance(a, dict) else None
-    bp = b.get("pdf_page_index") if isinstance(b, dict) else None
-    if isinstance(ap, int) and isinstance(bp, int):
-        source = a if ap <= bp else b
-    elif isinstance(ap, int):
-        source = a
-    elif isinstance(bp, int):
-        source = b
-    else:
-        av = a.get("visual_page_number") if isinstance(a, dict) else None
-        source = a if not _is_empty(av) else b
-    if not isinstance(source, dict):
-        return (None, None)
-    return (source.get("visual_page_number"), source.get("pdf_page_index"))
+    av = a.get("visual_page_number") if isinstance(a, dict) else None
+    bv = b.get("visual_page_number") if isinstance(b, dict) else None
+    if _is_empty(av) and _is_empty(bv):
+        return av if av is not None else bv
+    if _is_empty(av):
+        return bv
+    if _is_empty(bv):
+        return av
+    an = _page_as_int(av)
+    bn = _page_as_int(bv)
+    if an is not None and bn is not None:
+        return av if an <= bn else bv
+    return av
 
 
 def _coalesce_fields(a: dict, b: dict) -> dict:
     out = dict(a)
     for k, v_b in b.items():
-        if k in _PAGE_PAIR_FIELDS:
+        if k == "visual_page_number":
             continue
         out[k] = _pick_value(out.get(k), v_b)
-    # Only rebind page fields if at least one side actually carries one
+    # Only rebind the page field if at least one side actually carries one
     # — non-table items (stakeholders, addresses, narratives) don't have
     # page metadata and we don't want to inject null keys.
-    if any(k in a or k in b for k in _PAGE_PAIR_FIELDS):
-        v, p = _pick_page_pair(a, b)
-        out["visual_page_number"] = v
-        out["pdf_page_index"] = p
+    if "visual_page_number" in a or "visual_page_number" in b:
+        out["visual_page_number"] = _pick_visual_page_number(a, b)
     return out
 
 
@@ -802,55 +781,6 @@ def _normalize_page_numbers_inplace(items: list[dict], chunk_page_range=None) ->
             it["visual_page_number"] = normed
 
 
-def _derive_pdf_page_indices_inplace(items: list[dict], chunk_page_range=None) -> None:
-    """Compute pdf_page_index from chunk_relative_page_index + chunk page_start.
-
-    The VLM emits ``chunk_relative_page_index`` as a small integer 1..M
-    naming WHICH image in the chunk an item came from (the N in the
-    "[PAGE IMAGE N of M — PDF page X]" header). The merger turns that
-    into the absolute 1-based PDF page index deterministically:
-
-        pdf_page_index = chunk.page_start + (chunk_relative_page_index - 1) + 1
-                       = chunk.page_start + chunk_relative_page_index
-
-    where ``page_start`` is the 0-based half-open chunk start. Values
-    outside ``[1..M]`` (i.e. the VLM mis-counted) are nulled and the
-    item gets ``pdf_page_index: null``. The relative field is stripped
-    from the item after derivation to keep the doc-level output clean —
-    downstream consumers should use ``pdf_page_index``.
-
-    This replaces the earlier "ask VLM for absolute pdf_page_index"
-    approach, which was unreliable: the VLM frequently mirrored
-    ``visual_page_number`` into ``pdf_page_index`` instead of reading
-    the deterministic image label, producing wrong values whenever
-    visual ≠ pdf.
-    """
-    if chunk_page_range is None:
-        return
-    start, end = chunk_page_range
-    if start is None or end is None:
-        return
-    chunk_size = end - start  # number of images in this chunk
-    lo, hi = 1, chunk_size
-    for it in items or []:
-        # Migration support: if VLM emitted the legacy pdf_page_index
-        # field, ignore it — we'll always recompute.
-        it.pop("pdf_page_index", None)
-        raw = it.pop("chunk_relative_page_index", None)
-        if raw is None:
-            it["pdf_page_index"] = None
-            continue
-        try:
-            n = int(raw)
-        except (TypeError, ValueError):
-            it["pdf_page_index"] = None
-            continue
-        if n < lo or n > hi:
-            it["pdf_page_index"] = None
-        else:
-            it["pdf_page_index"] = start + n  # 0-based start + 1-based offset
-
-
 def _page_sort_key(item: dict) -> tuple:
     """Stable sort key based on ``visual_page_number``.
 
@@ -1080,12 +1010,13 @@ def _supertable_mergeable(
     """Predicate: should b's rows be appended into a as part of a supertable?
 
     Triggers only when two adjacent Standard_Tables share an identical
-    column-key signature AND sit within ``max_page_gap`` PDF pages of
-    each other. ``a_trailing_page`` is the page index of the latest
-    table folded into ``a`` (so a 5-page run at pages 80..84 keeps
-    advancing the comparison page rather than always measuring back to
-    80). Continuation-flagged tables are excluded — those are handled
-    by the cross-chunk stitcher and shouldn't double-stitch here.
+    column-key signature AND sit within ``max_page_gap`` printed pages
+    of each other. ``a_trailing_page`` is the numeric visual page of
+    the latest table folded into ``a`` (so a 5-page run at pages
+    80..84 keeps advancing the comparison page rather than always
+    measuring back to 80). Continuation-flagged tables are excluded —
+    those are handled by the cross-chunk stitcher and shouldn't
+    double-stitch here.
     """
     if a.get("continues_to_next_chunk") or b.get("continues_from_previous_chunk"):
         return False
@@ -1093,8 +1024,8 @@ def _supertable_mergeable(
     sig_b = _table_column_signature(b)
     if sig_a is None or sig_a != sig_b:
         return False
-    pa = a_trailing_page if a_trailing_page is not None else a.get("pdf_page_index")
-    pb = b.get("pdf_page_index")
+    pa = a_trailing_page if a_trailing_page is not None else _page_as_int(a.get("visual_page_number"))
+    pb = _page_as_int(b.get("visual_page_number"))
     if not isinstance(pa, int) or not isinstance(pb, int):
         return False
     return 0 <= (pb - pa) <= max_page_gap
@@ -1124,16 +1055,16 @@ def _collapse_supertable_runs(tables: list[dict], max_page_gap: int = 2) -> list
     for t in tables:
         if not out:
             out.append(t)
-            trailing.append(t.get("pdf_page_index") if isinstance(t.get("pdf_page_index"), int) else None)
+            trailing.append(_page_as_int(t.get("visual_page_number")))
             continue
         if _supertable_mergeable(out[-1], t, trailing[-1], max_page_gap):
             out[-1] = _concat_tables(out[-1], t)
-            tp = t.get("pdf_page_index")
+            tp = _page_as_int(t.get("visual_page_number"))
             if isinstance(tp, int):
                 trailing[-1] = tp
         else:
             out.append(t)
-            trailing.append(t.get("pdf_page_index") if isinstance(t.get("pdf_page_index"), int) else None)
+            trailing.append(_page_as_int(t.get("visual_page_number")))
     return out
 
 
@@ -1538,13 +1469,18 @@ def merge_chunks(chunks: list[dict], extraction_prompt: str | None = None) -> di
             chunk_ranges.append((ps, pe) if ps is not None and pe is not None else None)
     else:
         chunk_ranges = [None] * len(extracted_list)
-    # Page fields (visual_page_number + pdf_page_index) live on TABLES ONLY.
-    # The VLM prompt no longer asks for them on narratives / stakeholders /
-    # addresses, but we defensively strip any stray copies (older cached
-    # outputs, or a drifting VLM) so downstream lookups stay consistent.
+    # visual_page_number lives on TABLES ONLY. The VLM prompt no longer
+    # asks for it on narratives / stakeholders / addresses, but we
+    # defensively strip any stray copies (older cached outputs, or a
+    # drifting VLM) so downstream lookups stay consistent. Also strip
+    # any legacy pdf_page_index / chunk_relative_page_index fields that
+    # older cached chunk outputs may still carry.
     for e, rng in zip(extracted_list, chunk_ranges):
         _normalize_page_numbers_inplace(e.get("tables") or [], rng)
-        _derive_pdf_page_indices_inplace(e.get("tables") or [], rng)
+        for it in e.get("tables") or []:
+            if isinstance(it, dict):
+                it.pop("pdf_page_index", None)
+                it.pop("chunk_relative_page_index", None)
         for field in ("tables", "narrative_responses", "stakeholders", "addresses"):
             _strip_exotic_unicode_inplace(e.get(field) or [])
         for field in ("narrative_responses", "stakeholders", "addresses"):

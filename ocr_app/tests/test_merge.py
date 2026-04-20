@@ -786,13 +786,14 @@ def test_cross_page_collapse_respects_page_gap():
 
 
 def test_cross_page_collapse_respects_token_floor():
-    # Two near-empty tables on adjacent pages with identical content
+    # Two near-empty tables on nearby pages with identical content
     # should NOT collapse via the cross-page rule — token floor protects
     # same-shape distinct tables from being collapsed just because they
-    # look similar.
+    # look similar. Page gap is 3 so the supertable collapser (which
+    # merges at gap <= 2) doesn't fold them on a different rule.
     rows = [{"Col": "A", "Val": "1"}]  # tiny: < 20 tokens
     t1 = _table(rows=rows, header="Y1 Budget", visual_page_number="10")
-    t2 = _table(rows=rows, header="Y2 Budget", visual_page_number="11")
+    t2 = _table(rows=rows, header="Y2 Budget", visual_page_number="13")
     out = merge_chunks([_chunk(tables=[t1, t2])])
     assert len(out["tables"]) == 2, (
         f"token floor should protect small same-shape tables, "
@@ -1056,71 +1057,12 @@ def test_self_keyed_reclassifier_skips_mixed_rows():
     assert t["table_classification"] == "Standard_Table"
 
 
-def _table_crel(crel, **kw):
-    kw.setdefault("rows", [{"x": 1}])
-    t = _table(**kw)
-    t["chunk_relative_page_index"] = crel
-    return t
-
-
-def test_pdf_page_index_derived_from_chunk_relative():
-    # Chunk covers PDF pages 11-20 (page_start=10, page_end=20 half-open).
-    # A table with chunk_relative_page_index=5 came from the 5th image
-    # of the chunk, which is PDF page 10 + 5 = 15. Page fields live on
-    # tables only.
-    t = _table_crel(5, header="Section", visual_page_number="15")
-    r = {
-        "chunk_index": 1, "page_start": 10, "page_end": 20,
-        "experiment": {},
-        "extracted": _chunk(tables=[t]),
-    }
-    out = merge_chunks([r])
-    item = out["tables"][0]
-    assert item["pdf_page_index"] == 15
-    # chunk_relative_page_index is consumed during derivation; not in output.
-    assert "chunk_relative_page_index" not in item
-
-
-def test_pdf_page_index_out_of_range_nulled():
-    # Chunk covers PDF pages 11-20 (10 images total). chunk_relative=99
-    # is outside the chunk's image range — VLM mis-counted. Should be
-    # nulled but the rest of the table is kept.
-    t = _table_crel(99, header="Section", visual_page_number="15")
-    r = {
-        "chunk_index": 1, "page_start": 10, "page_end": 20,
-        "experiment": {},
-        "extracted": _chunk(tables=[t]),
-    }
-    out = merge_chunks([r])
-    item = out["tables"][0]
-    assert item["pdf_page_index"] is None
-    assert item["preceding_section_header"] == "Section"
-
-
-def test_pdf_page_index_string_coerced_to_int():
-    # VLM occasionally emits "5" instead of 5. Coerce to int when in
-    # range; null when not parseable.
-    t_ok = _table_crel("5", header="A")
-    t_bad = _table_crel("not-a-number", header="B")
-    r = {
-        "chunk_index": 0, "page_start": 10, "page_end": 20,
-        "experiment": {},
-        "extracted": _chunk(tables=[t_ok, t_bad]),
-    }
-    out = merge_chunks([r])
-    items = out["tables"]
-    ok = [t for t in items if t.get("preceding_section_header") == "A"][0]
-    bad = [t for t in items if t.get("preceding_section_header") == "B"][0]
-    assert ok["pdf_page_index"] == 15  # 10 + 5
-    assert bad["pdf_page_index"] is None
-
-
-def test_pdf_page_index_legacy_field_is_ignored():
-    # Migration: if VLM still emits the legacy pdf_page_index field
-    # directly (mirror of visual_page_number — wrong), the deriver
-    # ignores it and uses chunk_relative_page_index instead.
-    t = _table(header="A", rows=[{"x": 1}])
-    t["pdf_page_index"] = 999  # legacy/wrong
+def test_legacy_pdf_page_index_and_chunk_relative_stripped():
+    # Older cached chunk outputs may still carry pdf_page_index and
+    # chunk_relative_page_index on tables. The merger strips both
+    # rather than passing them through.
+    t = _table(header="A", rows=[{"x": 1}], visual_page_number="15")
+    t["pdf_page_index"] = 999
     t["chunk_relative_page_index"] = 3
     r = {
         "chunk_index": 0, "page_start": 10, "page_end": 20,
@@ -1128,24 +1070,15 @@ def test_pdf_page_index_legacy_field_is_ignored():
         "extracted": _chunk(tables=[t]),
     }
     out = merge_chunks([r])
-    assert out["tables"][0]["pdf_page_index"] == 13
-
-
-def test_pdf_page_index_left_alone_without_chunk_range():
-    # Raw-dict input (no chunk_page_range available) means the merger
-    # can't derive pdf_page_index; the field passes through unchanged
-    # whatever the caller put on the table.
-    t = _table(header="A", rows=[{"x": 1}])
-    t["pdf_page_index"] = 999
-    out = merge_chunks([_chunk(tables=[t])])
-    assert out["tables"][0]["pdf_page_index"] == 999
+    item = out["tables"][0]
+    assert "pdf_page_index" not in item
+    assert "chunk_relative_page_index" not in item
+    assert item["visual_page_number"] == "15"
 
 
 def _table_with_pdf(rows, pdf_page, header="", visual_page=None):
-    t = _table(rows=rows, header=header,
-               visual_page_number=visual_page or str(pdf_page))
-    t["pdf_page_index"] = pdf_page
-    return t
+    return _table(rows=rows, header=header,
+                  visual_page_number=visual_page or str(pdf_page))
 
 
 def test_supertable_collapse_merges_consecutive_pages():
@@ -1238,13 +1171,22 @@ def test_supertable_collapse_skips_continuation_flagged():
     assert len(out["tables"]) == 2
 
 
-def test_supertable_collapse_skips_when_pdf_page_index_missing():
-    # Without pdf_page_index, the merger has no way to confirm adjacency.
-    # Don't merge — better to keep two tables than risk a wrong merge.
-    cols = ["Col"]
-    t1 = _table(rows=[{"Col": "a"}], header="A", visual_page_number="10")
-    # Note: no pdf_page_index set
-    t2 = _table(rows=[{"Col": "b"}], header="B", visual_page_number="11")
+def test_supertable_collapse_skips_when_visual_page_number_missing():
+    # Without a numeric visual_page_number on both sides, the merger
+    # has no way to confirm adjacency. Don't merge — better to keep
+    # two tables than risk a wrong merge.
+    t1 = _table(rows=[{"Col": "a"}], header="A", visual_page_number=None)
+    t2 = _table(rows=[{"Col": "b"}], header="B", visual_page_number=None)
+    out = merge_chunks([_chunk(tables=[t1, t2])])
+    assert len(out["tables"]) == 2
+
+
+def test_supertable_collapse_skips_when_visual_page_number_non_numeric():
+    # Roman-numeral / appendix-style pages (e.g. "iii", "A-5") can't be
+    # compared for adjacency, so the supertable collapser leaves them
+    # alone rather than guessing.
+    t1 = _table(rows=[{"Col": "a"}], header="A", visual_page_number="A-1")
+    t2 = _table(rows=[{"Col": "b"}], header="B", visual_page_number="A-2")
     out = merge_chunks([_chunk(tables=[t1, t2])])
     assert len(out["tables"]) == 2
 
@@ -1382,17 +1324,14 @@ TESTS = [
     test_array_valued_reclassifier_skips_mixed_rows,
     test_narrative_fragment_absorbed_by_longer,
     test_narrative_kept_when_text_unique,
-    test_pdf_page_index_derived_from_chunk_relative,
-    test_pdf_page_index_legacy_field_is_ignored,
-    test_pdf_page_index_out_of_range_nulled,
-    test_pdf_page_index_string_coerced_to_int,
-    test_pdf_page_index_left_alone_without_chunk_range,
+    test_legacy_pdf_page_index_and_chunk_relative_stripped,
     test_supertable_collapse_merges_consecutive_pages,
     test_supertable_collapse_skips_when_columns_differ,
     test_supertable_collapse_respects_page_gap,
     test_supertable_collapse_chains_three_in_a_row,
     test_supertable_collapse_skips_continuation_flagged,
-    test_supertable_collapse_skips_when_pdf_page_index_missing,
+    test_supertable_collapse_skips_when_visual_page_number_missing,
+    test_supertable_collapse_skips_when_visual_page_number_non_numeric,
     test_fragment_not_preferred_over_complete,
 ]
 
