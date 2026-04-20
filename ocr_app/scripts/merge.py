@@ -1030,21 +1030,23 @@ def _supertable_mergeable(
     other (``visual_page_number`` parsed as int) AND b contributes at
     least one row that isn't already in a. ``a_trailing_page`` is the
     last absorbed page so a run like pp.80..84 keeps advancing the
-    comparison baseline. Continuation-flagged tables are excluded.
+    comparison baseline. Continuation-flagged tables are excluded from
+    the strict path — they're the cross-chunk stitcher's job.
     Tables with a missing or non-numeric ``visual_page_number`` on
-    either side are conservatively left unmerged.
+    either side are conservatively left unmerged on the strict path.
 
     Same-page same-header escape hatch: when the VLM splits a long
     captioned table into two captures on the same page (commonly because
-    the table physically spans a column break), tokenizer drift in cell
-    keys can cause the column signatures to diverge slightly (e.g. one
-    row emits ``WBron`` instead of ``WBIC``, another emits ``WB"IC``).
-    Strict signature equality would miss the union opportunity. When
-    pages and normalized headers match, fall back to a Jaccard column
-    overlap check instead.
+    the table physically spans a column break or a chunk boundary landed
+    inside the table), tokenizer drift in cell keys can cause the column
+    signatures to diverge slightly (e.g. one row emits ``WBron`` instead
+    of ``WBIC``, another emits ``WB"IC``). Strict signature equality
+    misses the union opportunity. When pages and normalized headers
+    match, fall back to a Jaccard column overlap check. Continuation
+    flags are IGNORED on this path — if the cross-chunk stitcher had
+    succeeded these would already be one entry, so the flags being set
+    is the signal that we need to rescue the split.
     """
-    if a.get("continues_to_next_chunk") or b.get("continues_from_previous_chunk"):
-        return False
     sig_a = _table_column_signature(a)
     sig_b = _table_column_signature(b)
     if sig_a is None or sig_b is None:
@@ -1052,8 +1054,6 @@ def _supertable_mergeable(
     pa = a_trailing_page if a_trailing_page is not None else _page_as_int(a.get("visual_page_number"))
     pb = _page_as_int(b.get("visual_page_number"))
     if sig_a != sig_b:
-        # Loose path: same printed page + matching normalized headers
-        # + substantial column overlap (Jaccard ≥ 0.6).
         if pa is None or pb is None or pa != pb:
             return False
         header_a = _normalize_section_header(a.get("preceding_section_header"))
@@ -1068,6 +1068,8 @@ def _supertable_mergeable(
         if jaccard < _SAME_PAGE_HEADER_UNION_JACCARD:
             return False
         return _rows_introduce_new_content(a, b)
+    if a.get("continues_to_next_chunk") or b.get("continues_from_previous_chunk"):
+        return False
     if pa is None or pb is None:
         return False
     if not (0 <= (pb - pa) <= max_page_gap):

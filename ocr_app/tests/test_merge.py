@@ -1371,6 +1371,43 @@ def test_same_page_same_header_standard_tables_unioned_despite_drift():
     assert "Gilmore Lake" in waterbodies
 
 
+def test_same_page_same_header_loose_path_ignores_continuation_flags():
+    # Real-world pattern from WI DNR p.129 AIS waterbody table: the
+    # table spans a chunk boundary, so each capture carries a
+    # continuation flag, but the cross-chunk stitcher couldn't find a
+    # partner (column sigs diverged due to tokenizer drift). The loose
+    # same-page same-header path should still rescue these and union
+    # the rows.
+    rows_a = [
+        {"Rank": "1", "WBIC": "20", "Waterbody": "Lake Michigan"},
+        {"Rank": "228", "WBron": "158700", "Waterbody": "Puckaway Lake"},
+    ]
+    rows_b = [
+        {"Rank": "273", "WBIC": "1676700", "Waterbody": "Black River"},
+        {"Rank": "23", "WBIC": "2695800", "Waterbody": "Gilmore Lake"},
+    ]
+    t_a = _table(
+        rows=rows_a,
+        header="Top 300 AIS Prevention Priority Waterbodies",
+        visual_page_number="129",
+        ctn=True,  # continues into next chunk
+    )
+    t_b = _table(
+        rows=rows_b,
+        header="Top 300 AIS Prevention Priority Waterbodies",
+        visual_page_number="129",
+        cfp=True,  # continues from previous chunk
+    )
+    # Put them in separate chunks so _merge_span sees the continuation
+    # flags but can't stitch (column sigs differ).
+    out = merge_chunks([_chunk(tables=[t_a]), _chunk(tables=[t_b])])
+    assert len(out["tables"]) == 1, (
+        f"continuation-flagged same-page same-header tables should still "
+        f"union via loose path, got {len(out['tables'])}"
+    )
+    assert len(out["tables"][0]["table_data"]) == 4
+
+
 def test_same_page_distinct_headers_not_unioned_loose_path():
     # Two Standard_Tables on the same page with DIFFERENT headers AND
     # divergent (but overlapping) column signatures should NOT be unioned
@@ -1467,6 +1504,7 @@ TESTS = [
     test_null_page_table_distinct_headers_kept_apart,
     test_null_page_does_not_break_cross_page_walk,
     test_same_page_same_header_standard_tables_unioned_despite_drift,
+    test_same_page_same_header_loose_path_ignores_continuation_flags,
     test_same_page_distinct_headers_not_unioned_loose_path,
 ]
 
