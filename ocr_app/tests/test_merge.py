@@ -1258,6 +1258,143 @@ def test_fragment_not_preferred_over_complete():
     assert "bogus" not in [r.get("r") for r in rows]
 
 
+def test_null_page_table_collapses_into_numeric_page_copy():
+    # Two extractions of the same table: one labeled with a real page
+    # number, the other with no page label (the VLM didn't print one
+    # for that capture). Same header, same rows. Should collapse.
+    rows = [
+        {"Tool": "Stakeholder Analysis", "Use": "Identify stakeholders"},
+        {"Tool": "Observation", "Use": "Identify use patterns"},
+        {"Tool": "Interviews", "Use": "Gather in-depth info"},
+    ]
+    t_with_page = _table(
+        rows=rows,
+        header="APPENDIX C: SOCIAL SCIENCE TOOLS",
+        visual_page_number="114",
+    )
+    t_no_page = _table(
+        rows=rows,
+        header="APPENDIX C: SOCIAL SCIENCE TOOLS",
+        visual_page_number=None,
+    )
+    out = merge_chunks([_chunk(tables=[t_with_page]),
+                        _chunk(tables=[t_no_page])])
+    assert len(out["tables"]) == 1, (
+        f"null-page copy should collapse into numeric-page copy, "
+        f"got {len(out['tables'])}"
+    )
+    # Winner keeps the real page number (more informative).
+    assert out["tables"][0]["visual_page_number"] == "114"
+
+
+def test_null_page_table_distinct_headers_kept_apart():
+    # Two tables with similar shape but DIFFERENT preceding_section_header
+    # values — one numeric page, one null. The null-page wildcard rule
+    # requires a header match, so these should NOT collapse.
+    rows = [{"Col": "A"}, {"Col": "B"}, {"Col": "C"}]
+    t1 = _table(rows=rows, header="APPENDIX C: SOCIAL SCIENCE",
+                visual_page_number="114")
+    t2 = _table(rows=rows, header="APPENDIX D: PRACTICE STANDARDS",
+                visual_page_number=None)
+    out = merge_chunks([_chunk(tables=[t1]), _chunk(tables=[t2])])
+    assert len(out["tables"]) == 2, (
+        f"distinct-header null-page tables should not collapse, "
+        f"got {len(out['tables'])}"
+    )
+
+
+def test_null_page_does_not_break_cross_page_walk():
+    # Three tables: numeric p.5, null page, numeric p.6 with same content
+    # as p.5. The null table sits between them in scan order. Without
+    # the null-aware page-gap-bail-out fix, the walk for p.6 would skip
+    # past the null entry and (depending on header match) miss the p.5
+    # collapse partner. With the fix, the walk continues through nulls
+    # and the existing cross-page rule still collapses p.5 / p.6.
+    rows_a = [{"X": str(i), "Y": str(i * 2)} for i in range(20)]
+    t_5 = _table(rows=rows_a, header="Summary", visual_page_number="5")
+    t_null = _table(rows=[{"Q": "unrelated"}],
+                    header="Different Section", visual_page_number=None)
+    t_6 = _table(rows=rows_a, header="Summary", visual_page_number="6")
+    out = merge_chunks([_chunk(tables=[t_5, t_null, t_6])])
+    headers = [t.get("preceding_section_header") for t in out["tables"]]
+    # The two "Summary" tables should collapse via the cross-page rule
+    # (same content, page gap = 1). The null "Different Section" table
+    # stays as-is (no header match, fails wildcard rule).
+    assert headers.count("Summary") == 1, (
+        f"cross-page collapse should still fire across an intervening "
+        f"null-page table, got headers={headers}"
+    )
+
+
+def test_same_page_same_header_standard_tables_unioned_despite_drift():
+    # The VLM splits a long captioned table into two captures on the same
+    # page. Tokenizer drift in some cell keys causes the column
+    # signatures to diverge slightly: capture A picks up "WBron" and
+    # "WB\u201cIC" garbage in addition to the canonical "WBIC", capture
+    # B has only the canonical keys. Strict signature equality would
+    # leave them as two separate tables. The same-page same-header loose
+    # path should detect the substantial column overlap and union rows.
+    rows_a = [
+        {"Rank": "1", "WBIC": "20", "Waterbody": "Lake Michigan"},
+        {"Rank": "11", "WBIC": "1179900", "Waterbody": "Wisconsin River"},
+        {"Rank": "228", "WBron": "158700", "Waterbody": "Puckaway Lake"},
+        {"Rank": "156", "WB\u201cIC": "2334700", "Waterbody": "Big Lake"},
+    ]
+    rows_b = [
+        {"Rank": "273", "WBIC": "1676700", "Waterbody": "Black River"},
+        {"Rank": "23", "WBIC": "2695800", "Waterbody": "Gilmore Lake"},
+        {"Rank": "6", "WBIC": "1591100", "Waterbody": "Big St Germain"},
+    ]
+    t_a = _table(
+        rows=rows_a,
+        header="Top 300 AIS Prevention Priority Waterbodies",
+        visual_page_number="129",
+    )
+    t_b = _table(
+        rows=rows_b,
+        header="Top 300 AIS Prevention Priority Waterbodies",
+        visual_page_number="129",
+    )
+    out = merge_chunks([_chunk(tables=[t_a, t_b])])
+    assert len(out["tables"]) == 1, (
+        f"same-page same-header tables should union, got "
+        f"{len(out['tables'])} tables"
+    )
+    rows_out = out["tables"][0]["table_data"]
+    # All 7 unique rows should survive (4 from A + 3 from B).
+    assert len(rows_out) == 7, (
+        f"expected 7 unioned rows, got {len(rows_out)}"
+    )
+    # Rows from B made it in.
+    waterbodies = {r.get("Waterbody") for r in rows_out}
+    assert "Black River" in waterbodies
+    assert "Gilmore Lake" in waterbodies
+
+
+def test_same_page_distinct_headers_not_unioned_loose_path():
+    # Two Standard_Tables on the same page with DIFFERENT headers AND
+    # divergent (but overlapping) column signatures should NOT be unioned
+    # by the loose same-page rule. The header check guards against
+    # collapsing genuinely distinct tables that happen to share a page
+    # and partial column vocabulary.
+    #
+    # NOTE: When column signatures match exactly, the existing strict
+    # supertable path merges regardless of header — that's by design
+    # (supertables intentionally have distinct subtitle headers per
+    # subtable). This test only exercises the new loose path.
+    rows_a = [{"Col1": "x", "Col2": "y", "ExtraA": "drift"}]
+    rows_b = [{"Col1": "p", "Col2": "q"}]  # missing ExtraA → sigs differ
+    t_a = _table(rows=rows_a, header="Section A Table",
+                 visual_page_number="50")
+    t_b = _table(rows=rows_b, header="Section B Table",
+                 visual_page_number="50")
+    out = merge_chunks([_chunk(tables=[t_a, t_b])])
+    assert len(out["tables"]) == 2, (
+        f"distinct-header same-page tables with diverging column sigs "
+        f"should stay separate, got {len(out['tables'])}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Runner
 # ---------------------------------------------------------------------------
@@ -1326,6 +1463,11 @@ TESTS = [
     test_supertable_collapse_chains_three_in_a_row,
     test_supertable_collapse_skips_continuation_flagged,
     test_fragment_not_preferred_over_complete,
+    test_null_page_table_collapses_into_numeric_page_copy,
+    test_null_page_table_distinct_headers_kept_apart,
+    test_null_page_does_not_break_cross_page_walk,
+    test_same_page_same_header_standard_tables_unioned_despite_drift,
+    test_same_page_distinct_headers_not_unioned_loose_path,
 ]
 
 

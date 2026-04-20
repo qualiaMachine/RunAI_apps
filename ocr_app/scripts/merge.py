@@ -875,13 +875,19 @@ def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
     """Drop near-duplicate tables whose content is substantially covered
     by a kept neighbor. Runs after sort; keeps the larger/non-fragment entry.
 
-    Three-tier rule (checked against each prior kept table in reverse):
+    Four-tier rule (checked against each prior kept table in reverse):
       1. Same page + headers agree (after ``_normalize_section_header``,
          or one is empty) + ≥80% token coverage of the smaller → collapse.
       2. Same page + ≥95% coverage + ≥10 tokens → collapse. Covers the
          common case where the VLM picks different ``preceding_section_header``
          text across overlapping chunks for the same table.
-      3. Different page (gap ≤ 3, both numeric) + ≥95% coverage + ≥20
+      3. Null-page wildcard: one side has ``visual_page_number=None`` (the
+         VLM didn't print a page identifier on the page where the table
+         appears) + headers agree + ≥80% coverage → collapse. Without
+         this the same table extracted twice — once labeled with a real
+         page, once with null — escapes both same-page (page values
+         differ) and cross-page (null page can't be compared) rules.
+      4. Different page (gap ≤ 3, both numeric) + ≥95% coverage + ≥20
          tokens → collapse. Covers the case where a single logical table
          straddles a chunk boundary and the VLM records a different page
          number for each copy (chunk A emits it labeled p.108, chunk B
@@ -911,11 +917,15 @@ def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
             other_page = kept[i].get("visual_page_number")
             other_page_n = _page_as_int(other_page)
             same_page = other_page == page
+            null_either = page is None or other_page is None
             # Page gap bail-out: once we're more than _CROSS_PAGE_GAP
-            # pages back and both pages are numeric, stop searching.
-            if not same_page and page_n is not None and other_page_n is not None:
-                if abs(page_n - other_page_n) > _CROSS_PAGE_GAP:
-                    break
+            # pages back and both pages are numeric, stop searching. Skip
+            # the bail-out when either side is null — the null-page rule
+            # below needs to keep searching back through kept tables.
+            if not same_page and not null_either:
+                if page_n is not None and other_page_n is not None:
+                    if abs(page_n - other_page_n) > _CROSS_PAGE_GAP:
+                        break
             other_header = _normalize_section_header(kept[i].get("preceding_section_header"))
             other_tokens = kept_tokens[i]
             if not tokens or not other_tokens:
@@ -931,6 +941,13 @@ def _collapse_same_page_duplicates(tables: list[dict]) -> list[dict]:
                     (header_match and coverage >= 0.8)
                     or (coverage >= 0.95 and small >= 10)
                 )
+            elif null_either:
+                # Null-page wildcard: only the strict header+coverage rule
+                # fires. The looser ≥0.95-coverage tier is intentionally
+                # excluded — without a page anchor it's too easy to
+                # collapse two unrelated tables that happen to share
+                # token vocabulary (e.g. recurring boilerplate cells).
+                eligible = header_match and coverage >= 0.8
             else:
                 # Cross-page: require both pages to be numeric (gap
                 # comparable) and apply the stricter threshold.
@@ -1000,6 +1017,9 @@ def _rows_introduce_new_content(a: dict, b: dict) -> bool:
     return False
 
 
+_SAME_PAGE_HEADER_UNION_JACCARD = 0.6
+
+
 def _supertable_mergeable(
     a: dict, b: dict, a_trailing_page: int | None, max_page_gap: int = 2,
 ) -> bool:
@@ -1013,15 +1033,41 @@ def _supertable_mergeable(
     comparison baseline. Continuation-flagged tables are excluded.
     Tables with a missing or non-numeric ``visual_page_number`` on
     either side are conservatively left unmerged.
+
+    Same-page same-header escape hatch: when the VLM splits a long
+    captioned table into two captures on the same page (commonly because
+    the table physically spans a column break), tokenizer drift in cell
+    keys can cause the column signatures to diverge slightly (e.g. one
+    row emits ``WBron`` instead of ``WBIC``, another emits ``WB"IC``).
+    Strict signature equality would miss the union opportunity. When
+    pages and normalized headers match, fall back to a Jaccard column
+    overlap check instead.
     """
     if a.get("continues_to_next_chunk") or b.get("continues_from_previous_chunk"):
         return False
     sig_a = _table_column_signature(a)
     sig_b = _table_column_signature(b)
-    if sig_a is None or sig_a != sig_b:
+    if sig_a is None or sig_b is None:
         return False
     pa = a_trailing_page if a_trailing_page is not None else _page_as_int(a.get("visual_page_number"))
     pb = _page_as_int(b.get("visual_page_number"))
+    if sig_a != sig_b:
+        # Loose path: same printed page + matching normalized headers
+        # + substantial column overlap (Jaccard ≥ 0.6).
+        if pa is None or pb is None or pa != pb:
+            return False
+        header_a = _normalize_section_header(a.get("preceding_section_header"))
+        header_b = _normalize_section_header(b.get("preceding_section_header"))
+        if not header_a or header_a != header_b:
+            return False
+        keys_a, keys_b = set(sig_a), set(sig_b)
+        union = keys_a | keys_b
+        if not union:
+            return False
+        jaccard = len(keys_a & keys_b) / len(union)
+        if jaccard < _SAME_PAGE_HEADER_UNION_JACCARD:
+            return False
+        return _rows_introduce_new_content(a, b)
     if pa is None or pb is None:
         return False
     if not (0 <= (pb - pa) <= max_page_gap):
