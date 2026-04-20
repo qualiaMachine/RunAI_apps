@@ -1172,20 +1172,75 @@ def test_bulleted_list_masquerade_spares_real_single_row_table():
     assert len(out["tables"]) == 1
 
 
-def test_bulleted_list_masquerade_spares_multi_row_literal_grid():
-    # Multi-row Literal_Grids are real table-ish content (ranking sheets,
-    # etc.) and must survive regardless of bullet content in cells.
-    many_rows = _table(
+def test_bulleted_list_masquerade_spares_ranking_rubric():
+    # Real ranking rubric: multi-row Literal_Grid whose cells are prose,
+    # not embedded bulleted lists. Must survive.
+    rubric = _table(
         classification="Literal_Grid",
         rows=[
-            ["• Criterion A: detailed prose " + "x" * 200],
-            ["• Criterion B: more detailed prose " + "y" * 200],
+            ["1. Project Impact (33%)", "The degree to which a project will enhance knowledge."],
+            ["Additional tips:", "Application makes the case for why the topic is important."],
+            ["Comments:", "0-6 points", "6"],
         ],
-        header="RANKING RUBRIC",
+        header="SURFACE WATER EDUCATION",
         visual_page_number="80",
     )
-    out = merge_chunks([_chunk(tables=[many_rows])])
+    out = merge_chunks([_chunk(tables=[rubric])])
     assert len(out["tables"]) == 1
+
+
+def test_bulleted_list_masquerade_spares_per_cell_numbered_table():
+    # NRCS restoration-standards table on p.116: each numbered item is in
+    # its OWN cell, so no single cell has >=2 bullet markers. Must survive.
+    nrcs = _table(
+        classification="Literal_Grid",
+        rows=[
+            [
+                "• Critical area stabilization",
+                "1. NRCS technical guide critical area planting standard 342.",
+                "2. NRCS technical guide field border standard 386.",
+                "3. NRCS technical guide mulching standard 484.",
+            ],
+            [
+                "• Diversions",
+                "1. NRCS technical guide critical area planting standard 342.",
+                "2. NRCS technical guide diversion standard 362.",
+            ],
+        ],
+        header="APPENDIX D: RESTORATION PRACTICE STANDARDS",
+        visual_page_number="116",
+    )
+    out = merge_chunks([_chunk(tables=[nrcs])])
+    assert len(out["tables"]) == 1
+
+
+def test_bulleted_list_masquerade_multi_row_embedded_lists_dropped():
+    # WI DNR p.40 "Refine your project" pattern: a 2-col scoping callout
+    # where each row's right cell is itself a multi-bullet list. Post-
+    # filter should drop it — it's styled narrative, not a table.
+    scoping = _table(
+        classification="Literal_Grid",
+        rows=[
+            [
+                "Where do I start?",
+                "• Generate ideas\n• Decide on a project\n• Select a grant program",
+            ],
+            [
+                "I have a basic idea",
+                "• Share your ideas with your biologist before the meeting\n"
+                "• Verify grant program fit\n• Refine goals, objectives & methods",
+            ],
+            [
+                "I have a full project",
+                "• Share a full application draft.\n• Review eligibility\n"
+                "• Technical improvements.",
+            ],
+        ],
+        header="Refine your project",
+        visual_page_number="40",
+    )
+    out = merge_chunks([_chunk(tables=[scoping])])
+    assert out["tables"] == []
 
 
 def test_array_valued_standard_table_reclassified_to_literal_grid():

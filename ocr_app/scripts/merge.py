@@ -1232,42 +1232,52 @@ _BULLET_PATTERN = re.compile(r"[\u2022\u25CB\u25E6\u25AA]|(?<=\s)o\s|^\s*\d+[.)]
 
 
 def _is_bulleted_list_masquerade(t: dict) -> bool:
-    """True when a Literal_Grid is really just a bulleted list in a box.
+    """True when a Literal_Grid is really a bulleted list wrapped in a box.
 
-    The VLM occasionally wraps a plain prose bulleted list (e.g., the
-    "INELIGIBLE PROJECTS" sidebar on p.41 of the WI DNR doc) as a
-    single-row Literal_Grid. Our prompt already tells the model not to
-    do this, but it ignores the rule about half the time. This post-
-    filter catches the residual cases without touching real tables.
+    Two VLM failure modes we want to drop:
+      A. A styled sidebar of prose bullets (e.g. p.41 "INELIGIBLE
+         PROJECTS") emitted as a single-row Literal_Grid.
+      B. A 2-column scoping callout (e.g. p.40 "Where do I start? →
+         • Generate ideas …") where each row's content cell is itself
+         a multi-bullet list. Real tables put one value per cell.
 
-    Fingerprint (all must hold):
-      1. classification == Literal_Grid
-      2. exactly ONE row
-      3. combined row text >= 150 chars (real tables use short cells;
-         a long single cell is almost always prose)
-      4. >= 2 bullet markers in the combined text (a single isolated
-         bullet could appear inside a real table cell as a decoration;
-         two or more means it's actually a list)
+    Unifying fingerprint: EVERY row contains at least one cell that is
+    an embedded bulleted list — a single cell with >= 2 bullet markers
+    and >= 50 chars. Real tables (incl. the NRCS restoration-standards
+    table on p.116, which has a "1. Standard A / 2. Standard B" row
+    shape) put each numbered item in its OWN cell, so no single cell
+    accumulates the bullets.
 
-    Tables that pass any of these filters stay untouched; this only
-    removes the narrow false-positive pattern.
+    Extra safety: for 1-row tables, also require total text >= 150
+    chars to avoid dropping short legit single-row literal grids.
     """
     if t.get("table_classification") != "Literal_Grid":
         return False
     rows = t.get("table_data")
-    if not isinstance(rows, list) or len(rows) != 1:
+    if not isinstance(rows, list) or not rows:
         return False
-    row = rows[0]
-    if isinstance(row, list):
-        cells = [str(c) for c in row if c is not None]
-    elif isinstance(row, str):
-        cells = [row]
-    else:
+
+    def _row_has_embedded_list(row) -> bool:
+        if isinstance(row, list):
+            cells = [str(c) for c in row if c is not None]
+        elif isinstance(row, str):
+            cells = [row]
+        else:
+            return False
+        return any(
+            len(c) >= 50 and len(_BULLET_PATTERN.findall(c)) >= 2
+            for c in cells
+        )
+
+    if not all(_row_has_embedded_list(r) for r in rows):
         return False
-    text = " ".join(cells)
-    if len(text) < 150:
-        return False
-    return len(_BULLET_PATTERN.findall(text)) >= 2
+
+    if len(rows) == 1:
+        row = rows[0]
+        cells = [str(c) for c in row if c is not None] if isinstance(row, list) else [str(row)]
+        if sum(len(c) for c in cells) < 150:
+            return False
+    return True
 
 
 # ---------------------------------------------------------------------------
