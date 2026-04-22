@@ -15,14 +15,16 @@ Every page is rendered as an image and sent to a Vision Language Model
 (Qwen3-VL-32B-Instruct-AWQ), so the model sees layout, tables, signatures,
 watermarks, and annotations — not just raw text.
 
-- **Two-pass pipeline:** 3-page sliding window for per-page extraction
-  (neighbors provide visual context), then a document-level pass over the
-  per-page JSON for metadata and cross-page linking
+- **Chunk-based two-pass pipeline (notebooks):** overlapping page chunks
+  sent in single VLM calls, then programmatic merge + continuation-flag
+  stitching across chunks, then a doc-level pass-2 synthesis
+- **Per-page pipeline (Streamlit + batch CLI):** simpler one-page-at-a-time
+  path for demos and high-throughput bulk runs
 - **Two notebook variants:** grant administration schema
   (stakeholders/tables/narratives) and library/archival schema
-  (bibliographic metadata, body text, marginalia)
-- **Output formats:** `award`, `budget`, `terms`, `table`, `key_values`,
-  `text`
+  (bibliographic metadata, body text, marginalia, stamps)
+- **Output formats:** `award`, `budget`, `terms`, `library`, `table`,
+  `key_values`, `markdown`, `json`, `text`
 
 **Status:** PoC validated on sample documents from DoIT imaging service;
 production batch path documented.

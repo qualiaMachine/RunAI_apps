@@ -4,10 +4,17 @@
 > [Deploy vLLM Server](deploy-vllm.md) (Step 3).
 
 Production workspace for processing large document collections. Mounts
-the document PVC and runs the batch script against vLLM.
+the document PVC and runs `batch_extract.py` against vLLM.
+
+> **Scope:** `batch_extract.py` is the **per-page** path — one VLM call
+> per page, output is a flat list of per-page JSONs. It's fast and
+> simple, but it does NOT do the chunk-based cross-page stitching that
+> the notebooks do. For high-fidelity extraction with table/narrative
+> continuation across page boundaries, use the chunk-based pipeline from
+> the setup workspace instead (`notebooks/*.ipynb`).
 
 > **Prerequisite:** You've already verified the pipeline works on sample
-> docs in the setup workspace (Step 2). If you haven't, do that first.
+> docs in the setup workspace (Step 1). If you haven't, do that first.
 
 ---
 

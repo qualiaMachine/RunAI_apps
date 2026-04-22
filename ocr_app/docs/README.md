@@ -11,58 +11,71 @@ Traditional OCR pipelines (Tesseract + regex) are brittle — they break on
 layout changes and need per-document-type rules. This pipeline uses a VLM
 to understand document structure visually:
 
-- Each page is rendered as an image and processed via a **3-page sliding
-  window** — the VLM sees adjacent pages as context, extracts the center
-  page only
-- The VLM sees layout, tables, signatures, watermarks, and annotations
-- PDF hyperlinks are extracted from metadata and passed as additional context
-- Per-page **continuation flags** detect content spanning page boundaries
-  (split tables, mid-sentence breaks) — accurate because the VLM can see
-  neighboring pages
-- Cross-page linking is done **programmatically** from continuation flags
+- Every page is rendered as an image so the VLM sees layout, tables,
+  signatures, watermarks, and annotations
+- PDF hyperlinks are pulled from the PDF metadata and passed alongside
+  the images as extra context
+- The notebook pipeline splits long documents into **overlapping chunks**
+  (default: 20 pages per chunk, 1-page overlap) and sends each chunk in
+  one VLM call — fewer chunks is better for merge quality, so we keep
+  chunks as large as context and timeouts allow
+- Per-chunk **continuation flags** on tables and narratives mark items
+  that run off the first/last page of the chunk
+- Cross-chunk stitching is done **programmatically** by
+  `scripts/merge.py` (fingerprint dedup + flag-driven stitch), not by the
+  LLM
+- **Pass 2** feeds the merged JSON back to the VLM as text (no images)
+  to fill document-level fields (`one_sentence_summary`,
+  `potential_issues`). Pass 2 never rewrites per-chunk content
 - Two notebook variants ship with the repo:
   - `test_extraction_pipeline.ipynb` — grant administration schema
     (stakeholders, addresses, tables, narratives with citations)
   - `library_extraction_pipeline.ipynb` — library/archival schema
     (bibliographic metadata, body_text, marginalia, stamps, musical notation)
-- Produces structured JSON per the notebook you choose
-- **Pass 2** feeds all per-page JSONs back to the VLM (text-only, no images)
-  for document-level metadata: title, type, creator, summary, cross-page notes.
-  Never modifies per-page results
-- Extraction prompt is saved in output for reproducibility
+- The per-chunk prompt lives in `scripts/doc_prompt.py` and is saved in
+  the output for reproducibility
+
+A simpler **per-page** path is also available through `ocr_server.py`
+(the FastAPI server behind the Streamlit app) and `batch_extract.py`.
+That path processes pages individually — faster and easier to host, but
+it does not stitch items across page boundaries.
 
 | Workload | Type | What it does | GPU | Port |
 |----------|------|-------------|-----|------|
-| **`ocr-setup`** | Workspace | Notebook environment — load model locally, iterate on prompts | 0.25 | 8888 |
-| **`qwen3--vl--32b--instruct-awq`** | Inference | *(production)* Serves Qwen3-VL-32B-Instruct-AWQ via vLLM | 0.25 | 8000 |
-| **`ocr-app`** | Workspace | *(optional)* Streamlit UI for PoC demos | 0 | 8501 |
+| **`ocr-setup`** | Workspace | Notebook environment — iterate on prompts, run the chunk-based pipeline end-to-end | 0 (remote) or 0.25 (local) | 8888 |
+| **`qwen3--vl--32b--instruct-awq`** | Inference | Shared Qwen3-VL-32B-Instruct-AWQ endpoint that both the notebook and the batch/Streamlit path call | 0.35 | 80 (Knative) |
+| **`ocr-extract`** | Inference | *(optional)* CPU-only FastAPI server for per-page extraction via HTTP | 0 | 8090 |
+| **`ocr-app`** | Workspace | *(optional)* Streamlit UI over `ocr-extract` for PoC demos | 0 | 8501 |
+| **`ocr-batch`** | Workspace | *(optional)* CPU workspace that runs `batch_extract.py` against the vLLM endpoint | 0 | — |
 
-### Two modes of running the VLM
+### Where the model runs
 
-**Notebook mode (setup workspace):** The `ocr-setup` workspace loads the
-model directly with transformers — no vLLM server needed. This is best
-for iterating on prompts, testing on sample docs, and batch runs.
-The workspace needs its own GPU (25% with AWQ).
+The workspace defaults to **remote mode** — it calls the shared vLLM
+endpoint (`qwen3--vl--32b--instruct-awq.runai-<project>.svc.cluster.local`)
+over HTTP. No GPU is requested on the workspace itself, so it starts in
+seconds and multiple users share one vLLM instance via continuous
+batching.
 
-**Production mode (vLLM server):** For large-scale batch processing,
-deploy the vLLM inference job and point batch scripts at it over HTTP.
-The batch workspace is CPU-only; all GPU work is in vLLM.
+For offline experimentation you can flip `VLM_MODE = "local"` in the
+notebook — it loads the model directly with `transformers`. Local mode
+needs a GPU fraction on the workspace (25% for AWQ, 75% for bf16).
 
 ```
-  Notebook mode:                    Production mode:
+  Remote mode (default):              Local mode (offline):
 
-  +----------------+                +---------------------+
-  | ocr-setup      |                |   vLLM Server       |
-  | Model loaded   |                |   Qwen3-VL-32B-AWQ  |
-  | locally (GPU)  |                |   Port 8000 (GPU)   |
-  +----------------+                +---------^-----------+
-                                              | HTTP
-                                +-------------+-------------+
-                                |             |             |
-                         +------+------+ +----+----+ +------+------+
-                         | ocr-batch   | | extract | | Streamlit   |
-                         | (CPU only)  | | server  | | UI          |
-                         +-------------+ +---------+ +-------------+
+  +---------------+                   +-----------------------+
+  | ocr-setup     |   HTTP            | ocr-setup             |
+  | (CPU only)    |------->           | model loaded in proc  |
+  +---------------+        |          | (GPU fraction)        |
+  +---------------+        |          +-----------------------+
+  | ocr-batch     |--------+
+  | (CPU only)    |        |
+  +---------------+        v
+                   +-----------------+
+                   | vLLM shared     |
+                   | Qwen3-VL-32B    |
+                   | AWQ (GPU 0.35)  |
+                   +-----------------+
 ```
 
 ---
@@ -70,25 +83,28 @@ The batch workspace is CPU-only; all GPU work is in vLLM.
 ## Deployment Guide
 
 Follow these docs in order:
-0. **[Setup Model Volumes](setup-data-volumes.md)** — [Admin only] Download model(s) of interest to shared PVC. Ask admin if you need additional models.
-1. **[Setup & Test Workspace](setup-workspace.md)** — Experiment with pipeline in notebook, iterate on prompts/formats, test Streamlit locally
 
-Less tested but optional future paths
-2. **[Deploy Streamlit App](deploy-streamlit.md)** *(optional)* — Deploy as its own workload for persistent demo UI
-3. **[Deploy vLLM Server](deploy-vllm.md)** — *(optional)* Persistent Qwen3-VL-32B-Instruct inference endpoint
+0. **[Setup Model Volumes](setup-data-volumes.md)** — [Admin only] Download the model(s) of interest to the shared PVC. Ask your admin if you need an additional model.
+1. **[Setup & Test Workspace](setup-workspace.md)** — Experiment with the chunk-based pipeline in a notebook, iterate on prompts/formats, optionally test Streamlit locally.
+
+Less tested but optional future paths:
+
+2. **[Deploy Streamlit App](deploy-streamlit.md)** *(optional)* — Deploy the per-page Streamlit UI as its own workload for a persistent demo.
+3. **[Deploy vLLM Server](deploy-vllm.md)** *(optional)* — Stand up a dedicated Qwen3-VL-32B-Instruct-AWQ endpoint in your own project (the default setup assumes a shared endpoint already exists).
+4. **[Batch Processing](batch-processing.md)** *(optional)* — Per-page `batch_extract.py` workspace with `--resume` for bulk runs.
 
 ### PoC path (5 sample docs)
 
 0. Download model to shared PVC (Step 0)
-1. Setup workspace (Step 1) — upload docs, run test notebook, launch Streamlit from workspace
-2. Optionally deploy Streamlit as its own workload (Step 2)
+1. Setup workspace (Step 1) — upload docs, run the notebook, optionally launch Streamlit from inside the workspace
+2. *(optional)* Deploy Streamlit as its own workload (Step 2)
 
 ### Production path (10K+ docs/month)
 
 0. Setup data volumes (Step 0) — PVCs for input/output
-1. Setup workspace (Step 1) — verify pipeline with notebook
-3. Deploy `qwen3--vl--32b--instruct-awq` as persistent endpoint (Step 3)
-4. Deploy `ocr-batch` (Step 4) — batch workspace with `--resume`
+1. Setup workspace (Step 1) — verify the chunk pipeline on a handful of real docs
+3. Make sure `qwen3--vl--32b--instruct-awq` is up (Step 3 if you need your own)
+4. Run `ocr-batch` (Step 4) with `--resume` for incremental intake
 
 ---
 

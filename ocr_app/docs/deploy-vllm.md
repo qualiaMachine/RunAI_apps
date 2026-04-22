@@ -5,8 +5,8 @@
 > in the setup workspace).
 
 Uses the official `vllm/vllm-openai` image. Serves Qwen3-VL-32B-Instruct
-(AWQ 4-bit quantized, ~20 GB) for both text parsing (digital PDFs) and
-VLM OCR (scans/TIFFs) — one model handles both paths.
+(AWQ 4-bit quantized, ~20 GB) for both the notebook chunk-based pipeline
+and the per-page Streamlit/batch path. One model handles everything.
 
 In the RunAI UI: **Workloads** > **New Workload** > **Inference**
 
@@ -68,7 +68,10 @@ Leave defaults (HTTP, container port auto-detected).
 > - `--dtype half` = fp16 compute (required for AWQ on most GPUs)
 > - `--max-model-len 16384` caps KV cache allocation to 16K tokens.
 >   The model supports 262K natively but that would need 64+ GB just
->   for KV cache. 16K is plenty for sliding window (3 images ~6K tokens).
+>   for KV cache. 16K covers a default notebook chunk (~20 page images
+>   at 2x render, well under 16K input tokens) plus the JSON response.
+>   If you bump `MAX_PAGES_PER_CHUNK` in the notebook and start seeing
+>   `finish_reason == "length"`, raise this.
 > - `HF_HUB_OFFLINE=1` prevents any model downloads — loads from the
 >   shared PVC only
 
