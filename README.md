@@ -9,12 +9,23 @@ local GPU clusters instead of cloud APIs.
 
 ### [Document Extraction (`ocr_app/`)](ocr_app/README.md)
 
-Structured data extraction from institutional documents — grant awards,
-budgets, terms & conditions, archival scans, and other records. Processes
-document archives (TIFF and PDF) into structured JSON for downstream
-systematic analysis.
+Structured data extraction from institutional documents — grant award
+notices, budgets, terms & conditions, archival scans, and other records.
+Every page is rendered as an image and sent to a Vision Language Model
+(Qwen3-VL-32B-Instruct-AWQ), so the model sees layout, tables, signatures,
+watermarks, and annotations — not just raw text.
 
-**Status:** PoC — testing on sample documents from DoIT imaging service.
+- **Two-pass pipeline:** 3-page sliding window for per-page extraction
+  (neighbors provide visual context), then a document-level pass over the
+  per-page JSON for metadata and cross-page linking
+- **Two notebook variants:** grant administration schema
+  (stakeholders/tables/narratives) and library/archival schema
+  (bibliographic metadata, body text, marginalia)
+- **Output formats:** `award`, `budget`, `terms`, `table`, `key_values`,
+  `text`
+
+**Status:** PoC validated on sample documents from DoIT imaging service;
+production batch path documented.
 
 ### [RAG Chat (`rag_app/`)](rag_app/README.md)
 
@@ -34,10 +45,11 @@ WattBot Challenge winner.
 ### What's here
 
 Each app includes:
-- `deploy/runai_jobs.yaml` — RunAI job configs with copy-paste arguments
-- `docs/` — Step-by-step deployment guides (data volume setup, model
-  provisioning, workspace config, troubleshooting)
-- Requirements files for CPU and GPU components
+- `app.py` and supporting scripts (Streamlit UI, FastAPI servers, batch
+  CLI)
+- `docs/` — step-by-step RunAI deployment guides (data volume setup,
+  model provisioning, workspace config, troubleshooting)
+- Requirements files split by role (UI/client vs. GPU server)
 
 ### Deployment pattern
 
@@ -46,7 +58,7 @@ All apps use the same approach:
 ```
   +------------------+
   |   App (CPU)      |  Workspace -- code pulled from GitHub at startup
-  |   Streamlit /    |  via curl|tar + uv pip install
+  |   Streamlit /    |  and installed with uv/pip
   |   FastAPI / CLI  |
   +--------+---------+
            | HTTP (cluster-internal DNS)
@@ -69,8 +81,8 @@ All apps use the same approach:
 | Script | Purpose |
 |--------|---------|
 | `hardware_metrics.py` | GPU/energy profiling — VRAM, power draw, energy per request |
-| `provision_shared_models.py` | Download HuggingFace models to shared PVC |
-| `setup_poweredge_pod.sh` | PowerEdge pod initialization |
+| `provision_shared_models.py` | Download HuggingFace models to the shared PVC |
+| `setup_poweredge_pod.sh` | PowerEdge pod initialization (deps install) |
 
 ## Getting Started
 
@@ -78,8 +90,8 @@ All apps use the same approach:
 2. **Set up a shared models PVC** — see
    [rag_app/docs/setup-shared-models.md](rag_app/docs/setup-shared-models.md)
    (same PVC works for all apps)
-3. **Follow the app's deployment guide** in its `docs/` directory
-4. **Deploy via RunAI UI** using the configs in the app's `deploy/` directory
+3. **Follow the app's deployment guide** in its `docs/` directory —
+   workloads are created through the RunAI web UI
 
 ## Author
 
