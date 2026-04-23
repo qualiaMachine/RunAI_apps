@@ -9,9 +9,10 @@ iterate on the extraction pipeline before deploying anything else:
 
 1. Connect to the shared vLLM endpoint (no local model loading)
 2. Upload sample documents
-3. Walk through a test notebook cell by cell — render pages, send to
-   VLM via 3-page sliding window, inspect JSON output
-4. Run batch extraction with two-pass pipeline (per-page + doc-level synthesis)
+3. Walk through a test notebook cell by cell — render pages, send
+   overlapping page chunks to the VLM, inspect the merged JSON
+4. Run the full chunk-based pipeline on every doc in `/ocr/` and a
+   doc-level pass-2 synthesis on the merged result
 5. Test the Streamlit app from this workspace (optional)
 
 By default the workspace runs in **remote mode** — it calls the shared
@@ -35,15 +36,20 @@ different schemas tuned to each document type:
 
 The two notebooks share:
 - Remote vs local VLM mode toggle
-- 3-page sliding window extraction
-- Two-pass pipeline (per-page + document-level synthesis)
-- Code-driven cross-page content merging
-- Audit file (`*_extracted.jsonl`) + consolidated final file (`*_final.json`)
+- Chunk-based extraction (default 20 pages per chunk, 1-page overlap)
+  via `scripts/chunk_extract.py`
+- Deterministic chunk merging with continuation-flag stitching via
+  `scripts/merge.py`
+- Two-pass pipeline (per-chunk extraction + doc-level synthesis)
+- Per-doc output folder `<stem>_chunks/` with each chunk response and a
+  consolidated `<stem>_extracted.json`
 
 They differ in:
-- Per-page prompt and JSON schema (grant admin vs library/archival)
-- Assembly function (stakeholders/addresses/narratives vs bibliographic/body_text/marginalia/stamps)
-- Synthesis prompt (award metadata vs catalog metadata)
+- Per-chunk prompt and JSON schema (grant admin uses
+  `scripts/doc_prompt.py`; library/archival uses an inline
+  bibliographic prompt)
+- Merge/assembly behavior tuned to each schema
+- Pass-2 synthesis prompt (award metadata vs catalog metadata)
 
 ---
 
@@ -183,26 +189,24 @@ no model loading):
 2. **Open the notebook for your use case** (see table above):
    - Grant admin: `repo/ocr_app/notebooks/test_extraction_pipeline.ipynb`
    - Library/archival: `repo/ocr_app/notebooks/library_extraction_pipeline.ipynb`
-3. **Work through it cell by cell** — both notebooks follow the same flow:
+3. **Work through it cell by cell.** Both notebooks share this flow
+   (library notebook omits the Gemini comparison section):
 
-| Step | What it does |
-|------|-------------|
-| 1 | Checks VLM endpoint connection (remote mode) or shared models PVC (local mode) |
-| 2 | *(Local mode only)* Loads model directly with transformers |
-| 3 | Installs Python packages (httpx/pymupdf/Pillow always; transformers/qwen-vl-utils only for local) |
-| 4 | Defines helper functions: `run_vlm()`, `extract_page()` with sliding window support |
-| 5 | Defines the extraction prompt + assembly function for this pipeline's schema |
-| 6 | Lists uploaded docs, you pick one |
-| 7 | Renders all pages as images for VLM |
-| 8 | Runs extraction on a single page (with sliding window context from adjacent pages) |
-| 9 | Displays the JSON output |
-| 10 | Defines pass 2 synthesis prompt + helper functions |
-| 11 | **Pass 1 + Pass 2:** Batch loop — extracts all pages (sliding window), saves `_extracted.jsonl`, runs synthesis, saves `_final.json` |
-| 12 | *(Optional)* Compare VLM vs reference extractions |
-| 13 | *(Optional)* Launches extraction server + Streamlit app for interactive testing |
-| 14 | Cleanup — stops all processes |
+| Section | What it does |
+|---------|--------------|
+| 1. Setup | Checks VLM endpoint connection (remote mode) or shared models PVC (local mode); installs runtime deps |
+| 2. Load model *(local only)* | Loads the VLM in-process with transformers |
+| Helpers | Defines `run_vlm()`, `_encode_image_b64()`, `extract_links()` |
+| Prompts | Loads the extraction prompt — `DOC_SYNTHESIS_PROMPT` from `scripts/doc_prompt.py` for grant admin; inline library prompt for archival |
+| 3. Load a sample document | Lists uploaded docs in `/ocr/`, you pick one |
+| 4. Render pages | Renders every PDF page at 2x as a PIL image |
+| Single-page test | *(Optional, commented by default)* Runs one chunk containing a single page to sanity-check the prompt |
+| 8. Batch process all PDFs | **Pass 1**: plans chunks via `chunk_page_ranges(MAX_PAGES_PER_CHUNK, CHUNK_OVERLAP)`, extracts each chunk with boundary hints and optional pinned first-page context, writes per-chunk JSON to `<stem>_chunks/`, then merges with `merge_chunks` into `<stem>_extracted.json`. **Pass 2** (`RUN_PASS2 = True`): sends the merged JSON back to the VLM as text to fill `one_sentence_summary` and append issue notes |
+| 9. Zip the output folder | Packages `/ocr/vlm_out/` into a single archive for download |
+| 10. Compare VLM vs Gemini | *(Grant-admin notebook only)* Side-by-side comparison against reference extractions |
+| Launch Streamlit | *(Optional)* Starts the Streamlit app from inside the notebook (`subprocess.Popen`) against the `ocr_server.py` per-page path |
 
-> **Streamlit test (step 12)** requires:
+> **Streamlit test (last section)** requires:
 > 1. A **Custom URL tool on port 8501** in the workspace config
 > 2. Env var `STREAMLIT_BASE_PATH` set to the tool's URL path (check
 >    the RunAI UI — click the tool link, usually `/<project>/<job-name>/url-1`)
