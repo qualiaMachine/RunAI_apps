@@ -85,4 +85,4 @@ All apps use the same approach:
 
 ## Author
 
-- **Chris Endemann** — Research Cloud Consultant, RCI/DoIT, UW-Madison
+- **Chris Endemann** — Research Cyberinfrastructure Consultant, RCI/DoIT, UW-Madison
