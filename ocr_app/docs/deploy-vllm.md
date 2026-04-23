@@ -81,17 +81,20 @@ Leave defaults (HTTP, container port auto-detected).
 |-------|-------|
 | **GPU devices** | `1` |
 | **GPU fractioning** | Enabled |
-| **GPU memory** | `% of device` — Request: `35` |
+| **GPU memory** | `% of device` — Request: `75` |
 
-> **Memory breakdown (AWQ 32B, 96 GB GPU at 35%):**
+> **Memory breakdown (AWQ 32B, 96 GB GPU at 75%):**
 > - Model weights: ~19.5 GB
 > - KV cache (16K context): ~8 GB
 > - CUDA graphs: ~1.3 GB
 > - Overhead: ~1-2 GB
-> - **Total: ~30 GB / 33.6 GB allocated**
+> - **Total: ~30 GB / 72 GB allocated** (ample headroom for load spikes and concurrent requests)
 >
-> If you hit OOM, bump to 40%. For the full bf16 model
-> (`Qwen/Qwen3-VL-32B-Instruct --dtype auto`), use 75-85%.
+> Lower fractions (e.g. 35-40%) are tight — AWQ weight-load peaks and
+> activation spikes under concurrency can push past the cap and cause
+> the pod to fail readiness. Stay at 75% unless GPU is contended. For
+> the full bf16 model (`Qwen/Qwen3-VL-32B-Instruct --dtype auto`), use
+> 85%.
 
 ### Data & storage
 
@@ -159,8 +162,8 @@ If it doesn't respond:
 
 | GPU | Arguments | GPU fraction |
 |-----|-----------|-------------|
-| **96 GB (AWQ, default)** | `QuantTrio/Qwen3-VL-32B-Instruct-AWQ --quantization awq_marlin --dtype half --max-model-len 16384` | **35%** |
-| A100 80GB (AWQ) | `QuantTrio/Qwen3-VL-32B-Instruct-AWQ --quantization awq_marlin --dtype half --max-model-len 16384` | 40% |
-| 96 GB (bf16, full) | `Qwen/Qwen3-VL-32B-Instruct --dtype auto --max-model-len 16384` | 75% |
+| **96 GB (AWQ, default)** | `QuantTrio/Qwen3-VL-32B-Instruct-AWQ --quantization awq_marlin --dtype half --max-model-len 16384` | **75%** |
+| A100 80GB (AWQ) | `QuantTrio/Qwen3-VL-32B-Instruct-AWQ --quantization awq_marlin --dtype half --max-model-len 16384` | 75% |
+| 96 GB (bf16, full) | `Qwen/Qwen3-VL-32B-Instruct --dtype auto --max-model-len 16384` | 85% |
 | A100 80GB (bf16) | `Qwen/Qwen3-VL-32B-Instruct --dtype auto --max-model-len 16384` | 85% |
 | L4/RTX 4090 24GB | `Qwen/Qwen3-VL-8B-Instruct --dtype auto --max-model-len 16384` | 100% |
