@@ -5,8 +5,7 @@
 > in the setup workspace).
 
 Uses the official `vllm/vllm-openai` image. Serves Qwen3-VL-32B-Instruct
-(AWQ 4-bit quantized, ~20 GB) for both the notebook chunk-based pipeline
-and the per-page Streamlit/batch path. One model handles everything.
+(AWQ 4-bit quantized, ~20 GB) for the notebook chunk-based pipeline.
 
 In the RunAI UI: **Workloads** > **New Workload** > **Inference**
 
