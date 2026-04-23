@@ -39,16 +39,12 @@ WattBot Challenge winner.
 
 ## Infrastructure
 
-### What's here
-
 Each app includes:
 - `app.py` and supporting scripts (Streamlit UI, FastAPI servers, batch
   CLI)
 - `docs/` — step-by-step RunAI deployment guides (data volume setup,
   model provisioning, workspace config, troubleshooting)
 - Requirements files split by role (UI/client vs. GPU server)
-
-### Deployment pattern
 
 All apps use the same approach:
 
