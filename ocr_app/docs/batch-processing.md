@@ -128,7 +128,7 @@ python ocr_app/scripts/batch_extract.py \
 
 ```
 [batch] Found 45000 files, 0 already completed, 45000 to process
-[batch] LLM: QuantTrio/Qwen3-VL-32B-Instruct-AWQ at http://qwen3--vl--32b--instruct-awq-awq.../v1
+[batch] LLM: QuantTrio/Qwen3-VL-32B-Instruct-AWQ at http://qwen3--vl--32b--instruct-awq.../v1
 [1/45000] OK award_notice_2019.pdf (3p, 3d/0s, 2.1s) -> award_notice_2019.json
 [2/45000] OK budget_fy2020.pdf (5p, 5d/0s, 3.4s) -> budget_fy2020.json
 [3/45000] OK scanned_agreement.tiff (1p, 0d/1s, 8.2s) -> scanned_agreement.json
