@@ -28,7 +28,7 @@ to understand document structure visually:
   to fill document-level fields (`one_sentence_summary`,
   `potential_issues`). Pass 2 never rewrites per-chunk content
 - Two notebook variants ship with the repo:
-  - `test_extraction_pipeline.ipynb` — grant administration schema
+  - `rsp_extraction_pipeline.ipynb` — grant administration schema
     (stakeholders, addresses, tables, narratives with citations)
   - `library_extraction_pipeline.ipynb` — library/archival schema
     (bibliographic metadata, body_text, marginalia, stamps, musical notation)

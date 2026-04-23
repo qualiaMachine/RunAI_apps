@@ -36,7 +36,7 @@ Two parallel notebooks ship with the repo:
 
 | Use case | Notebook |
 |----------|----------|
-| Grant admin (award notices, budgets, terms, proposals) | `notebooks/test_extraction_pipeline.ipynb` |
+| Grant admin (award notices, budgets, terms, proposals) | `notebooks/rsp_extraction_pipeline.ipynb` |
 | Library / archival (books, manuscripts, sheet music, maps, multilingual) | `notebooks/library_extraction_pipeline.ipynb` |
 
 Both use the same chunking + merging + pass-2 architecture; only the
@@ -65,7 +65,7 @@ ocr_app/
 │   ├── merge.py                    # Dedup + continuation-flag stitching across chunks
 │   └── qa_audit.py                 # Coverage report: missing pages, thin content, truncation
 ├── notebooks/
-│   ├── test_extraction_pipeline.ipynb      # Grant-admin chunked pipeline
+│   ├── rsp_extraction_pipeline.ipynb       # Grant-admin chunked pipeline
 │   └── library_extraction_pipeline.ipynb   # Library/archival chunked pipeline
 ├── tests/
 │   └── test_merge.py               # Unit tests for merge/dedup/stitching
