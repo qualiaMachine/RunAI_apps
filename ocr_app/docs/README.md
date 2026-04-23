@@ -43,7 +43,7 @@ it does not stitch items across page boundaries.
 | Workload | Type | What it does | GPU | Port |
 |----------|------|-------------|-----|------|
 | **`ocr-setup`** | Workspace | Notebook environment — iterate on prompts, run the chunk-based pipeline end-to-end | 0 (remote) or 0.25 (local) | 8888 |
-| **`qwen3--vl--32b--instruct-awq`** | Inference | Shared Qwen3-VL-32B-Instruct-AWQ endpoint that both the notebook and the batch/Streamlit path call | 0.35 | 80 (Knative) |
+| **`qwen3--vl--32b--instruct-awq`** | Inference | Shared Qwen3-VL-32B-Instruct-AWQ endpoint that both the notebook and the batch/Streamlit path call | 0.75 | 80 (Knative) |
 | **`ocr-extract`** | Inference | *(optional)* CPU-only FastAPI server for per-page extraction via HTTP | 0 | 8090 |
 | **`ocr-app`** | Workspace | *(optional)* Streamlit UI over `ocr-extract` for PoC demos | 0 | 8501 |
 | **`ocr-batch`** | Workspace | *(optional)* CPU workspace that runs `batch_extract.py` against the vLLM endpoint | 0 | — |
@@ -74,7 +74,7 @@ needs a GPU fraction on the workspace (25% for AWQ, 75% for bf16).
                    +-----------------+
                    | vLLM shared     |
                    | Qwen3-VL-32B    |
-                   | AWQ (GPU 0.35)  |
+                   | AWQ (GPU 0.75)  |
                    +-----------------+
 ```
 
