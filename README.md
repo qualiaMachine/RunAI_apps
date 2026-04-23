@@ -80,10 +80,7 @@ All apps use the same approach:
 ## Getting Started
 
 1. **Pick an app** and read its README
-2. **Set up a shared models PVC** — see
-   [rag_app/docs/setup-shared-models.md](rag_app/docs/setup-shared-models.md)
-   (same PVC works for all apps)
-3. **Follow the app's deployment guide** in its `docs/` directory —
+2. **Follow the app's deployment guide** in its `docs/` directory —
    workloads are created through the RunAI web UI
 
 ## Author
