@@ -34,7 +34,6 @@ it, your cluster hasn't been provisioned with shared models yet; see
 4. **Workspace name:** `first-workspace`
 5. **Environment image** — Custom image:
    - **Image URL:** `nvcr.io/nvidia/pytorch:25.02-py3`
-   - **Image pull:** Pull only if not already present
 6. **Tools** — add Jupyter on port 8888.
 7. **Runtime settings:**
    - **Command:** `bash`
