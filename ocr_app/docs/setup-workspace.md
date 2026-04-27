@@ -5,7 +5,7 @@
 ## What this workspace does
 
 `ocr-setup` is your **experimentation workspace** — this is where you
-iterate on the extraction pipeline before deploying anything else:
+iterate on the extraction pipeline:
 
 1. Connect to the shared vLLM endpoint (no local model loading)
 2. Upload sample documents
@@ -13,7 +13,6 @@ iterate on the extraction pipeline before deploying anything else:
    overlapping page chunks to the VLM, inspect the merged JSON
 4. Run the full chunk-based pipeline on every doc in `/ocr/` and a
    doc-level pass-2 synthesis on the merged result
-5. Test the Streamlit app from this workspace (optional)
 
 By default the workspace runs in **remote mode** — it calls the shared
 vLLM endpoint at `qwen3--vl--32b--instruct-awq.runai-shared-models` via
@@ -82,17 +81,6 @@ Add Jupyter for browser access:
 | **Tool type** | Jupyter |
 | **Port** | `8888` |
 
-*(Optional)* Add a Custom URL tool for Streamlit testing:
-
-| Field | Value |
-|-------|-------|
-| **Tool type** | Custom URL |
-| **Name** | `streamlit` |
-| **Container port** | `8501` |
-
-> Only needed if you want to test the Streamlit UI from this workspace.
-> Can be added later by editing the workspace.
-
 ## Runtime settings
 
 | Field | Value |
@@ -104,7 +92,7 @@ Add Jupyter for browser access:
 ### Arguments (copy-paste)
 
 ```
--c "pip install --no-cache-dir httpx pymupdf Pillow streamlit python-dotenv matplotlib; curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp; mv /tmp/RunAI_apps-main /tmp/RunAI_apps 2>/dev/null; ln -sf /tmp/RunAI_apps /ocr/repo; jupyter-lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/ocr"
+-c "pip install --no-cache-dir httpx pymupdf Pillow python-dotenv matplotlib; curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp; mv /tmp/RunAI_apps-main /tmp/RunAI_apps 2>/dev/null; ln -sf /tmp/RunAI_apps /ocr/repo; jupyter-lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/ocr"
 ```
 
 > **Remote mode** (default) installs a minimal set of packages — no
@@ -115,15 +103,6 @@ Add Jupyter for browser access:
 > **`--ServerApp.base_url`** is required so Jupyter's URL matches RunAI's
 > proxy path. **`--notebook-dir=/ocr`** opens Jupyter in the persistent
 > volume where your docs live.
-
-**Environment variables:**
-
-| Name | Value |
-|------|-------|
-| `STREAMLIT_BASE_PATH` | `/${RUNAI_PROJECT}/${RUNAI_JOB_NAME}/url-1` |
-
-> `STREAMLIT_BASE_PATH` is only needed if you test Streamlit from this
-> workspace. It requires a Custom URL tool on port 8501 (see Tools above).
 
 ## Compute resources
 
@@ -204,12 +183,6 @@ no model loading):
 | 8. Batch process all PDFs | **Pass 1**: plans chunks via `chunk_page_ranges(MAX_PAGES_PER_CHUNK, CHUNK_OVERLAP)`, extracts each chunk with boundary hints and optional pinned first-page context, writes per-chunk JSON to `<stem>_chunks/`, then merges with `merge_chunks` into `<stem>_extracted.json`. **Pass 2** (`RUN_PASS2 = True`): sends the merged JSON back to the VLM as text to fill `one_sentence_summary` and append issue notes |
 | 9. Zip the output folder | Packages `/ocr/vlm_out/` into a single archive for download |
 | 10. Compare VLM vs Gemini | *(Grant-admin notebook only)* Side-by-side comparison against reference extractions |
-| Launch Streamlit | *(Optional)* Starts the Streamlit app from inside the notebook (`subprocess.Popen`) against the `ocr_server.py` per-page path |
-
-> **Streamlit test (last section)** requires:
-> 1. A **Custom URL tool on port 8501** in the workspace config
-> 2. Env var `STREAMLIT_BASE_PATH` set to the tool's URL path (check
->    the RunAI UI — click the tool link, usually `/<project>/<job-name>/url-1`)
 
 ---
 

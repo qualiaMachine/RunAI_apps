@@ -14,7 +14,7 @@ Common issues when deploying the OCR extraction pipeline on RunAI.
 - Qwen3-VL-32B needs ~64GB in bfloat16; use the AWQ build for anything
   smaller
 
-## Extraction server / batch script / notebook can't reach vLLM
+## Notebook can't reach vLLM
 
 - Use FQDN: `http://qwen3--vl--32b--instruct-awq.runai-<project>.svc.cluster.local/v1`
 - Do **NOT** include a port number — Knative routes on port 80
@@ -31,45 +31,25 @@ Common issues when deploying the OCR extraction pipeline on RunAI.
 - `<stem>_chunks/` holds the raw per-chunk responses — inspect the
   truncated one to confirm which field was cut off
 
-## Batch script hangs
-
-- Check the vLLM workload's **Logs** tab for errors
-- Try `--concurrency 1` to isolate the issue
-- Check if vLLM is OOM — reduce concurrency or `--max-model-len`
-- Long scanned pages take longer; bump `max_tokens` or the client
-  timeout if docs have many high-resolution pages
-
 ## Bad JSON output
 
-- Try a different format: `--format key_values` is more flexible than
-  `--format award` for documents that don't match the award schema
-- Use `--format text` first to see raw extraction, then pick a more
-  specific format
-- Check if the document type matches the format — don't use `award`
-  for general correspondence
-- For the notebook pipeline, re-run the chunk in isolation against a
-  single page to narrow down whether the prompt or the merge step is at
-  fault
-
-## Resume not working
-
-- The state file is at `<output-dir>/.batch_state`
-- It tracks completed files by their full input path
-- If you moved input files, paths won't match — delete `.batch_state`
-  and re-run
-- Check file permissions on the output PVC
+- Check if the document type matches the notebook's schema — the grant
+  admin notebook expects award/budget/terms-style content, the library
+  notebook expects bibliographic/archival material
+- Re-run the chunk in isolation against a single page to narrow down
+  whether the prompt or the merge step is at fault
 - The notebook pipeline uses per-doc `<stem>_extracted.json` markers via
   `SKIP_EXISTING = True` — delete the `_extracted.json` to force re-run
 
 ## Storage not mounting
 
-- For `ocr-documents` / `ocr-extracted`: verify the Data Source exists
-  in **Data & Storage** > **Data Sources** (these are PVC or NFS Data
-  Sources, not Data Volumes)
+- For `ocr-documents`: verify the Data Source exists in **Data &
+  Storage** > **Data Sources** (PVC or NFS Data Source, not a Data
+  Volume)
 - For `shared-models`: that one *is* a Data Volume — check **Data &
   Storage** > **Data Volumes**
 - Check that the mount path matches what the script expects
-  (`/data/documents`, `/data/extracted`, `/models`)
+  (`/data/documents`, `/models`)
 - For read-only mounts, ensure the access mode is correct
 - Check pod events: click the workload in the RunAI UI, open the
   **Events** tab

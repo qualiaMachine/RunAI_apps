@@ -2,14 +2,17 @@
 
 > **Step 0** in the [deployment guide](README.md).
 
-Before deploying any workloads, set up the storage. Three spots need to
+Before deploying any workloads, set up the storage. Two spots need to
 exist:
 
 | Path | What lives here | RunAI concept |
 |------|-----------------|---------------|
 | `/data/documents/` | Input PDFs and TIFFs | **Data Source** (NFS or PVC) |
-| `/data/extracted/` | Output JSON from extraction | **Data Source** (PVC, RW) |
 | `/models/` | Qwen3-VL-32B weights (~20 GB) | **Data Volume** (shared from `shared-models` project) |
+
+The notebook pipeline writes its output (per-doc JSON and chunk folders)
+into the workspace's persistent volume at `/ocr/` — no separate output
+Data Source is required.
 
 ## Data Source vs Data Volume
 
@@ -17,15 +20,14 @@ These are two different RunAI concepts and they are easy to mix up:
 
 - **Data Source** — the primitive. "Storage X is mountable into
   workloads." Types include PVC, NFS, S3, Git, ConfigMap, HostPath,
-  Secret. Used for almost everything per-project, including OCR's input
-  and output paths.
+  Secret. Used for OCR's input documents path.
 - **Data Volume** — a *cross-scope sharing layer* wrapped around a
   populated PVC Data Source. Sharers mount it read-only; only the origin
   project keeps RW. Used here only for the cluster-wide model weights —
   see [`rag_app/docs/setup-shared-models.md`](../../rag_app/docs/setup-shared-models.md).
 
-For OCR's `/data/documents` and `/data/extracted` you want **Data
-Sources**. Data Volume comes up only for the shared model weights.
+For OCR's `/data/documents` you want a **Data Source**. Data Volume
+comes up only for the shared model weights.
 
 ---
 
@@ -131,25 +133,6 @@ HTTPS-based tools (which the firewall almost always allows outbound).
 
 ---
 
-## Output JSON — `ocr-extracted` (always)
-
-Every path needs a writable PVC for extracted output:
-
-1. RunAI UI > **Data Sources** > **+ NEW DATA SOURCE** > **PVC** > **New
-   PVC**
-2. Configure:
-   - **Scope:** Your project
-   - **Name:** `ocr-extracted`
-   - **Storage class:** RWX preferred so multiple jobs can write/read,
-     RWO is fine for single-batch use
-   - **Access mode:** `Read-write by many nodes` if the SC supports it
-   - **Claim size:** `100Gi` to start (JSON is much smaller than the
-     source documents)
-   - **Container path:** `/data/extracted`
-3. Click **CREATE DATA SOURCE**.
-
----
-
 ## Shared model weights — `/models`
 
 The vLLM server needs `QuantTrio/Qwen3-VL-32B-Instruct-AWQ` (~20 GB)
@@ -195,18 +178,6 @@ sharing it cluster-wide as a Data Volume.
 
 The model only needs to be downloaded once. All inference jobs mount the
 Data Volume read-only and load weights from there.
-
----
-
-## Ongoing ingestion (~10K docs/month)
-
-- **Path B (NFS Data Source):** new documents written by the source
-  system appear in `/data/documents` automatically. Re-run
-  `batch_extract.py` with `--resume` — it skips already-processed files.
-- **Path C (PVC populated from cloud):** keep the cloud bucket fresh
-  from the lab side (cron, scheduled rsync), and re-run the same
-  `aws s3 sync` / `rclone copy` from a workspace terminal — or schedule
-  a CronJob workload to do it automatically.
 
 ---
 
