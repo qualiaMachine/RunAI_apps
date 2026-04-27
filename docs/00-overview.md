@@ -98,37 +98,3 @@ You don't have to use these — they're examples of the *pattern*. If
 you're building your own workload, treat the
 `*/docs/setup-workspace.md` files as the closest things to a template.
 
-## How to read the rest of this guide
-
-Pick the path that matches what you're doing right now.
-
-**"I just got a login and have no idea what to do."**
-→ [01 Access](01-access.md), then [02 First workspace](02-first-workspace.md),
-   then [04 Storage](04-storage.md). Skim 03 and 05.
-
-**"I have a corpus I want to extract / chat with and the cluster looks
-relevant."**
-→ Skim 00–04, then [05 Examples](05-examples.md) to pick between the
-   OCR pipeline and the RAG chatbot. Each app's README links back to
-   specific sections of 04 when storage decisions come up.
-
-**"I'm a workflow/docs admin onboarding lab PIs onto the cluster."**
-→ Read 00–05 in full so you know what to copy/cut/customize.
-
-**"I'm the cluster admin (kubectl, install/upgrade, StorageClass
-work)."**
-→ This guide isn't for you — see
-   [NVIDIA's RunAI docs](https://run-ai-docs.nvidia.com/) for the
-   admin/install side. Section 03 lists the four questions a workflow
-   admin will likely come ask you once.
-
-## A note on what changes underneath you
-
-RunAI is third-party software (NVIDIA, currently v2.24). UI buttons
-get renamed, fields move between tabs, and concepts occasionally shift
-between releases (the Data Source vs Data Volume split, for example, is
-a v2.24-era feature). This guide tries to teach the *mental model* —
-the things that change slowly — and link out to NVIDIA's official docs
-for click-by-click steps. When something in this guide doesn't match
-what you see on screen, the official docs are the source of truth and
-this guide is the bug report.
