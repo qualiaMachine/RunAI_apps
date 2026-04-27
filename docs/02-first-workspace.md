@@ -230,6 +230,15 @@ your data is still there when you Start again.
 - Cover anything OCR-specific (vision-language models, chunking,
   prompts — see [`ocr_app/README.md`](../ocr_app/README.md))
 
-Once you understand both the direct-load pattern (above) and the
-endpoint pattern (03), head to [05 Examples](05-examples.md) and pick
-whichever app matches what you're trying to build.
+## Next
+
+This works fine for one researcher poking at a model. But that GPU
+fraction is pinned to your workspace for as long as it's running,
+and any colleague who wants to use the same model has to load their
+own copy onto another GPU fraction. Doesn't scale past you.
+
+The fix is to host the model **once** as an autoscaling Inference
+workload that other notebooks call over HTTP — your workspace can
+then drop to **0 GPU** entirely. Head to
+[03 Share a Model as a vLLM Endpoint](03-share-as-endpoint.md) to
+convert this exact Qwen2.5-7B example into that pattern.
