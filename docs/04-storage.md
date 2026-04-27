@@ -60,6 +60,19 @@ Wait for the status to flip to "No issues found." If it stays in
 "Issues found," something's wrong with the StorageClass — flag your
 cluster admin.
 
+> **Important — why Step B has to come before Step C.** The Data
+> Source is created now, but on this cluster the underlying PVC uses
+> `WaitForFirstConsumer` binding mode. That means the PVC object
+> exists in `Pending` state until a pod actually mounts it.
+> RunAI's Data Source UI will report "No issues found" — the K8s
+> object is fine — but if you skip Step B and try to create a Data
+> Volume from this PVC right away (Step C), it'll fail with
+> `OriginalPvcNotBound`. Step B's workspace is what triggers the
+> binding by scheduling a pod that consumes the PVC. The order in
+> this walkthrough is deliberate; don't reorder it. See
+> [`rag_app/docs/troubleshooting.md`](../rag_app/docs/troubleshooting.md#pvc-wont-bind--originalpvcnotbound-error)
+> for the full failure mode if you've already hit it.
+
 ### Step B. Mount it from a workspace and write a file
 
 1. **Workloads** > **+ NEW WORKLOAD** > **Workspace**.

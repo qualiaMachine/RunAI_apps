@@ -98,3 +98,7 @@ You don't have to use these — they're examples of the *pattern*. If
 you're building your own workload, treat the
 `*/docs/setup-workspace.md` files as the closest things to a template.
 
+## Next
+
+Head to [01 Access](01-access.md) to get logged into the cluster.
+
