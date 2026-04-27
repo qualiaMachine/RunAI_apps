@@ -173,12 +173,22 @@ messages = [
     {"role": "user", "content": "In one sentence, what is retrieval-augmented generation?"},
 ]
 inputs = tok.apply_chat_template(
-    messages, return_tensors="pt", add_generation_prompt=True
+    messages,
+    add_generation_prompt=True,
+    return_tensors="pt",
+    return_dict=True,
 ).to("cuda:0")
 
-out = model.generate(inputs, max_new_tokens=120, do_sample=False)
-print(tok.decode(out[0, inputs.shape[1]:], skip_special_tokens=True))
+out = model.generate(**inputs, max_new_tokens=120, do_sample=False)
+print(tok.decode(out[0, inputs["input_ids"].shape[1]:], skip_special_tokens=True))
 ```
+
+> Recent `transformers` versions return a `BatchEncoding` (a dict
+> with `input_ids` and `attention_mask`) from `apply_chat_template`,
+> not a plain tensor — so `return_dict=True` makes that explicit, and
+> we unpack with `**inputs` into `model.generate`. The decode line
+> indexes into `inputs["input_ids"]` for the prompt length so we
+> only print the newly generated tokens.
 
 If you get a coherent answer, everything is working: the workspace can
 schedule on a GPU, the shared-models Data Volume mounted correctly,
