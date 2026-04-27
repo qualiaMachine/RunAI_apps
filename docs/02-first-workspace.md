@@ -39,7 +39,7 @@ it, your cluster hasn't been provisioned with shared models yet; see
    - **Command:** `bash`
    - **Arguments:**
      ```
-     -c "[ -d /work/RunAI_apps ] || git clone https://github.com/qualiaMachine/RunAI_apps.git /work/RunAI_apps; pip install --no-cache-dir transformers accelerate; jupyter-lab --ip=0.0.0.0 --port=8888 --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/work"
+     -c "[ -d /work/RunAI_apps ] || git clone https://github.com/qualiaMachine/RunAI_apps.git /work/RunAI_apps; pip install --no-cache-dir transformers accelerate; jupyter-lab --ip=0.0.0.0 --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/work"
      ```
 
      What that string actually does, piece by piece:
@@ -52,7 +52,6 @@ it, your cluster hasn't been provisioned with shared models yet; see
      | `;` | Run the next command after the previous one finishes, regardless of exit status. |
      | `jupyter-lab` | Start JupyterLab as the long-running foreground process. |
      | `--ip=0.0.0.0` | Bind to all interfaces so RunAI's proxy can reach the server from outside the pod. The default (`localhost`) only accepts connections from inside the container. |
-     | `--port=8888` | Default is also 8888 so this is technically redundant — kept for clarity, since this is the port your Tools entry above expects. Change both together if you ever want a different port. |
      | `--allow-root` | The container runs as root by default; Jupyter refuses to start as root unless you say it's fine. |
      | `--ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME}` | RunAI proxies your notebook at a path like `/<project>/<workload-name>/...`. Jupyter has to know its own base path or static asset URLs and websocket reconnects break. The two env vars are auto-set by RunAI inside the pod. |
      | `--ServerApp.token=''` | Disable Jupyter's own login token — RunAI's portal already authenticated you, and a token here would just block the proxy. |
