@@ -6,7 +6,7 @@ The cluster has three storage areas:
 
 | Path | Type | Access | Size | Purpose |
 |------|------|--------|------|---------|
-| `/models/` | **Your shared models PVC** ([setup](setup-shared-models.md)) | **RW** by creator / **RO** for consumers | varies | Model weights (Qwen, Jina V4, etc.) |
+| `/models/` | **Shared models PVC** — admin-provisioned `shared-models`, or [your own](setup-shared-models.md) | **RW** by creator / **RO** for consumers | varies | Model weights (Qwen, Jina V4, etc.) |
 | `/wattbot-data/` | **Project PVC (PPVC)** | RW (setup) / RO (inference) | 1 GB | Vector index, corpus, PDFs — shared across all jobs |
 | `/home/jovyan/work/` | **Personal workspace** | Read-write | 30 GB | Git repo, Python deps, cache |
 
@@ -93,7 +93,7 @@ original project can mount the data source with write access.
 This means:
 - To **read** models: mount the Data Volume (any project)
 - To **add/update** models: mount the Data Source from the creator's
-  project (see [Setup Shared Models](setup-shared-models.md))
+  project (see [Provision Your Own Shared Models PVC](setup-shared-models.md))
 - You **cannot** write to someone else's PVC, even if you're an admin
   on the cluster — you'd need to create a workload in their project
 
@@ -119,9 +119,9 @@ storage for code, indexes, and caches.
   mechanism ensures consumers can't accidentally delete or corrupt
   weights — they only get read-only access.
 - When provisioning, use a dedicated `model-provisioner` Workspace
-  (see [Setup Shared Models](setup-shared-models.md)) rather than
-  downloading from inference jobs. This keeps the write path isolated
-  and intentional.
+  (see [Provision Your Own Shared Models PVC](setup-shared-models.md))
+  rather than downloading from inference jobs. This keeps the write
+  path isolated and intentional.
 
 - **Use a naming convention.** Models live under
   `/models/.cache/huggingface/models--<org>--<name>/`. Don't put

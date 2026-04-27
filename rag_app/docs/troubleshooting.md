@@ -99,7 +99,7 @@ start yours.
 
 **Best fix:** Create your own PVC in your own project — then there's no
 ambiguity about write access. See
-[Setup Shared Models PVC](setup-shared-models.md).
+[Provision Your Own Shared Models PVC](setup-shared-models.md).
 
 ## Storage class doesn't support ReadWriteMany
 
