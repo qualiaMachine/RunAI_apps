@@ -5,6 +5,19 @@ We use the same `vllm/vllm-openai` image as the vLLM server — it
 already has PyTorch, CUDA, and `curl` pre-installed, so only a handful
 of lightweight Python packages need to be added at startup.
 
+> **Why Custom + a custom server (not vLLM directly)?**
+> - **HF inference type** can't mount `shared-models` — its Model store
+>   field rejects the Data Volume. Custom is the only path.
+> - **Jina V4** uses per-task LoRA adapters (retrieval, code, …) swapped
+>   at inference time — vLLM's `--task embed` doesn't support that.
+> - **Read-only PVC**: HF writes metadata on every load; the server
+>   creates a writable `/tmp/hf_home` overlay that symlinks weights from
+>   the PVC.
+> - **Per-request `energy_wh`** in the `/embed` response (NVML).
+>
+> Throughput gap to vLLM is small for embedding (single forward pass, no
+> KV cache).
+
 In the RunAI UI: **Workloads** > **New Workload** > **Inference**
 
 ## Basic settings
