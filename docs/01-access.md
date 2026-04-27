@@ -8,17 +8,23 @@
 1. **Email Chris or Mike at DoIT** about the AI cluster pilot. Tell
    them roughly what you're looking to do (an app to deploy, a model
    to fine-tune, an interactive notebook with GPU, etc.) so they can
-   create or assign you to an appropriate project.
+   plan the right project assignment.
 2. They'll send you the **portal URL** for the cluster's RunAI web
    UI.
-3. **Connect to the campus VPN** before opening the URL — the portal
-   isn't reachable from off-campus networks without it.
-4. Open the URL in a browser. You'll land on the RunAI dashboard.
-   From there you create workspaces, inference workloads, and data
-   sources by clicking through the UI — no CLI required.
+3. **Connect to the campus VPN**, then open the URL and log in once.
+   The dashboard will look mostly empty — that's expected. The
+   first login is what registers your identity in RunAI; the admin
+   can't grant you anything until that record exists.
+4. **Tell Chris/Mike you've logged in.** They'll attach your project
+   assignment, GPU quota, and `shared-models` Data Volume access to
+   your account.
+5. **Reload the dashboard.** You should now see your project in the
+   scope dropdown and be able to create workspaces, inference
+   workloads, and data sources by clicking through the UI — no CLI
+   required.
 
-That's the whole onboarding flow. Subsequent sessions are just
-"connect to VPN, open the URL, log in."
+After that, subsequent sessions are just "connect to VPN, open the
+URL, log in."
 
 ## What you'll have once you're in
 
