@@ -57,7 +57,6 @@ In the RunAI UI:
      vLLM tag is; see [the rag_app vLLM
      deploy](../rag_app/docs/deploy-vllm.md) for the version that's
      known to work on this cluster)
-   - **Image pull:** Pull only if not already present
 5. **Runtime settings:**
    - **Command:** *(leave empty — vLLM's image entrypoint runs
      `python -m vllm.entrypoints.openai.api_server`)*

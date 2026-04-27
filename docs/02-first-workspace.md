@@ -24,19 +24,38 @@ it, talk to cluster admin.
 ## Step A. Create the workspace
 
 1. RunAI UI > **Workloads** > **+ NEW WORKLOAD** > **Workspace**
-2. Basic settings:
-   - **Project:** your project
-   - **Workspace name:** `first-workspace`
-3. **Environment image** — Custom image:
+2. **Project:** select your project.
+3. **Template:** click **Start from scratch**. The other tiles are
+   preconfigured templates — they'll skip past the fields below and
+   leave you guessing what got set. Build it up by hand the first
+   time so the moving parts are visible.
+4. **Workspace name:** `first-workspace`
+5. **Environment image** — Custom image:
    - **Image URL:** `nvcr.io/nvidia/pytorch:25.02-py3`
-   - **Image pull:** Pull only if not already present
-4. **Tools** — add Jupyter on port 8888.
-5. **Runtime settings:**
+6. **Tools** — add Jupyter on port 8888.
+7. **Runtime settings:**
    - **Command:** `bash`
    - **Arguments:**
      ```
      -c "pip install --no-cache-dir transformers accelerate; jupyter-lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*'"
      ```
+
+     What that string actually does, piece by piece:
+
+     | Chunk | Why it's there |
+     |-------|----------------|
+     | `-c "..."` | Tells `bash` to run the rest as a shell command, then exit. The whole arguments value is one string. |
+     | `pip install --no-cache-dir transformers accelerate` | The PyTorch base image doesn't include HuggingFace `transformers`. `--no-cache-dir` skips writing wheel caches inside the pod (the GPU image is already big). |
+     | `;` | Run the next command after pip finishes, regardless of pip's exit status. |
+     | `jupyter-lab` | Start JupyterLab as the long-running foreground process. |
+     | `--ip=0.0.0.0` | Bind to all interfaces so RunAI's proxy can reach the server from outside the pod. The default (`localhost`) only accepts connections from inside the container. |
+     | `--port=8888` | Match the port you configured under Tools above. Jupyter and RunAI have to agree. |
+     | `--no-browser` | Don't try to open a desktop browser inside the pod — there isn't one. |
+     | `--allow-root` | The container runs as root by default; Jupyter refuses to start as root unless you say it's fine. |
+     | `--ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME}` | RunAI proxies your notebook at a path like `/<project>/<workload-name>/...`. Jupyter has to know its own base path or static asset URLs and websocket reconnects break. The two env vars are auto-set by RunAI inside the pod. |
+     | `--ServerApp.token=''` | Disable Jupyter's own login token — RunAI's portal already authenticated you, and a token here would just block the proxy. |
+     | `--ServerApp.allow_origin='*'` | Allow cross-origin requests. RunAI's proxy and Jupyter end up on different origins; without this, the browser blocks the websocket. |
+
    - **Environment variables:**
 
      | Name | Value |
@@ -48,16 +67,16 @@ it, talk to cluster admin.
      `HF_HUB_OFFLINE=1` makes sure the workspace never silently
      downloads a model — if the cache isn't where it should be, you
      get a clear error instead of a multi-GB surprise download.
-6. **Compute resources:**
+8. **Compute resources:**
    - **GPU devices:** `1`
    - **GPU fractioning:** Enabled — `25%` (≈20 GB on an 80 GB H100,
      enough to load Qwen2.5-7B in bf16)
-7. **Data & storage:**
+9. **Data & storage:**
    - **+ Data Volume** > pick `shared-models`, mount path `/models`,
      read-only.
    - *(optional)* **+ Volume** > `local-path`, container path
      `/work`, persistent. This is where you'll save notebooks.
-8. **CREATE WORKSPACE**.
+10. **CREATE WORKSPACE**.
 
 Wait for the status to flip to `Running`. With image caching this is
 ~30 seconds; cold-pulling the PyTorch image is ~3 minutes the first
