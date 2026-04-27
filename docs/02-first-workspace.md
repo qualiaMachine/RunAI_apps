@@ -19,9 +19,7 @@ You need a project on the cluster (see [01 Access](README.md) once
 that doc exists; for now ask your DoIT contact). You also need the
 `shared-models` Data Volume to be available on the cluster — confirm
 with `Data & Storage > Data Volumes` in the RunAI UI. If you don't see
-it, your cluster hasn't been provisioned with shared models yet; see
-[`rag_app/docs/setup-shared-models.md`](../rag_app/docs/setup-shared-models.md)
-*(advanced)*.
+it, talk to cluster admin.
 
 ## Step A. Create the workspace
 
