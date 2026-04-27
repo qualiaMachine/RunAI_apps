@@ -39,6 +39,9 @@ it, talk to cluster admin.
      ```
      -c "curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp; mv /tmp/RunAI_apps-main /tmp/RunAI_apps 2>/dev/null; ln -sf /tmp/RunAI_apps /work/repo; pip install --no-cache-dir transformers accelerate; jupyter-lab --ip=0.0.0.0 --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/work"
      ```
+   - **Set the container's working directory:** *(leave empty)* — the
+     args above use absolute paths everywhere, so there's no working
+     directory to set.
 
      Yes, this is annoying. Most of these are RunAI / proxy /
      headless-container glue that has nothing to do with your actual
@@ -168,12 +171,22 @@ messages = [
     {"role": "user", "content": "In one sentence, what is retrieval-augmented generation?"},
 ]
 inputs = tok.apply_chat_template(
-    messages, return_tensors="pt", add_generation_prompt=True
+    messages,
+    add_generation_prompt=True,
+    return_tensors="pt",
+    return_dict=True,
 ).to("cuda:0")
 
-out = model.generate(inputs, max_new_tokens=120, do_sample=False)
-print(tok.decode(out[0, inputs.shape[1]:], skip_special_tokens=True))
+out = model.generate(**inputs, max_new_tokens=120, do_sample=False)
+print(tok.decode(out[0, inputs["input_ids"].shape[1]:], skip_special_tokens=True))
 ```
+
+> Recent `transformers` versions return a `BatchEncoding` (a dict
+> with `input_ids` and `attention_mask`) from `apply_chat_template`,
+> not a plain tensor — so `return_dict=True` makes that explicit, and
+> we unpack with `**inputs` into `model.generate`. The decode line
+> indexes into `inputs["input_ids"]` for the prompt length so we
+> only print the newly generated tokens.
 
 If you get a coherent answer, everything is working: the workspace can
 schedule on a GPU, the shared-models Data Volume mounted correctly,
@@ -182,9 +195,21 @@ deployments.
 
 ## Step D. Stop the workspace
 
-GPUs are scarce. When you're not using the workspace, stop it from the
-RunAI UI — the volume and the cloned repo persist, and you can Start
-it back up later. Don't leave it running idle.
+GPUs are scarce. When you're not using the workspace, **Stop** it
+from the RunAI UI — your `/work` volume and any notebooks you saved
+there survive stop/start cycles, so you can pick up where you left
+off later. The repo at `/work/repo` re-pulls from GitHub on every
+start (it lives in ephemeral `/tmp` under the symlink), so it always
+reflects the latest `main`.
+
+> **Stop ≠ Delete.** If you **Delete** the workspace, the inline
+> `/work` volume goes with it and your notebooks are gone. To keep
+> work across a delete-and-recreate cycle, move it into a standalone
+> PVC Data Source first — see [04 Storage](04-storage.md).
+
+Don't leave the workspace running idle either — Stop is reversible,
+the GPU goes back into the project's pool for others to use, and
+your data is still there when you Start again.
 
 ## What this exercise does and doesn't show
 
