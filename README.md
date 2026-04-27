@@ -42,7 +42,7 @@ WattBot Challenge winner.
 Each app includes:
 - `app.py` and supporting scripts (Streamlit UI, FastAPI servers, batch
   CLI)
-- `docs/` — step-by-step RunAI deployment guides (data volume setup,
+- `docs/` — step-by-step RunAI deployment guides (storage setup,
   model provisioning, workspace config, troubleshooting)
 - Requirements files split by role (UI/client vs. GPU server)
 

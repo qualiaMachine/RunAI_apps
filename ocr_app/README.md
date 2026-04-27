@@ -67,7 +67,7 @@ Full deployment guide: **[docs/README.md](docs/README.md)**
 
 Follow these docs in order:
 
-0. [Setup Data Volumes](docs/setup-data-volumes.md) — download model to shared PVC, create output volume
+0. [Setup Storage](docs/setup-storage.md) — Data Sources for input/output, plus the cluster-wide `shared-models` Data Volume for the model weights
 1. [Setup & Test Workspace](docs/setup-workspace.md) — experiment with pipeline in notebook, iterate on prompts/formats
 2. [Deploy Streamlit App](docs/deploy-streamlit.md) *(optional)* — polished demo UI, test from workspace first
 3. [Deploy vLLM Server](docs/deploy-vllm.md) — persistent Qwen3-VL-32B-Instruct-AWQ inference endpoint
@@ -77,13 +77,13 @@ Additional: [Troubleshooting](docs/troubleshooting.md)
 
 ### PoC (5 sample docs)
 
-0. Download model to shared PVC (Step 0)
+0. Confirm the Qwen3-VL-32B model is on `shared-models` (Step 0); inputs go on the workspace's inline volume via Jupyter drag-drop
 1. Setup workspace (Step 1) — upload docs, run test notebook, launch Streamlit from workspace
 2. Optionally deploy Streamlit as its own workload (Step 2)
 
 ### Production (10K+ docs/month)
 
-0. Setup data volumes (Step 0)
+0. Setup storage (Step 0)
 1. Setup workspace (Step 1) — verify pipeline with notebook
 3. Deploy vLLM as persistent endpoint (Step 3)
 4. Batch processing workspace (Step 4) — `--resume` for incremental runs
@@ -125,7 +125,7 @@ ocr_app/
 │   └── test_merge.py               # Unit tests for merge/dedup/stitching
 ├── docs/                           # RunAI deployment guides
 │   ├── README.md                   #   Overview + deployment order
-│   ├── setup-data-volumes.md       #   PVC + model download
+│   ├── setup-storage.md            #   Data Sources (input/output) + model on shared-models
 │   ├── deploy-vllm.md              #   vLLM server (GPU)
 │   ├── deploy-streamlit.md         #   Streamlit UI + extraction server
 │   ├── setup-workspace.md          #   Setup & test workspace

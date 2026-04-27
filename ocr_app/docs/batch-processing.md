@@ -72,7 +72,10 @@ In the RunAI UI: **Workloads** > **New Workload** > **Workspace**
 
 ## Data & storage
 
-| Data volume name | Container path |
+Attach the input and output Data Sources you created in
+[setup-storage.md](setup-storage.md):
+
+| Data source name | Container path |
 |------------------|----------------|
 | `ocr-documents` | `/data/documents` |
 | `ocr-extracted` | `/data/extracted` |
@@ -187,7 +190,7 @@ is below 80%.
 
 ## Ongoing ingestion (~10K docs/month)
 
-If your input PVC is a direct mount to the source storage (NFS), new
+If your input Data Source is an NFS mount to the source storage, new
 documents appear automatically. Re-run the batch script with `--resume`:
 
 ```bash

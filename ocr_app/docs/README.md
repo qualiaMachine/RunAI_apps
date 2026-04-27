@@ -84,7 +84,7 @@ needs a GPU fraction on the workspace (25% for AWQ, 75% for bf16).
 
 Follow these docs in order:
 
-0. **[Setup Model Volumes](setup-data-volumes.md)** — [Admin only] Download the model(s) of interest to the shared PVC. Ask your admin if you need an additional model.
+0. **[Setup Storage](setup-storage.md)** — Create Data Sources for input/output (NFS or PVC depending on whether your data lives on a network share) and confirm the Qwen3-VL-32B model is on the cluster-wide `shared-models` Data Volume.
 1. **[Setup & Test Workspace](setup-workspace.md)** — Experiment with the chunk-based pipeline in a notebook, iterate on prompts/formats, optionally test Streamlit locally.
 
 Less tested but optional future paths:
@@ -95,13 +95,14 @@ Less tested but optional future paths:
 
 ### PoC path (5 sample docs)
 
-0. Download model to shared PVC (Step 0)
-1. Setup workspace (Step 1) — upload docs, run the notebook, optionally launch Streamlit from inside the workspace
+0. Confirm the Qwen3-VL-32B model is on `shared-models` (Step 0); skip input/output Data Sources — use Path A in setup-storage
+1. Setup workspace (Step 1) — drag PDFs into Jupyter, run the notebook, optionally launch Streamlit from inside the workspace
 2. *(optional)* Deploy Streamlit as its own workload (Step 2)
 
 ### Production path (10K+ docs/month)
 
-0. Setup data volumes (Step 0) — PVCs for input/output
+0. Setup storage (Step 0) — Data Source for `/data/documents` (NFS or PVC) + `ocr-extracted` PVC Data Source + model on `shared-models`
+
 1. Setup workspace (Step 1) — verify the chunk pipeline on a handful of real docs
 3. Make sure `qwen3--vl--32b--instruct-awq` is up (Step 3 if you need your own)
 4. Run `ocr-batch` (Step 4) with `--resume` for incremental intake
