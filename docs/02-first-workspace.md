@@ -42,6 +42,15 @@ it, your cluster hasn't been provisioned with shared models yet; see
      -c "[ -d /work/RunAI_apps ] || git clone https://github.com/qualiaMachine/RunAI_apps.git /work/RunAI_apps; pip install --no-cache-dir transformers accelerate; jupyter-lab --ip=0.0.0.0 --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/work"
      ```
 
+     Yes, this is annoying. Most of these are RunAI / proxy /
+     headless-container glue that has nothing to do with your actual
+     work, and you'll need essentially the same string for every
+     workspace you create. Once you have one workspace dialed in,
+     save it as a Workload Template (RunAI UI > **Workload manager**
+     > **Templates** > **+ NEW TEMPLATE** from your existing
+     workspace) so future workspaces start with all of this
+     pre-filled and you only edit what differs.
+
      What that string actually does, piece by piece:
 
      | Chunk | Why it's there |
