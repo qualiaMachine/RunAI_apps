@@ -158,12 +158,14 @@ it back up later. Don't leave it running idle.
 - Your account has GPU quota
 
 **Doesn't:**
-- Test multi-user concurrency (that's what vLLM is for — see
-  [`rag_app/README.md`](../rag_app/README.md))
+- Test multi-user concurrency or share the loaded model with anyone
+  else — for that, the next step is to host it as an endpoint. See
+  [03 Share a Model as a vLLM Endpoint](03-share-as-endpoint.md)
 - Demonstrate sharing data with other projects (that's the
-  [03 Storage](03-storage.md) walkthrough)
+  [04 Storage](04-storage.md) walkthrough)
 - Cover anything OCR-specific (vision-language models, chunking,
   prompts — see [`ocr_app/README.md`](../ocr_app/README.md))
 
-For real work, head to [04 Examples](04-examples.md) and pick whichever
-app matches what you're trying to build.
+Once you understand both the direct-load pattern (above) and the
+endpoint pattern (03), head to [05 Examples](05-examples.md) and pick
+whichever app matches what you're trying to build.

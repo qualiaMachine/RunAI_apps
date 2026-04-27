@@ -1,0 +1,235 @@
+# 03 — Share a Model as a vLLM Endpoint
+
+> **Step 3** in the [New User Guide](README.md). Builds directly on
+> [02 First Workspace](02-first-workspace.md) — assumes you already
+> have `Qwen2.5-7B-Instruct` loading from the shared-models Data
+> Volume in a workspace.
+
+In 02 you loaded the model directly into the notebook kernel — fine
+for one user, but it pins a GPU fraction to your workspace whether
+you're actively prompting or not, and a second user wanting the same
+model has to load their own copy. The cluster pattern for "many users,
+one model" is to deploy the model **once** as a vLLM Inference
+workload, then have everyone's notebooks call its HTTP endpoint over
+internal cluster DNS.
+
+This doc walks through that conversion: take the Qwen2.5-7B example
+from 02, host it as an autoscaling endpoint, then revisit the
+notebook in a workspace with **zero GPU** that calls the endpoint
+instead of loading weights.
+
+By the end you'll have:
+- A running `qwen-7b-chat` Inference workload that any project member
+  can hit
+- A 0-GPU workspace whose notebook gets the same answer at a fraction
+  of the resource cost
+- An intuition for when each pattern is appropriate
+
+## When to host vs load directly
+
+Use the rule of thumb:
+
+| | Direct load (02 pattern) | Endpoint (this doc) |
+|---|---|---|
+| **GPU cost** | Pinned to the workspace whenever it's running | Shared across all callers; autoscales from 0 if idle |
+| **Cold start** | ~30–60s once per workspace start | ~30s once per autoscale; near-zero per call |
+| **Concurrency** | Single-threaded `model.generate()` blocks | Continuous batching — 2–4× more throughput |
+| **Setup effort** | One workspace with a notebook | One Inference workload + workspaces that consume it |
+| **Best for** | Solo experimentation, debugging, training-style workloads | Anything multi-user, anything called from multiple workloads, anything that should scale |
+
+If you're the only user and you'll prompt the model interactively for
+an hour and stop, just stay on the 02 pattern. As soon as a second
+person wants the same model — or the same workload itself wants to be
+called by another service — host it.
+
+## Step A. Deploy Qwen2.5-7B as a vLLM Inference workload
+
+In the RunAI UI:
+
+1. **Workloads** > **+ NEW WORKLOAD** > **Inference**
+2. Pick the **Custom** inference type (you're bringing your own image
+   and command, not using a built-in template).
+3. Basic settings:
+   - **Project:** your project
+   - **Workload name:** `qwen-7b-chat`
+4. **Environment image** — Custom:
+   - **Image URL:** `vllm/vllm-openai:v0.7.0` (or whatever the current
+     vLLM tag is; see [the rag_app vLLM
+     deploy](../rag_app/docs/deploy-vllm.md) for the version that's
+     known to work on this cluster)
+   - **Image pull:** Pull only if not already present
+5. **Runtime settings:**
+   - **Command:** *(leave empty — vLLM's image entrypoint runs
+     `python -m vllm.entrypoints.openai.api_server`)*
+   - **Arguments:**
+     ```
+     --model Qwen/Qwen2.5-7B-Instruct --max-model-len 8192 --gpu-memory-utilization 0.85
+     ```
+   - **Environment variables:**
+
+     | Name | Value |
+     |------|-------|
+     | `HF_HOME` | `/models/.cache/huggingface` |
+     | `HF_HUB_CACHE` | `/models/.cache/huggingface` |
+     | `HF_HUB_OFFLINE` | `1` |
+
+6. **Compute resources:**
+   - **GPU devices:** `1`
+   - **GPU fractioning:** Enabled — `50%` (Qwen 7B in bf16 + KV cache
+     fits comfortably on 40 GB of an 80 GB H100)
+7. **Data & storage:** **+ Data Volume** > `shared-models`, mount path
+   `/models`, read-only.
+8. **Endpoint:**
+   - **Container port:** `8000`
+   - **Auth:** Internal (no external ingress needed — only your
+     project's workloads will call it)
+9. **Autoscaling:**
+   - **Min replicas:** `0` (so it scales to zero when idle and
+     releases the GPU)
+   - **Max replicas:** `1`
+   - **Metric:** `Concurrency`, value `4`
+10. **CREATE INFERENCE**.
+
+It will take ~30 seconds to spin up the first time (image pull is
+cached after that, and weights load from the read-only PVC). Watch
+the **Pods** tab — the workload is healthy when the pod's readiness
+probe passes.
+
+The endpoint is reachable from any workload in the same project at:
+
+```
+http://qwen-7b-chat.runai-<your-project>.svc.cluster.local/v1
+```
+
+It speaks the OpenAI Chat Completions API, so any OpenAI-compatible
+client works.
+
+## Step B. New workspace, zero GPU
+
+Now create a *separate* workspace whose only job is to call the
+endpoint. It needs no GPU and no `shared-models` mount — just network
+access.
+
+1. **Workloads** > **+ NEW WORKLOAD** > **Workspace**
+2. **Workspace name:** `qwen-client`
+3. **Environment image:** `nvcr.io/nvidia/pytorch:25.02-py3` (or any
+   Python image — you don't need PyTorch here, it's just convenient)
+4. **Tools:** Jupyter on port 8888.
+5. **Runtime settings — Arguments:**
+   ```
+   -c "pip install --no-cache-dir openai; jupyter-lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*'"
+   ```
+6. **Compute resources:**
+   - **GPU devices:** `0` ← the whole point
+   - CPU/memory: defaults
+7. **Data & storage:** *(optional)* a `local-path` PVC at `/work` if
+   you want notebook persistence.
+8. **CREATE WORKSPACE**.
+
+The workspace boots in seconds because there's no GPU scheduling and
+no model loading.
+
+## Step C. Call the endpoint from a notebook
+
+Open Jupyter, create a new notebook in `/work/`.
+
+### Cell 1 — confirm the endpoint is reachable
+
+```python
+import os, urllib.request, json
+
+PROJECT = os.environ["RUNAI_PROJECT"]   # set automatically by RunAI
+BASE_URL = f"http://qwen-7b-chat.runai-{PROJECT}.svc.cluster.local/v1"
+
+with urllib.request.urlopen(f"{BASE_URL}/models", timeout=10) as r:
+    print(json.loads(r.read())["data"][0]["id"])
+```
+
+You should see `Qwen/Qwen2.5-7B-Instruct`. If the request hangs or
+returns 404, the workload isn't healthy yet — check the **Pods** tab
+on `qwen-7b-chat` and wait for readiness.
+
+### Cell 2 — send a prompt via the OpenAI client
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url=BASE_URL, api_key="not-used")
+
+resp = client.chat.completions.create(
+    model="Qwen/Qwen2.5-7B-Instruct",
+    messages=[
+        {"role": "system", "content": "You are a concise research assistant."},
+        {"role": "user", "content": "In one sentence, what is retrieval-augmented generation?"},
+    ],
+    max_tokens=120,
+    temperature=0,
+)
+print(resp.choices[0].message.content)
+```
+
+Same prompt as 02, same answer (modulo sampling), no GPU on this
+workspace. The first call after the endpoint scales from zero takes
+~10 seconds; subsequent calls are sub-second.
+
+### Cell 3 — concurrency proof
+
+Spin up a small concurrent burst to feel continuous batching at work.
+This would block on the 02-pattern workspace.
+
+```python
+import asyncio
+from openai import AsyncOpenAI
+
+aclient = AsyncOpenAI(base_url=BASE_URL, api_key="not-used")
+
+async def ask(i):
+    r = await aclient.chat.completions.create(
+        model="Qwen/Qwen2.5-7B-Instruct",
+        messages=[{"role": "user", "content": f"Say the word number {i} and stop."}],
+        max_tokens=8,
+    )
+    return i, r.choices[0].message.content
+
+results = await asyncio.gather(*(ask(i) for i in range(10)))
+for i, ans in results:
+    print(i, "->", ans)
+```
+
+Ten requests hitting one GPU, processed in parallel via vLLM's
+continuous batching. On the 02 pattern, those would queue up
+single-threaded.
+
+## Step D. Stop the workspace, leave the endpoint
+
+When you're done with the notebook, stop `qwen-client`. The endpoint
+(`qwen-7b-chat`) keeps running — or rather, scales to zero when no
+one is calling it (because Min replicas = 0). Other project members
+can keep hitting the same URL without you doing anything; new
+workspaces just need the BASE_URL above.
+
+If you want to fully tear down: **Workloads** > delete `qwen-7b-chat`.
+This is reversible — recreating the Inference workload from the
+saved settings takes a minute.
+
+## Bridging to the real apps
+
+This is exactly the pattern both production apps use:
+
+- [`rag_app/docs/deploy-vllm.md`](../rag_app/docs/deploy-vllm.md)
+  deploys a near-identical vLLM Inference workload (`wattbot-chat`)
+  for the WattBot chatbot, plus separate Inference workloads for the
+  embedding server and reranker.
+- The OCR app's
+  [`ocr_app/docs/deploy-vllm.md`](../ocr_app/docs/deploy-vllm.md)
+  hosts Qwen3-VL-32B the same way (with `--quantization awq` for the
+  larger model), and the OCR notebook's `VLM_MODE = "remote"` (the
+  default) calls it via cluster DNS just like Step C above.
+
+When you read those app docs, you'll recognize the structure: pick
+image, set args, attach `shared-models`, configure autoscaling, point
+your client at `http://<workload>.runai-<project>.svc.cluster.local`.
+
+Once you're comfortable with this conversion, head to
+[04 Storage](04-storage.md) for the input/output side, then
+[05 Examples](05-examples.md) to pick a real app to deploy.

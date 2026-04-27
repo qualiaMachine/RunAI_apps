@@ -7,7 +7,7 @@ reranking. 2025 WattBot Challenge winner.
 > **New to the cluster?** Read the [top-level new-user
 > guide](../docs/README.md) first — especially [00 Overview](../docs/00-overview.md)
 > for the Workspace / Data Source / Data Volume mental model and
-> [03 Storage](../docs/03-storage.md) for how data gets onto the
+> [04 Storage](../docs/04-storage.md) for how data gets onto the
 > cluster.
 
 ## Why this architecture?
