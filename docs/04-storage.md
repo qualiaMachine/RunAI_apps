@@ -1,6 +1,6 @@
 # 04 — Storage
 
-> **Step 4** in the [New User Guide](README.md). Read [00 Overview](00-overview.md)
+> **Step 4** in the [New User Guide](../README.md#new-user-guide). Read [00 Overview](00-overview.md)
 > first if "Data Source vs Data Volume" doesn't ring a bell.
 
 Storage is where new users get the most lost — RunAI exposes several
@@ -29,7 +29,7 @@ download, a curated corpus that took a week to build).
 ## Hands-on: starter PVC → populated → shared Data Volume
 
 This walkthrough takes ~15 minutes if your access is already set up
-(see [01 Access](README.md)). At the end you'll have:
+(see [01 Access](01-access.md)). At the end you'll have:
 
 1. A working Project-tier PVC Data Source you wrote a file to
 2. A Cluster-shared Data Volume mounted into a second workspace,

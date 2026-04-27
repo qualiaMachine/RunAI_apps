@@ -12,8 +12,9 @@ pipelines (Tesseract + regex) are brittle on layout changes and need
 per-document-type rules; the VLM approach replaces both.
 
 > **New to the cluster?** Read the [top-level new-user
-> guide](../docs/README.md) first — especially [00 Overview](../docs/00-overview.md)
-> for the Workspace / Data Source / Data Volume mental model and
+> guide](../README.md#new-user-guide) first — especially
+> [00 Overview](../docs/00-overview.md) for the Workspace / Data
+> Source / Data Volume mental model and
 > [04 Storage](../docs/04-storage.md) for how data gets onto the
 > cluster.
 

@@ -1,6 +1,6 @@
 # 02 — Your First Workspace
 
-> **Step 2** in the [New User Guide](README.md). Read [00 Overview](00-overview.md)
+> **Step 2** in the [New User Guide](../README.md#new-user-guide). Read [00 Overview](00-overview.md)
 > first if you haven't.
 
 By the end of this doc you'll have a Jupyter workspace running on the
@@ -15,7 +15,7 @@ actually loads a model.
 
 ## Prerequisite
 
-You need a project on the cluster (see [01 Access](README.md) once
+You need a project on the cluster (see [01 Access](01-access.md) once
 that doc exists; for now ask your DoIT contact). You also need the
 `shared-models` Data Volume to be available on the cluster — confirm
 with `Data & Storage > Data Volumes` in the RunAI UI. If you don't see
