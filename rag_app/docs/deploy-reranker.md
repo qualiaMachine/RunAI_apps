@@ -11,12 +11,10 @@ approach.
 > would be too slow. A separate inference job lets the reranker run on
 > its own GPU fraction while the Streamlit app calls it over HTTP.
 
-> **Why Custom (not "Model: from Hugging Face")?** Same reasoning as the
-> [embedding server](deploy-embedding.md#deploy-the-embedding-server) —
-> HF type can't mount `shared-models`, and our FastAPI wrapper handles
-> the read-only PVC overlay and per-request energy reporting. BGE
-> reranker *is* vLLM-compatible via `--task score`, but we use the same
-> custom-server pattern for symmetry with the embedding job.
+> **Why a custom FastAPI server (not vLLM `--task score`)?** BGE reranker
+> *is* vLLM-compatible, but we use the same custom-server pattern as the
+> [embedding server](deploy-embedding.md) for symmetry — same read-only
+> PVC overlay, same per-request energy reporting.
 
 In the RunAI UI: **Workloads** > **New Workload** > **Inference**
 
@@ -130,56 +128,6 @@ python3 -c "
 from huggingface_hub import snapshot_download
 snapshot_download('OpenSciLM/OpenScholar_Reranker', cache_dir='/models/.cache/huggingface')
 "
-```
-
----
-
-## Pre-deploy testing
-
-### Step 1: Test locally (any machine with Python 3.10+)
-
-```bash
-pip install fastapi uvicorn sentence-transformers && \
-RERANKER_MODEL=BAAI/bge-reranker-v2-m3 python3 -c "
-import os, time
-from sentence_transformers import CrossEncoder
-from fastapi import FastAPI
-from pydantic import BaseModel
-import uvicorn
-MODEL = os.environ.get('RERANKER_MODEL', 'BAAI/bge-reranker-v2-m3')
-app = FastAPI(); model = None
-class RerankRequest(BaseModel):
-    query: str
-    texts: list[str]
-@app.on_event('startup')
-async def startup():
-    global model; model = CrossEncoder(MODEL)
-@app.get('/health')
-async def health(): return {'status': 'ok' if model else 'loading'}
-@app.post('/rerank')
-async def rerank(r: RerankRequest):
-    t0 = time.time(); scores = model.predict([(r.query, t) for t in r.texts], show_progress_bar=False)
-    return {'scores': [float(s) for s in scores], 'count': len(r.texts), 'elapsed_ms': round((time.time()-t0)*1000, 2)}
-uvicorn.run(app, host='0.0.0.0', port=8082)
-"
-```
-
-Expected: `[reranker] Loaded in Xs` then serving on 8082
-
-### Step 2: Smoke-test the /health endpoint
-
-```bash
-curl http://localhost:8082/health
-# Expected: {"status":"ok"}
-```
-
-### Step 3: Test an actual rerank call
-
-```bash
-curl -X POST http://localhost:8082/rerank \
-  -H "Content-Type: application/json" \
-  -d '{"query": "energy consumption of LLM training", "texts": ["Large language models require significant compute.", "The weather is nice today."]}'
-# Expected: {"scores":[0.98, 0.01], "count":2, "elapsed_ms":...}
 ```
 
 ---

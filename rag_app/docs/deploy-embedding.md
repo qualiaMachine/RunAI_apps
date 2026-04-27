@@ -5,11 +5,9 @@ We use the same `vllm/vllm-openai` image as the vLLM server — it
 already has PyTorch, CUDA, and `curl` pre-installed, so only a handful
 of lightweight Python packages need to be added at startup.
 
-> **Why Custom + a custom server (not vLLM directly)?**
-> - **HF inference type** can't mount `shared-models` — its Model store
->   field rejects the Data Volume. Custom is the only path.
+> **Why a custom FastAPI server instead of vLLM's `--task embed`?**
 > - **Jina V4** uses per-task LoRA adapters (retrieval, code, …) swapped
->   at inference time — vLLM's `--task embed` doesn't support that.
+>   at inference time — vLLM's embedding path doesn't support that.
 > - **Read-only PVC**: HF writes metadata on every load; the server
 >   creates a writable `/tmp/hf_home` overlay that symlinks weights from
 >   the PVC.
@@ -134,59 +132,6 @@ First deploy takes **3-5 minutes**:
   PyTorch is already in the image).
 - **Model loading** (~30s): Jina V4 weights (~3 GB) load from the
   shared PVC into GPU memory.
-
-## How it works
-
-Jina V4 weights are already pre-cached on the shared PVC at
-`/models/.cache/huggingface/`. The server loads the model into GPU
-memory and exposes a FastAPI endpoint for encoding queries into vectors.
-
-**Verify (from any other pod's terminal):**
-```bash
-curl http://wattbot-embedding:8080/health
-# {"status": "ok"}
-```
-
----
-
-## Pre-deploy testing
-
-These steps catch import errors, missing dependencies, and startup crashes
-BEFORE you waste time on a 5-min container deploy cycle.
-
-### Step 1: Test the startup command locally (any machine with Python 3.10+)
-
-```bash
-rm -rf /tmp/RunAI_apps && \
-curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/<your-branch>.tar.gz \
-  | tar xz -C /tmp && \
-mv /tmp/RunAI_apps-<your-branch> /tmp/RunAI_apps && \
-cd /tmp/RunAI_apps && \
-uv pip install --system fastapi uvicorn httpx numpy \
-  sentence-transformers 'transformers>=4.42,<5' accelerate && \
-python3 rag_app/scripts/embedding_server.py
-```
-
-Expected output: `[embedding_server] Model loaded in Xs. Serving on 0.0.0.0:8080`
-The server should start without import errors. Ctrl+C to stop.
-
-### Step 2: Smoke-test the /health endpoint (in a second terminal)
-
-```bash
-curl http://localhost:8080/health
-# Expected: {"status":"ok"}
-```
-
-### Step 3 (optional): Test an actual embedding call
-
-```bash
-curl -X POST http://localhost:8080/embed \
-  -H "Content-Type: application/json" \
-  -d '{"texts": ["hello world"]}'
-# Expected: {"embeddings":[[...]], "dimension":1024, "count":1, ...}
-```
-
-Only proceed to RunAI deployment once all steps pass locally.
 
 ## CLI equivalent
 

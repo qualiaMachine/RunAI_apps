@@ -101,23 +101,6 @@ You'll see `Initializing` in the RunAI UI during this time — this is
 normal. The job transitions to `Running` once the HTTP health check
 passes. Subsequent restarts (same node, cached image) take ~2-3 minutes.
 
-## How it works
-
-OpenScholar 8B weights are already pre-cached on the shared PVC at
-`/models/.cache/huggingface/` — vLLM loads them directly on startup
-(no download needed, `HF_HUB_OFFLINE=1`). The Data Volume is read-only,
-so vLLM can't accidentally modify or delete weights.
-
-> **Note:** vLLM exposes an **OpenAI-compatible** API (`/v1/chat/completions`),
-> but it runs **entirely on your local GPU** — no OpenAI account or API
-> charges. The `openai` Python package is just used as a client library
-> to talk to your local vLLM server.
-
-**Verify (from any other pod's terminal):**
-```bash
-curl http://wattbot-chat:8000/v1/models
-```
-
 ## Switching to OpenScholar 8B
 
 OpenScholar (`OpenSciLM/Llama-3.1_OpenScholar-8B`) is a Llama 3.1 8B
