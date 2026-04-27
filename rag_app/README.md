@@ -24,9 +24,13 @@ All 4 services fit on ~1 GPU via fractional allocation. Reranker is optional.
 
 Full deployment guide: **[docs/README.md](docs/README.md)**
 
+Assumes the cluster's `shared-models` data volume is available
+(admin-provisioned). To own and write to your own instead, see
+[Provision Your Own Shared Models PVC](docs/setup-shared-models.md)
+*(advanced)*.
+
 Follow these docs in order:
 
-0. [Setup Shared Models PVC](docs/setup-shared-models.md) *(admin, one-time)*
 1. [Setup Workspace](docs/setup-workspace.md) — clone repo, build vector index
 2. [Deploy vLLM Server](docs/deploy-vllm.md) — LLM inference with Qwen 7B
 3. [Deploy Embedding Server](docs/deploy-embedding.md) — Jina V4 query encoding

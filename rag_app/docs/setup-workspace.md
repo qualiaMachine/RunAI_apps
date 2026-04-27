@@ -1,7 +1,8 @@
 # Setup Workspace (`wattbot-setup`)
 
-> **Step 1 of 5** in the [deployment guide](README.md). Comes after
-> [Setup Shared Models PVC](setup-shared-models.md) (step 0).
+> **Step 1 of 5** in the [deployment guide](README.md). Assumes the
+> cluster's `shared-models` data volume is available — see the
+> [prerequisite note in the guide](README.md#prerequisite-shared-models-data-volume).
 
 ## What this workspace does
 
@@ -96,16 +97,19 @@ When attaching the Data Volume to a workload in the RunAI UI, set:
 ## Step 0: Prepare the Workspace (one-time setup)
 
 > **Prerequisite:** Model weights (Qwen 7B, Jina V4, etc.) must already
-> be on the shared models PVC at `/models/.cache/huggingface/`. If they
-> aren't, see [Setup Shared Models PVC](setup-shared-models.md) or
+> be on the shared models PVC at `/models/.cache/huggingface/`. The
+> admin-provisioned `shared-models` volume on the DoIT AI cluster
+> already includes these. If something's missing, see
 > [Managing Models](managing-models.md#adding-or-updating-models-on-the-admins-shared-pvc)
-> first.
+> to add it via the `update-shared-models` workspace, or
+> [Provision Your Own Shared Models PVC](setup-shared-models.md) if you
+> want write control.
 
 ### Cluster storage layout
 
 | Path | Type | Access | Size | Purpose |
 |------|------|--------|------|---------|
-| `/models/` | Your shared models PVC ([setup](setup-shared-models.md)) | **Read-only** for inference / **RW** for provisioning | varies | Model weights (Qwen, Jina V4, etc.) |
+| `/models/` | Cluster `shared-models` data volume (or [your own PVC](setup-shared-models.md)) | **Read-only** | varies | Model weights (Qwen, Jina V4, etc.) |
 | `/wattbot-data/` | **Project PVC** | **RW** (setup) / **RO** (inference) | 1 GB | Vector index, corpus, PDFs — shared across all jobs |
 | `/home/jovyan/work/` | Personal workspace | Read-write | 30 GB | Git repo, Python deps, cache |
 
@@ -119,7 +123,7 @@ In the RunAI UI:
    - **Image:** `nvcr.io/nvidia/pytorch:25.02-py3`
    - **GPU:** `1.0` (PyTorch + JinaV4 model need most of a GPU's memory)
    - **Data Volumes:**
-     - Your shared models PVC (e.g. `wattbot-models`) → mount at `/models` (read-only is fine here)
+     - The cluster's `shared-models` data volume → mount at `/models` (read-only) — or your own PVC name if you provisioned one
      - `wattbot-data` → mount at `/wattbot-data` (**read-write**)
    - **Environment variables:**
 
@@ -267,9 +271,13 @@ in the index config, or pass them as overrides. The VLM model is loaded
 once, processes all figures, and is unloaded when the script finishes.
 
 > **Note:** VLM verification requires `Qwen/Qwen2.5-VL-72B-Instruct` on
-> the shared models PVC. See [Setup Shared Models](setup-shared-models.md)
-> step 3. The VLM loader automatically creates a writable cache overlay
-> at `/tmp` for HF metadata — `HF_HUB_OFFLINE=1` stays set.
+> the shared models PVC. The admin-provisioned `shared-models` volume
+> already includes it. If yours doesn't, add it via
+> [Managing Models](managing-models.md#adding-or-updating-models-on-the-admins-shared-pvc)
+> or, if you provisioned your own PVC, follow the
+> [download step](setup-shared-models.md#step-3-download-models). The
+> VLM loader automatically creates a writable cache overlay at `/tmp`
+> for HF metadata — `HF_HUB_OFFLINE=1` stays set.
 
 ```bash
 cd /home/jovyan/work/RunAI_apps

@@ -75,7 +75,6 @@ All apps use the same approach:
 |--------|---------|
 | `hardware_metrics.py` | GPU/energy profiling — VRAM, power draw, energy per request |
 | `provision_shared_models.py` | Download HuggingFace models to the shared PVC |
-| `setup_poweredge_pod.sh` | PowerEdge pod initialization (deps install) |
 
 ## Getting Started
 
