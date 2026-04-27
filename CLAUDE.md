@@ -11,7 +11,7 @@ High-signal pairings to double-check:
 | If you touched... | Re-read these docs |
 |-------------------|--------------------|
 | `ocr_app/app.py`, `ocr_app/scripts/ocr_server.py`, `ocr_app/scripts/batch_extract.py` | `ocr_app/README.md`, `ocr_app/.env.example` (per-page path is not deployment-tested — no `docs/*.md` describe it) |
-| `ocr_app/scripts/chunk_extract.py`, `merge.py`, `doc_prompt.py` or either notebook under `ocr_app/notebooks/` | `ocr_app/README.md`, `ocr_app/docs/README.md`, `ocr_app/docs/setup-workspace.md`, `ocr_app/docs/deploy-vllm.md` |
+| `ocr_app/scripts/chunk_extract.py`, `merge.py`, `doc_prompt.py` or either notebook under `ocr_app/notebooks/` | `ocr_app/README.md`, `ocr_app/docs/setup-workspace.md`, `ocr_app/docs/deploy-vllm.md` |
 | Startup args in any RunAI arguments block (image URL, pip install list, env vars, ports) | The matching `ocr_app/docs/*.md` and `rag_app/docs/*.md` step |
 | Model name defaults (`VLM_MODEL`, `LLM_MODEL`) | The relevant `docs/*.md` env-var table and `.env.example` |
 | `rag_app/app.py`, `rag_app/scripts/*` | `rag_app/README.md` and matching `rag_app/docs/*.md` |

@@ -7,7 +7,15 @@ JSON for downstream systematic analysis.
 All pages (digital PDFs, scans, TIFFs) are rendered as images and sent
 to a Vision Language Model (Qwen3-VL-32B-Instruct-AWQ) for structured
 extraction. This ensures the VLM sees layout, tables, signatures,
-watermarks, and annotations — not just raw text.
+watermarks, and annotations — not just raw text. Traditional OCR
+pipelines (Tesseract + regex) are brittle on layout changes and need
+per-document-type rules; the VLM approach replaces both.
+
+> **New to the cluster?** Read the [top-level new-user
+> guide](../docs/README.md) first — especially [00 Overview](../docs/00-overview.md)
+> for the Workspace / Data Source / Data Volume mental model and
+> [03 Storage](../docs/03-storage.md) for how data gets onto the
+> cluster.
 
 ## Pipeline
 
@@ -20,11 +28,13 @@ pipeline**. Entry points: `notebooks/test_extraction_pipeline.ipynb`
 page chunks (default: 20 pages per chunk, 1-page overlap). Each chunk
 is sent to the VLM as a single call with every page as an image, plus a
 boundary hint so the model knows which side of the chunk may continue
-into a neighbor. The chunk response is a single doc-synthesis JSON
-whose span-type fields (`tables`, `narrative_responses`) carry
-`continues_from_previous_chunk` / `continues_to_next_chunk` flags. Per-chunk
-JSONs are merged by `scripts/merge.py`, which dedups items with stable
-fingerprints and stitches fragments across chunk boundaries.
+into a neighbor. Fewer chunks is better for merge quality, so chunks
+are kept as large as context and timeouts allow. The chunk response is
+a single doc-synthesis JSON whose span-type fields (`tables`,
+`narrative_responses`) carry `continues_from_previous_chunk` /
+`continues_to_next_chunk` flags. Per-chunk JSONs are merged by
+`scripts/merge.py`, which dedups items with stable fingerprints and
+stitches fragments across chunk boundaries.
 
 **Pass 2 (document-level synthesis):** The merged JSON is fed back to
 the VLM as text (no images) to fill doc-level metadata —
@@ -52,22 +62,61 @@ per-chunk prompts and merged schema differ
 > `scripts/ocr_server.py`) exists in the tree for local experimentation
 > but is not currently deployment-tested on RunAI.
 
+---
+
 ## RunAI Deployment
 
-Full deployment guide: **[docs/README.md](docs/README.md)**
+All steps use the **RunAI web UI only** — no CLI tools required.
+
+| Workload | Type | What it does | GPU | Port |
+|----------|------|-------------|-----|------|
+| **`ocr-setup`** | Workspace | Notebook environment — iterate on prompts, run the chunk-based pipeline end-to-end | 0 (remote) or 0.25 (local) | 8888 |
+| **`qwen3--vl--32b--instruct-awq`** | Inference | Shared Qwen3-VL-32B-Instruct-AWQ endpoint that the notebook calls | 0.75 | 80 (Knative) |
+
+### Where the model runs
+
+The workspace defaults to **remote mode** — it calls the shared vLLM
+endpoint (`qwen3--vl--32b--instruct-awq.runai-<project>.svc.cluster.local`)
+over HTTP. No GPU is requested on the workspace itself, so it starts in
+seconds and multiple users share one vLLM instance via continuous
+batching.
+
+For offline experimentation you can flip `VLM_MODE = "local"` in the
+notebook — it loads the model directly with `transformers`. Local mode
+needs a GPU fraction on the workspace (25% for AWQ, 75% for bf16).
+
+```
+  Remote mode (default):              Local mode (offline):
+
+  +---------------+                   +-----------------------+
+  | ocr-setup     |   HTTP            | ocr-setup             |
+  | (CPU only)    |------->           | model loaded in proc  |
+  +---------------+        |          | (GPU fraction)        |
+                           |          +-----------------------+
+                           v
+                   +-----------------+
+                   | vLLM shared     |
+                   | Qwen3-VL-32B    |
+                   | AWQ (GPU 0.75)  |
+                   +-----------------+
+```
+
+### Deployment steps
 
 Follow these docs in order:
 
-0. [Setup Storage](docs/setup-storage.md) — Confirm the Qwen3-VL-32B model is on the cluster-wide `shared-models` Data Volume; optionally set up an input documents Data Source if your data is on a network share or won't fit in the workspace inline volume
-1. [Setup & Test Workspace](docs/setup-workspace.md) — experiment with the pipeline in a notebook, iterate on prompts/formats
-2. [Deploy vLLM Server](docs/deploy-vllm.md) *(optional)* — stand up your own Qwen3-VL-32B-Instruct-AWQ inference endpoint if no shared one exists
+0. **[Setup Storage](docs/setup-storage.md)** — Confirm the Qwen3-VL-32B model is on the cluster-wide `shared-models` Data Volume; optionally create a Data Source for input documents if you need more than the workspace inline volume can hold.
+1. **[Setup & Test Workspace](docs/setup-workspace.md)** — Experiment with the chunk-based pipeline in a notebook, iterate on prompts/formats.
+2. **[Deploy vLLM Server](docs/deploy-vllm.md)** *(optional)* — Stand up a dedicated Qwen3-VL-32B-Instruct-AWQ endpoint in your own project (the default setup assumes a shared endpoint already exists).
 
-Additional: [Troubleshooting](docs/troubleshooting.md)
+Additional: **[Troubleshooting](docs/troubleshooting.md)**
 
-### PoC (5 sample docs)
+### PoC path (5 sample docs)
 
-0. Confirm the Qwen3-VL-32B model is on `shared-models` (Step 0); inputs go on the workspace's inline volume via Jupyter drag-drop
-1. Setup workspace (Step 1) — upload docs, run the notebook end-to-end
+0. Confirm the Qwen3-VL-32B model is on `shared-models` (Step 0); skip input/output Data Sources — use Path A in setup-storage
+1. Setup workspace (Step 1) — drag PDFs into Jupyter, run the notebook
+
+---
 
 ## Output Schemas
 
@@ -96,8 +145,7 @@ ocr_app/
 ├── app.py                          # Streamlit per-page UI (not deployment-tested)
 ├── tests/
 │   └── test_merge.py               # Unit tests for merge/dedup/stitching
-├── docs/                           # RunAI deployment guides
-│   ├── README.md                   #   Overview + deployment order
+├── docs/                           # Per-step deployment guides (linked above)
 │   ├── setup-storage.md            #   Input Data Source + model on shared-models
 │   ├── setup-workspace.md          #   Setup & test workspace
 │   ├── deploy-vllm.md              #   vLLM server (GPU)

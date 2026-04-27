@@ -1,6 +1,6 @@
 # Deploy the vLLM Server (`qwen3--vl--32b--instruct-awq`)
 
-> **Step 3** in the [deployment guide](README.md). Deploy this when
+> **Step 3** in the [deployment guide](../README.md). Deploy this when
 > you're ready for a persistent inference endpoint (after iterating
 > in the setup workspace).
 

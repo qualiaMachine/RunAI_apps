@@ -2,7 +2,7 @@
 
 > **You probably don't need this.** Most users should just consume the
 > admin-provisioned `shared-models` data volume — see the
-> [main deployment guide](README.md). Only follow this doc if you want
+> [main deployment guide](../README.md). Only follow this doc if you want
 > **write control** over model weights (e.g. to add or update models
 > without going through an admin).
 

@@ -1,6 +1,6 @@
 # Setup & Test Workspace (`ocr-setup`)
 
-> **Step 1** in the [deployment guide](README.md).
+> **Step 1** in the [deployment guide](../README.md).
 
 ## What this workspace does
 

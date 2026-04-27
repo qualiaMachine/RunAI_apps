@@ -1,6 +1,6 @@
 # Setup Storage
 
-> **Step 0** in the [deployment guide](README.md).
+> **Step 0** in the [deployment guide](../README.md).
 
 Before deploying any workloads, set up the storage. Two spots need to
 exist:

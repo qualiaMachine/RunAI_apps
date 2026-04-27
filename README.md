@@ -78,9 +78,14 @@ All apps use the same approach:
 
 ## Getting Started
 
-1. **Pick an app** and read its README
-2. **Follow the app's deployment guide** in its `docs/` directory —
-   workloads are created through the RunAI web UI
+1. **New to the cluster?** Start with the [top-level new-user
+   guide](docs/README.md) (overview, access, first workspace,
+   storage tutorial).
+2. **Pick an app:** [`ocr_app/`](ocr_app/README.md) for document
+   extraction, [`rag_app/`](rag_app/README.md) for retrieval-augmented
+   chat. Each app's README is a self-contained deployment guide —
+   architecture, ordered RunAI steps, and links to per-step docs under
+   `<app>/docs/`. All workloads are created through the RunAI web UI.
 
 ## Author
 

@@ -1,8 +1,8 @@
 # Setup Workspace (`wattbot-setup`)
 
-> **Step 1 of 5** in the [deployment guide](README.md). Assumes the
+> **Step 1 of 5** in the [deployment guide](../README.md). Assumes the
 > cluster's `shared-models` data volume is available — see the
-> [prerequisite note in the guide](README.md#prerequisite-shared-models-data-volume).
+> [prerequisite note in the guide](../README.md#prerequisite-shared-models-data-volume).
 
 ## What this workspace does
 
