@@ -3,6 +3,12 @@
 Uses the official `vllm/vllm-openai` image — no pip-installing vLLM at
 runtime.
 
+> **Why Custom (not "Model: from Hugging Face")?** The HF inference
+> type's **Model store** field expects a specially-registered RunAI
+> data source, and our `shared-models` Data Volume doesn't qualify.
+> Custom is the only path that lets you attach `shared-models` via the
+> regular Data & Storage section.
+
 In the RunAI UI: **Workloads** > **New Workload** > **Inference**
 
 ## Basic settings

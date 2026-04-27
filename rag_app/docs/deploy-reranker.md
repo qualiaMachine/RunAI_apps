@@ -11,6 +11,13 @@ approach.
 > would be too slow. A separate inference job lets the reranker run on
 > its own GPU fraction while the Streamlit app calls it over HTTP.
 
+> **Why Custom (not "Model: from Hugging Face")?** Same reasoning as the
+> [embedding server](deploy-embedding.md#deploy-the-embedding-server) —
+> HF type can't mount `shared-models`, and our FastAPI wrapper handles
+> the read-only PVC overlay and per-request energy reporting. BGE
+> reranker *is* vLLM-compatible via `--task score`, but we use the same
+> custom-server pattern for symmetry with the embedding job.
+
 In the RunAI UI: **Workloads** > **New Workload** > **Inference**
 
 ## Basic settings
