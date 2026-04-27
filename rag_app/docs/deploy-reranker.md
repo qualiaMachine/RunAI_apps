@@ -132,56 +132,6 @@ snapshot_download('OpenSciLM/OpenScholar_Reranker', cache_dir='/models/.cache/hu
 
 ---
 
-## Pre-deploy testing
-
-### Step 1: Test locally (any machine with Python 3.10+)
-
-```bash
-pip install fastapi uvicorn sentence-transformers && \
-RERANKER_MODEL=BAAI/bge-reranker-v2-m3 python3 -c "
-import os, time
-from sentence_transformers import CrossEncoder
-from fastapi import FastAPI
-from pydantic import BaseModel
-import uvicorn
-MODEL = os.environ.get('RERANKER_MODEL', 'BAAI/bge-reranker-v2-m3')
-app = FastAPI(); model = None
-class RerankRequest(BaseModel):
-    query: str
-    texts: list[str]
-@app.on_event('startup')
-async def startup():
-    global model; model = CrossEncoder(MODEL)
-@app.get('/health')
-async def health(): return {'status': 'ok' if model else 'loading'}
-@app.post('/rerank')
-async def rerank(r: RerankRequest):
-    t0 = time.time(); scores = model.predict([(r.query, t) for t in r.texts], show_progress_bar=False)
-    return {'scores': [float(s) for s in scores], 'count': len(r.texts), 'elapsed_ms': round((time.time()-t0)*1000, 2)}
-uvicorn.run(app, host='0.0.0.0', port=8082)
-"
-```
-
-Expected: `[reranker] Loaded in Xs` then serving on 8082
-
-### Step 2: Smoke-test the /health endpoint
-
-```bash
-curl http://localhost:8082/health
-# Expected: {"status":"ok"}
-```
-
-### Step 3: Test an actual rerank call
-
-```bash
-curl -X POST http://localhost:8082/rerank \
-  -H "Content-Type: application/json" \
-  -d '{"query": "energy consumption of LLM training", "texts": ["Large language models require significant compute.", "The weather is nice today."]}'
-# Expected: {"scores":[0.98, 0.01], "count":2, "elapsed_ms":...}
-```
-
----
-
 ## Connecting the Streamlit app
 
 Add one more environment variable to your Streamlit workspace:
