@@ -39,7 +39,7 @@ it, your cluster hasn't been provisioned with shared models yet; see
    - **Command:** `bash`
    - **Arguments:**
      ```
-     -c "pip install --no-cache-dir transformers accelerate; jupyter-lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*'"
+     -c "[ -d /work/RunAI_apps ] || git clone https://github.com/qualiaMachine/RunAI_apps.git /work/RunAI_apps; pip install --no-cache-dir transformers accelerate; jupyter-lab --ip=0.0.0.0 --port=8888 --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/work"
      ```
 
      What that string actually does, piece by piece:
@@ -47,16 +47,17 @@ it, your cluster hasn't been provisioned with shared models yet; see
      | Chunk | Why it's there |
      |-------|----------------|
      | `-c "..."` | Tells `bash` to run the rest as a shell command, then exit. The whole arguments value is one string. |
-     | `pip install --no-cache-dir transformers accelerate` | The PyTorch base image doesn't include HuggingFace `transformers`. `--no-cache-dir` skips writing wheel caches inside the pod (the GPU image is already big). |
-     | `;` | Run the next command after pip finishes, regardless of pip's exit status. |
+     | `[ -d /work/RunAI_apps ] \|\| git clone ... /work/RunAI_apps` | First boot: clones this repo into the persistent `/work` volume. On restarts the directory already exists, the test passes, and the clone is skipped — your notebooks and any local edits are preserved. To pull updates later, run `git pull` from a Jupyter terminal. |
+     | `pip install --no-cache-dir transformers accelerate` | The PyTorch base image doesn't include HuggingFace `transformers`. `--no-cache-dir` skips writing wheel caches inside the pod (the GPU image is already big). pip installs go to the pod's ephemeral system Python, so this re-runs each restart — that's fine, the wheels are cached on the node. |
+     | `;` | Run the next command after the previous one finishes, regardless of exit status. |
      | `jupyter-lab` | Start JupyterLab as the long-running foreground process. |
      | `--ip=0.0.0.0` | Bind to all interfaces so RunAI's proxy can reach the server from outside the pod. The default (`localhost`) only accepts connections from inside the container. |
-     | `--port=8888` | Match the port you configured under Tools above. Jupyter and RunAI have to agree. |
-     | `--no-browser` | Don't try to open a desktop browser inside the pod — there isn't one. |
+     | `--port=8888` | Default is also 8888 so this is technically redundant — kept for clarity, since this is the port your Tools entry above expects. Change both together if you ever want a different port. |
      | `--allow-root` | The container runs as root by default; Jupyter refuses to start as root unless you say it's fine. |
      | `--ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME}` | RunAI proxies your notebook at a path like `/<project>/<workload-name>/...`. Jupyter has to know its own base path or static asset URLs and websocket reconnects break. The two env vars are auto-set by RunAI inside the pod. |
      | `--ServerApp.token=''` | Disable Jupyter's own login token — RunAI's portal already authenticated you, and a token here would just block the proxy. |
      | `--ServerApp.allow_origin='*'` | Allow cross-origin requests. RunAI's proxy and Jupyter end up on different origins; without this, the browser blocks the websocket. |
+     | `--notebook-dir=/work` | Open Jupyter's file browser at `/work` so you land directly on the persistent volume (where the cloned repo lives). |
 
    - **Environment variables:**
 
@@ -73,27 +74,24 @@ it, your cluster hasn't been provisioned with shared models yet; see
    - **+ Data Volume** > pick `shared-models`, mount path `/models`,
      read-only.
    - **+ Volume** > `local-path`, container path `/work`, persistent.
-     This is where you'll clone the repo and save notebooks; without
-     it, anything you write disappears the next time the workspace
-     restarts.
+     This is where the runtime args clone the repo and where you'll
+     save notebooks; without it, the clone goes to ephemeral disk and
+     vanishes the next time the workspace restarts.
 10. **CREATE WORKSPACE**.
 
 Wait for the status to flip to `Running`. With image caching this is
 ~30 seconds; cold-pulling the PyTorch image is ~3 minutes the first
 time.
 
-## Step B. Open Jupyter and clone the repo
+## Step B. Open Jupyter
 
 1. Click the workspace name, then click the **Jupyter** tool link.
-2. In Jupyter, open a Terminal (File > New > Terminal).
-3. Clone the repo into the persistent volume so it survives restarts:
-   ```
-   cd /work
-   git clone https://github.com/qualiaMachine/RunAI_apps.git
-   ls /work/RunAI_apps   # README.md, ocr_app/, rag_app/, ...
-   ```
+2. In the file browser you should see `/work/RunAI_apps/` — the
+   runtime args cloned it on first boot. If it's missing, check the
+   workload's **Logs** tab for `git clone` errors (most likely a
+   network issue from the cluster to GitHub).
 
-Now back to the file browser, navigate into `/work/RunAI_apps/` —
+Navigate into `/work/RunAI_apps/` —
 you'll see all the docs and code from the repo. Notebooks under
 `ocr_app/notebooks/` and `rag_app/` will run from here once their
 Data Sources are attached, but that's the job of those apps' own
