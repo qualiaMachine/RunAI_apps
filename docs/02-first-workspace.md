@@ -72,8 +72,10 @@ it, your cluster hasn't been provisioned with shared models yet; see
 9. **Data & storage:**
    - **+ Data Volume** > pick `shared-models`, mount path `/models`,
      read-only.
-   - *(optional)* **+ Volume** > `local-path`, container path
-     `/work`, persistent. This is where you'll save notebooks.
+   - **+ Volume** > `local-path`, container path `/work`, persistent.
+     This is where you'll clone the repo and save notebooks; without
+     it, anything you write disappears the next time the workspace
+     restarts.
 10. **CREATE WORKSPACE**.
 
 Wait for the status to flip to `Running`. With image caching this is
