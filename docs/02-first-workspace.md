@@ -26,14 +26,17 @@ it, your cluster hasn't been provisioned with shared models yet; see
 ## Step A. Create the workspace
 
 1. RunAI UI > **Workloads** > **+ NEW WORKLOAD** > **Workspace**
-2. Basic settings:
-   - **Project:** your project
-   - **Workspace name:** `first-workspace`
-3. **Environment image** — Custom image:
+2. **Project:** select your project.
+3. **Template:** click **Start from scratch**. The other tiles are
+   preconfigured templates — they'll skip past the fields below and
+   leave you guessing what got set. Build it up by hand the first
+   time so the moving parts are visible.
+4. **Workspace name:** `first-workspace`
+5. **Environment image** — Custom image:
    - **Image URL:** `nvcr.io/nvidia/pytorch:25.02-py3`
    - **Image pull:** Pull only if not already present
-4. **Tools** — add Jupyter on port 8888.
-5. **Runtime settings:**
+6. **Tools** — add Jupyter on port 8888.
+7. **Runtime settings:**
    - **Command:** `bash`
    - **Arguments:**
      ```
@@ -50,16 +53,16 @@ it, your cluster hasn't been provisioned with shared models yet; see
      `HF_HUB_OFFLINE=1` makes sure the workspace never silently
      downloads a model — if the cache isn't where it should be, you
      get a clear error instead of a multi-GB surprise download.
-6. **Compute resources:**
+8. **Compute resources:**
    - **GPU devices:** `1`
    - **GPU fractioning:** Enabled — `25%` (≈20 GB on an 80 GB H100,
      enough to load Qwen2.5-7B in bf16)
-7. **Data & storage:**
+9. **Data & storage:**
    - **+ Data Volume** > pick `shared-models`, mount path `/models`,
      read-only.
    - *(optional)* **+ Volume** > `local-path`, container path
      `/work`, persistent. This is where you'll save notebooks.
-8. **CREATE WORKSPACE**.
+10. **CREATE WORKSPACE**.
 
 Wait for the status to flip to `Running`. With image caching this is
 ~30 seconds; cold-pulling the PyTorch image is ~3 minutes the first
