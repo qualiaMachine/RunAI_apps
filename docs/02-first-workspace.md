@@ -37,36 +37,41 @@ it, talk to cluster admin.
    - **Command:** `bash`
    - **Arguments:**
      ```
-     -c "pip install --no-cache-dir transformers accelerate; jupyter-lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*'"
+     -c "[ -d /work/RunAI_apps ] || git clone https://github.com/qualiaMachine/RunAI_apps.git /work/RunAI_apps; pip install --no-cache-dir transformers accelerate; jupyter-lab --ip=0.0.0.0 --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/work"
      ```
+
+     Yes, this is annoying. Most of these are RunAI / proxy /
+     headless-container glue that has nothing to do with your actual
+     work, and you'll need essentially the same string for every
+     workspace you create. Once you have one workspace dialed in,
+     save it as a Workload Template (RunAI UI > **Workload manager**
+     > **Templates** > **+ NEW TEMPLATE** from your existing
+     workspace) so future workspaces start with all of this
+     pre-filled and you only edit what differs.
 
      What that string actually does, piece by piece:
 
      | Chunk | Why it's there |
      |-------|----------------|
      | `-c "..."` | Tells `bash` to run the rest as a shell command, then exit. The whole arguments value is one string. |
-     | `pip install --no-cache-dir transformers accelerate` | The PyTorch base image doesn't include HuggingFace `transformers`. `--no-cache-dir` skips writing wheel caches inside the pod (the GPU image is already big). |
-     | `;` | Run the next command after pip finishes, regardless of pip's exit status. |
+     | `[ -d /work/RunAI_apps ] \|\| git clone ... /work/RunAI_apps` | First boot: clones this repo into the persistent `/work` volume. On restarts the directory already exists, the test passes, and the clone is skipped — your notebooks and any local edits are preserved. To pull updates later, run `git pull` from a Jupyter terminal. |
+     | `pip install --no-cache-dir transformers accelerate` | The PyTorch base image doesn't include HuggingFace `transformers`. `--no-cache-dir` skips writing wheel caches inside the pod (the GPU image is already big). pip installs go to the pod's ephemeral system Python, so this re-runs each restart — that's fine, the wheels are cached on the node. |
+     | `;` | Run the next command after the previous one finishes, regardless of exit status. |
      | `jupyter-lab` | Start JupyterLab as the long-running foreground process. |
      | `--ip=0.0.0.0` | Bind to all interfaces so RunAI's proxy can reach the server from outside the pod. The default (`localhost`) only accepts connections from inside the container. |
-     | `--port=8888` | Match the port you configured under Tools above. Jupyter and RunAI have to agree. |
-     | `--no-browser` | Don't try to open a desktop browser inside the pod — there isn't one. |
      | `--allow-root` | The container runs as root by default; Jupyter refuses to start as root unless you say it's fine. |
      | `--ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME}` | RunAI proxies your notebook at a path like `/<project>/<workload-name>/...`. Jupyter has to know its own base path or static asset URLs and websocket reconnects break. The two env vars are auto-set by RunAI inside the pod. |
      | `--ServerApp.token=''` | Disable Jupyter's own login token — RunAI's portal already authenticated you, and a token here would just block the proxy. |
      | `--ServerApp.allow_origin='*'` | Allow cross-origin requests. RunAI's proxy and Jupyter end up on different origins; without this, the browser blocks the websocket. |
+     | `--notebook-dir=/work` | Open Jupyter's file browser at `/work` so you land directly on the persistent volume (where the cloned repo lives). |
 
    - **Environment variables:**
 
-     | Name | Value |
-     |------|-------|
-     | `HF_HOME` | `/models/.cache/huggingface` |
-     | `HF_HUB_CACHE` | `/models/.cache/huggingface` |
-     | `HF_HUB_OFFLINE` | `1` |
-
-     `HF_HUB_OFFLINE=1` makes sure the workspace never silently
-     downloads a model — if the cache isn't where it should be, you
-     get a clear error instead of a multi-GB surprise download.
+     | Name | Value | Why |
+     |------|-------|-----|
+     | `HF_HOME` | `/models/.cache/huggingface` | HuggingFace cache root. Default is `~/.cache/huggingface` inside the pod's ephemeral disk; pointing it at the mounted `shared-models` volume is what makes `transformers.from_pretrained(...)` find the pre-cached weights. |
+     | `HF_HUB_CACHE` | `/models/.cache/huggingface` | More specific override for the hub-cache path used by `huggingface_hub`. Different transformers versions respect different vars; setting both `HF_HOME` and `HF_HUB_CACHE` is belt-and-suspenders so every code path lands at the same directory. |
+     | `HF_HUB_OFFLINE` | `1` | Forbid network downloads. If the model isn't in the cache, you get a fast, loud error instead of a silent multi-GB download to ephemeral disk that vanishes on restart. |
 8. **Compute resources:**
    - **GPU devices:** `1`
    - **GPU fractioning:** Enabled — `25%` (≈20 GB on an 80 GB H100,
@@ -74,26 +79,25 @@ it, talk to cluster admin.
 9. **Data & storage:**
    - **+ Data Volume** > pick `shared-models`, mount path `/models`,
      read-only.
-   - *(optional)* **+ Volume** > `local-path`, container path
-     `/work`, persistent. This is where you'll save notebooks.
+   - **+ Volume** > `local-path`, container path `/work`, persistent.
+     This is where the runtime args clone the repo and where you'll
+     save notebooks; without it, the clone goes to ephemeral disk and
+     vanishes the next time the workspace restarts.
 10. **CREATE WORKSPACE**.
 
 Wait for the status to flip to `Running`. With image caching this is
 ~30 seconds; cold-pulling the PyTorch image is ~3 minutes the first
 time.
 
-## Step B. Open Jupyter and clone the repo
+## Step B. Open Jupyter
 
 1. Click the workspace name, then click the **Jupyter** tool link.
-2. In Jupyter, open a Terminal (File > New > Terminal).
-3. Clone the repo into the persistent volume so it survives restarts:
-   ```
-   cd /work
-   git clone https://github.com/qualiaMachine/RunAI_apps.git
-   ls /work/RunAI_apps   # README.md, ocr_app/, rag_app/, ...
-   ```
+2. In the file browser you should see `/work/RunAI_apps/` — the
+   runtime args cloned it on first boot. If it's missing, check the
+   workload's **Logs** tab for `git clone` errors (most likely a
+   network issue from the cluster to GitHub).
 
-Now back to the file browser, navigate into `/work/RunAI_apps/` —
+Navigate into `/work/RunAI_apps/` —
 you'll see all the docs and code from the repo. Notebooks under
 `ocr_app/notebooks/` and `rag_app/` will run from here once their
 Data Sources are attached, but that's the job of those apps' own
