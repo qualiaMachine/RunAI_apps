@@ -41,6 +41,23 @@ it, your cluster hasn't been provisioned with shared models yet; see
      ```
      -c "pip install --no-cache-dir transformers accelerate; jupyter-lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*'"
      ```
+
+     What that string actually does, piece by piece:
+
+     | Chunk | Why it's there |
+     |-------|----------------|
+     | `-c "..."` | Tells `bash` to run the rest as a shell command, then exit. The whole arguments value is one string. |
+     | `pip install --no-cache-dir transformers accelerate` | The PyTorch base image doesn't include HuggingFace `transformers`. `--no-cache-dir` skips writing wheel caches inside the pod (the GPU image is already big). |
+     | `;` | Run the next command after pip finishes, regardless of pip's exit status. |
+     | `jupyter-lab` | Start JupyterLab as the long-running foreground process. |
+     | `--ip=0.0.0.0` | Bind to all interfaces so RunAI's proxy can reach the server from outside the pod. The default (`localhost`) only accepts connections from inside the container. |
+     | `--port=8888` | Match the port you configured under Tools above. Jupyter and RunAI have to agree. |
+     | `--no-browser` | Don't try to open a desktop browser inside the pod — there isn't one. |
+     | `--allow-root` | The container runs as root by default; Jupyter refuses to start as root unless you say it's fine. |
+     | `--ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME}` | RunAI proxies your notebook at a path like `/<project>/<workload-name>/...`. Jupyter has to know its own base path or static asset URLs and websocket reconnects break. The two env vars are auto-set by RunAI inside the pod. |
+     | `--ServerApp.token=''` | Disable Jupyter's own login token — RunAI's portal already authenticated you, and a token here would just block the proxy. |
+     | `--ServerApp.allow_origin='*'` | Allow cross-origin requests. RunAI's proxy and Jupyter end up on different origins; without this, the browser blocks the websocket. |
+
    - **Environment variables:**
 
      | Name | Value |
