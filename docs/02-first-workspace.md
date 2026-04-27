@@ -197,9 +197,21 @@ deployments.
 
 ## Step D. Stop the workspace
 
-GPUs are scarce. When you're not using the workspace, stop it from the
-RunAI UI — the volume and the cloned repo persist, and you can Start
-it back up later. Don't leave it running idle.
+GPUs are scarce. When you're not using the workspace, **Stop** it
+from the RunAI UI — your `/work` volume and any notebooks you saved
+there survive stop/start cycles, so you can pick up where you left
+off later. The repo at `/work/repo` re-pulls from GitHub on every
+start (it lives in ephemeral `/tmp` under the symlink), so it always
+reflects the latest `main`.
+
+> **Stop ≠ Delete.** If you **Delete** the workspace, the inline
+> `/work` volume goes with it and your notebooks are gone. To keep
+> work across a delete-and-recreate cycle, move it into a standalone
+> PVC Data Source first — see [04 Storage](04-storage.md).
+
+Don't leave the workspace running idle either — Stop is reversible,
+the GPU goes back into the project's pool for others to use, and
+your data is still there when you Start again.
 
 ## What this exercise does and doesn't show
 
