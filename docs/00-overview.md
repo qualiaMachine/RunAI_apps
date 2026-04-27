@@ -102,7 +102,7 @@ you're building your own workload, treat the
 Pick the path that matches what you're doing right now.
 
 **"I just got a login and have no idea what to do."**
-→ [01 Access](README.md) (TBD), then [02 First workspace](02-first-workspace.md),
+→ [01 Access](01-access.md), then [02 First workspace](02-first-workspace.md),
    then [04 Storage](04-storage.md). Skim 03 and 05.
 
 **"I have a corpus I want to extract / chat with and the cluster looks
