@@ -6,9 +6,10 @@
 > Endpoint](03-share-as-endpoint.md), and [04 Storage](04-storage.md)
 > before picking an example to deploy.
 
-The repo ships two reference deployments. They're meant to be copied
-and adapted, not used as-is — pick the one closest to your use case
-and follow that app's README.
+The repo currently has two example deployments — PoCs that have been
+exercised on real data and are growing as more use cases come up.
+They're meant to be copied and adapted, not used as-is. Pick the one
+closest to your use case and follow that app's README.
 
 ## Document extraction (OCR pipeline)
 

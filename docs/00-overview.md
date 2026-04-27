@@ -84,8 +84,9 @@ re-downloading it.
 
 ## What lives in this repo
 
-This repo is the institution's reference deployments — copy-pasteable
-workloads for the most common pilot use cases:
+This repo is a growing collection of example use cases — PoCs Chris
+is building out as the pilot uncovers what labs actually need. Use
+them as patterns to crib from, not finished products:
 
 | Path | What it is | When you'd use it |
 |------|------------|-------------------|
