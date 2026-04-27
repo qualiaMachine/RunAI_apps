@@ -12,14 +12,6 @@ of lightweight Python packages need to be added at startup.
 > (`nvcr.io/nvidia/pytorch:25.02-py3`, ~20 GB) also works but is
 > larger and adds no benefit here.
 
-> **IMPORTANT:** The embedding server only needs `kohakurag/embeddings.py`
-> (pure Python). Do NOT pip-install `rag_app/vendor/KohakuVault` or
-> `rag_app/vendor/KohakuRAG` — the KohakuRAG package `__init__.py` imports
-> kohakuvault (a Rust extension) which triggers a slow Rust/maturin
-> build that will fail in most container images. The
-> `embedding_server.py` script loads `embeddings.py` directly via
-> importlib.
-
 In the RunAI UI: **Workloads** > **New Workload** > **Inference**
 
 ## Basic settings
