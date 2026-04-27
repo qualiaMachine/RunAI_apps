@@ -35,18 +35,10 @@ to understand document structure visually:
 - The per-chunk prompt lives in `scripts/doc_prompt.py` and is saved in
   the output for reproducibility
 
-A simpler **per-page** path is also available through `ocr_server.py`
-(the FastAPI server behind the Streamlit app) and `batch_extract.py`.
-That path processes pages individually — faster and easier to host, but
-it does not stitch items across page boundaries.
-
 | Workload | Type | What it does | GPU | Port |
 |----------|------|-------------|-----|------|
 | **`ocr-setup`** | Workspace | Notebook environment — iterate on prompts, run the chunk-based pipeline end-to-end | 0 (remote) or 0.25 (local) | 8888 |
-| **`qwen3--vl--32b--instruct-awq`** | Inference | Shared Qwen3-VL-32B-Instruct-AWQ endpoint that both the notebook and the batch/Streamlit path call | 0.75 | 80 (Knative) |
-| **`ocr-extract`** | Inference | *(optional)* CPU-only FastAPI server for per-page extraction via HTTP | 0 | 8090 |
-| **`ocr-app`** | Workspace | *(optional)* Streamlit UI over `ocr-extract` for PoC demos | 0 | 8501 |
-| **`ocr-batch`** | Workspace | *(optional)* CPU workspace that runs `batch_extract.py` against the vLLM endpoint | 0 | — |
+| **`qwen3--vl--32b--instruct-awq`** | Inference | Shared Qwen3-VL-32B-Instruct-AWQ endpoint that the notebook calls | 0.75 | 80 (Knative) |
 
 ### Where the model runs
 
@@ -67,10 +59,8 @@ needs a GPU fraction on the workspace (25% for AWQ, 75% for bf16).
   | ocr-setup     |   HTTP            | ocr-setup             |
   | (CPU only)    |------->           | model loaded in proc  |
   +---------------+        |          | (GPU fraction)        |
-  +---------------+        |          +-----------------------+
-  | ocr-batch     |--------+
-  | (CPU only)    |        |
-  +---------------+        v
+                           |          +-----------------------+
+                           v
                    +-----------------+
                    | vLLM shared     |
                    | Qwen3-VL-32B    |
@@ -84,28 +74,17 @@ needs a GPU fraction on the workspace (25% for AWQ, 75% for bf16).
 
 Follow these docs in order:
 
-0. **[Setup Storage](setup-storage.md)** — Create Data Sources for input/output (NFS or PVC depending on whether your data lives on a network share) and confirm the Qwen3-VL-32B model is on the cluster-wide `shared-models` Data Volume.
-1. **[Setup & Test Workspace](setup-workspace.md)** — Experiment with the chunk-based pipeline in a notebook, iterate on prompts/formats, optionally test Streamlit locally.
+0. **[Setup Storage](setup-storage.md)** — Confirm the Qwen3-VL-32B model is on the cluster-wide `shared-models` Data Volume; optionally create a Data Source for input documents if you need more than the workspace inline volume can hold.
+1. **[Setup & Test Workspace](setup-workspace.md)** — Experiment with the chunk-based pipeline in a notebook, iterate on prompts/formats.
 
-Less tested but optional future paths:
+Optional:
 
-2. **[Deploy Streamlit App](deploy-streamlit.md)** *(optional)* — Deploy the per-page Streamlit UI as its own workload for a persistent demo.
-3. **[Deploy vLLM Server](deploy-vllm.md)** *(optional)* — Stand up a dedicated Qwen3-VL-32B-Instruct-AWQ endpoint in your own project (the default setup assumes a shared endpoint already exists).
-4. **[Batch Processing](batch-processing.md)** *(optional)* — Per-page `batch_extract.py` workspace with `--resume` for bulk runs.
+2. **[Deploy vLLM Server](deploy-vllm.md)** *(optional)* — Stand up a dedicated Qwen3-VL-32B-Instruct-AWQ endpoint in your own project (the default setup assumes a shared endpoint already exists).
 
 ### PoC path (5 sample docs)
 
 0. Confirm the Qwen3-VL-32B model is on `shared-models` (Step 0); skip input/output Data Sources — use Path A in setup-storage
-1. Setup workspace (Step 1) — drag PDFs into Jupyter, run the notebook, optionally launch Streamlit from inside the workspace
-2. *(optional)* Deploy Streamlit as its own workload (Step 2)
-
-### Production path (10K+ docs/month)
-
-0. Setup storage (Step 0) — Data Source for `/data/documents` (NFS or PVC) + `ocr-extracted` PVC Data Source + model on `shared-models`
-
-1. Setup workspace (Step 1) — verify the chunk pipeline on a handful of real docs
-3. Make sure `qwen3--vl--32b--instruct-awq` is up (Step 3 if you need your own)
-4. Run `ocr-batch` (Step 4) with `--resume` for incremental intake
+1. Setup workspace (Step 1) — drag PDFs into Jupyter, run the notebook
 
 ---
 
