@@ -159,13 +159,13 @@ populates it with a model download script, and shares it as a
 cluster-wide Data Volume — exactly the pattern from the walkthrough
 above, applied to a real artifact.
 
-### "I'm running a batch extraction over thousands of PDFs."
+### "I'm running OCR over a corpus of PDFs."
 
-You want two Data Sources: one for the input (NFS if the source data
-lives on a network share, otherwise a populated PVC) and one for the
-output JSON (a fresh RW PVC). See
-[`ocr_app/docs/setup-storage.md`](../ocr_app/docs/setup-storage.md) and
-[`ocr_app/docs/batch-processing.md`](../ocr_app/docs/batch-processing.md).
+You want a Data Source for the input documents (NFS if the source data
+lives on a network share, otherwise a populated PVC). The notebook
+pipeline writes its output into the workspace's persistent volume, so
+no separate output Data Source is needed. See
+[`ocr_app/docs/setup-storage.md`](../ocr_app/docs/setup-storage.md).
 
 ### "I need a vector index that survives across builds."
 
