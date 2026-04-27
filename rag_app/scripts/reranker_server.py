@@ -21,6 +21,7 @@ import os
 import shutil
 import sys
 import time
+from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Writable HF cache overlay (same pattern as embedding_server.py)
