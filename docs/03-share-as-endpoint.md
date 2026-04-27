@@ -1,6 +1,6 @@
 # 03 — Share a Model as a vLLM Endpoint
 
-> **Step 3** in the [New User Guide](README.md). Builds directly on
+> **Step 3** in the [New User Guide](../README.md#new-user-guide). Builds directly on
 > [02 First Workspace](02-first-workspace.md) — assumes you already
 > have `Qwen2.5-7B-Instruct` loading from the shared-models Data
 > Volume in a workspace.

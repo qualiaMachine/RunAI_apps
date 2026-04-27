@@ -1,6 +1,6 @@
 # 00 — Overview
 
-> **Step 0** in the [New User Guide](README.md). Read this first to
+> **Step 0** in the [New User Guide](../README.md#new-user-guide). Read this first to
 > decide whether the cluster is the right tool, and to learn the three
 > concepts the rest of the guide assumes.
 

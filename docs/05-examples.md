@@ -1,6 +1,6 @@
 # 05 — Examples
 
-> **Step 5** in the [New User Guide](README.md). You should have
+> **Step 5** in the [New User Guide](../README.md#new-user-guide). You should have
 > worked through [00 Overview](00-overview.md), [02 First
 > Workspace](02-first-workspace.md), [03 Share a Model as a vLLM
 > Endpoint](03-share-as-endpoint.md), and [04 Storage](04-storage.md)
