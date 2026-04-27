@@ -5,13 +5,6 @@ We use the same `vllm/vllm-openai` image as the vLLM server — it
 already has PyTorch, CUDA, and `curl` pre-installed, so only a handful
 of lightweight Python packages need to be added at startup.
 
-> **Why the vLLM image?** Using one image for both services means
-> fewer image pulls and less storage on each node. The vLLM image
-> (~15 GB) ships with PyTorch + CUDA, which is everything the
-> embedding server needs. The NGC PyTorch image
-> (`nvcr.io/nvidia/pytorch:25.02-py3`, ~20 GB) also works but is
-> larger and adds no benefit here.
-
 In the RunAI UI: **Workloads** > **New Workload** > **Inference**
 
 ## Basic settings
