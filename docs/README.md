@@ -8,14 +8,13 @@ ahead if you already have your bearings.
 |---|-----|-----------------|
 | 00 | [Overview](00-overview.md) | You've been told "use the RunAI cluster" and don't yet know what that means or whether it fits your work |
 | 01 | *Access* (TBD) | You need a login, project assignment, or storage quota and aren't sure what to ask DoIT |
-| 02 | *First workspace* (TBD) | You want a working Jupyter notebook on the cluster with this repo cloned, in 10 minutes |
+| 02 | [First workspace](02-first-workspace.md) | You want a working Jupyter notebook on the cluster with this repo cloned and a shared model loaded, in ~15 minutes |
 | 03 | [Storage](03-storage.md) | You need to know where data lives — short-term scratch through cluster-wide shared datasets — and how to get it from "a drive in my lab" to "mountable in a workload" |
-| 04 | *Pick an app* (TBD) | You're ready to deploy something — choosing between the OCR pipeline, the RAG/chatbot, or your own workload |
-| 05 | *Going to production* (TBD) | Your pilot worked and you need autoscaling, multi-user access, batch ingestion, or shared model weights |
+| 04 | [Examples](04-examples.md) | You're ready to deploy something — pointers to the OCR pipeline, the RAG/chatbot, and the patterns to copy when building your own |
 
-Sections marked **TBD** are stubs; the framing in 00 explains where they
-fit. The OCR-specific and RAG-specific deployment guides live in the
-app READMEs — [`ocr_app/README.md`](../ocr_app/README.md) and
+Section 01 is still a stub; the framing in 00 explains where it fits.
+The OCR-specific and RAG-specific deployment guides live in the app
+READMEs — [`ocr_app/README.md`](../ocr_app/README.md) and
 [`rag_app/README.md`](../rag_app/README.md) — with per-step details
 under each app's `docs/`. Those assume you've already worked through
 00–03 here.

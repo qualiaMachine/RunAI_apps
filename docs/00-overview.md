@@ -93,19 +93,17 @@ you're building your own workload, treat the
 Pick the path that matches what you're doing right now.
 
 **"I just got a login and have no idea what to do."**
-→ [01 Access](README.md), then [02 First workspace](README.md), then
-   [03 Storage](03-storage.md). Skim the rest.
+→ [01 Access](README.md) (TBD), then [02 First workspace](02-first-workspace.md),
+   then [03 Storage](03-storage.md). Skim the rest.
 
 **"I have a corpus I want to extract / chat with and the cluster looks
 relevant."**
-→ Skim 00–03, then [`ocr_app/`](../ocr_app/README.md) or
-   [`rag_app/`](../rag_app/README.md) directly. Their READMEs link
-   back to specific sections of 03 when storage decisions come up.
+→ Skim 00–03, then [04 Examples](04-examples.md) to pick between the
+   OCR pipeline and the RAG chatbot. Each app's README links back to
+   specific sections of 03 when storage decisions come up.
 
 **"I'm a workflow/docs admin onboarding lab PIs onto the cluster."**
-→ Read 00–03 in full so you know what to copy/cut/customize. Then
-   [04 Pick an app](README.md) and
-   [05 Going to production](README.md) when those exist.
+→ Read 00–04 in full so you know what to copy/cut/customize.
 
 **"I'm the cluster admin (kubectl, install/upgrade, StorageClass
 work)."**

@@ -1,0 +1,169 @@
+# 02 — Your First Workspace
+
+> **Step 2** in the [New User Guide](README.md). Read [00 Overview](00-overview.md)
+> first if you haven't.
+
+By the end of this doc you'll have a Jupyter workspace running on the
+cluster, this repo cloned inside it, and a small text-generation
+example loaded from the shared model weights — proving end-to-end that
+the cluster, the workspace, and the shared-models Data Volume all work
+together.
+
+This is intentionally minimal — no fractional GPU tricks, no vLLM
+servers, no autoscaling. Just one workspace and one Python cell that
+actually loads a model.
+
+## Prerequisite
+
+You need a project on the cluster (see [01 Access](README.md) once
+that doc exists; for now ask your DoIT contact). You also need the
+`shared-models` Data Volume to be available on the cluster — confirm
+with `Data & Storage > Data Volumes` in the RunAI UI. If you don't see
+it, your cluster hasn't been provisioned with shared models yet; see
+[`rag_app/docs/setup-shared-models.md`](../rag_app/docs/setup-shared-models.md)
+*(advanced)*.
+
+## Step A. Create the workspace
+
+1. RunAI UI > **Workloads** > **+ NEW WORKLOAD** > **Workspace**
+2. Basic settings:
+   - **Project:** your project
+   - **Workspace name:** `first-workspace`
+3. **Environment image** — Custom image:
+   - **Image URL:** `nvcr.io/nvidia/pytorch:25.02-py3`
+   - **Image pull:** Pull only if not already present
+4. **Tools** — add Jupyter on port 8888.
+5. **Runtime settings:**
+   - **Command:** `bash`
+   - **Arguments:**
+     ```
+     -c "pip install --no-cache-dir transformers accelerate; jupyter-lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*'"
+     ```
+   - **Environment variables:**
+
+     | Name | Value |
+     |------|-------|
+     | `HF_HOME` | `/models/.cache/huggingface` |
+     | `HF_HUB_CACHE` | `/models/.cache/huggingface` |
+     | `HF_HUB_OFFLINE` | `1` |
+
+     `HF_HUB_OFFLINE=1` makes sure the workspace never silently
+     downloads a model — if the cache isn't where it should be, you
+     get a clear error instead of a multi-GB surprise download.
+6. **Compute resources:**
+   - **GPU devices:** `1`
+   - **GPU fractioning:** Enabled — `25%` (≈20 GB on an 80 GB H100,
+     enough to load Qwen2.5-7B in bf16)
+7. **Data & storage:**
+   - **+ Data Volume** > pick `shared-models`, mount path `/models`,
+     read-only.
+   - *(optional)* **+ Volume** > `local-path`, container path
+     `/work`, persistent. This is where you'll save notebooks.
+8. **CREATE WORKSPACE**.
+
+Wait for the status to flip to `Running`. With image caching this is
+~30 seconds; cold-pulling the PyTorch image is ~3 minutes the first
+time.
+
+## Step B. Open Jupyter and clone the repo
+
+1. Click the workspace name, then click the **Jupyter** tool link.
+2. In Jupyter, open a Terminal (File > New > Terminal).
+3. Clone the repo into the persistent volume so it survives restarts:
+   ```
+   cd /work
+   git clone https://github.com/qualiaMachine/RunAI_apps.git
+   ls /work/RunAI_apps   # README.md, ocr_app/, rag_app/, ...
+   ```
+
+Now back to the file browser, navigate into `/work/RunAI_apps/` —
+you'll see all the docs and code from the repo. Notebooks under
+`ocr_app/notebooks/` and `rag_app/` will run from here once their
+Data Sources are attached, but that's the job of those apps' own
+deployment guides.
+
+## Step C. Load a shared model and generate
+
+Create a new notebook in `/work/` (Jupyter > File > New > Notebook,
+pick the Python 3 kernel).
+
+### Cell 1 — confirm the shared model is on the volume
+
+```python
+from pathlib import Path
+
+cache = Path("/models/.cache/huggingface")
+matches = list(cache.glob("models--Qwen--Qwen2.5-7B-Instruct"))
+print("Found:", matches[0] if matches else "MISSING")
+```
+
+You should see a path under `/models/.cache/huggingface/`. If not,
+either the model wasn't pre-cached on this cluster or you mounted the
+wrong volume. Check `Data & Storage > Data Volumes` in the RunAI UI.
+
+### Cell 2 — load the model
+
+```python
+import os, torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+assert os.environ.get("HF_HUB_OFFLINE") == "1", (
+    "HF_HUB_OFFLINE not set — re-create the workspace with the env var"
+)
+
+MODEL = "Qwen/Qwen2.5-7B-Instruct"
+tok = AutoTokenizer.from_pretrained(MODEL)
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL, torch_dtype=torch.bfloat16, device_map="cuda:0"
+)
+print(model.dtype, next(model.parameters()).device)
+```
+
+First run takes ~30–60 seconds — `transformers` reads the safetensors
+shards from the read-only PVC into GPU RAM. After that the weights
+stay loaded as long as the kernel is alive.
+
+### Cell 3 — generate
+
+```python
+messages = [
+    {"role": "system", "content": "You are a concise research assistant."},
+    {"role": "user", "content": "In one sentence, what is retrieval-augmented generation?"},
+]
+inputs = tok.apply_chat_template(
+    messages, return_tensors="pt", add_generation_prompt=True
+).to("cuda:0")
+
+out = model.generate(inputs, max_new_tokens=120, do_sample=False)
+print(tok.decode(out[0, inputs.shape[1]:], skip_special_tokens=True))
+```
+
+If you get a coherent answer, everything is working: the workspace can
+schedule on a GPU, the shared-models Data Volume mounted correctly,
+and offline-mode reads succeed. You're ready for the actual app
+deployments.
+
+## Step D. Stop the workspace
+
+GPUs are scarce. When you're not using the workspace, stop it from the
+RunAI UI — the volume and the cloned repo persist, and you can Start
+it back up later. Don't leave it running idle.
+
+## What this exercise does and doesn't show
+
+**Does:**
+- Cluster scheduling actually works for your project
+- The `shared-models` Data Volume mounts correctly read-only
+- `HF_HUB_OFFLINE=1` prevents accidental downloads
+- Your account has GPU quota
+
+**Doesn't:**
+- Test multi-user concurrency (that's what vLLM is for — see
+  [`rag_app/README.md`](../rag_app/README.md))
+- Demonstrate sharing data with other projects (that's the
+  [03 Storage](03-storage.md) walkthrough)
+- Cover anything OCR-specific (vision-language models, chunking,
+  prompts — see [`ocr_app/README.md`](../ocr_app/README.md))
+
+For real work, head to [04 Examples](04-examples.md) and pick whichever
+app matches what you're trying to build.
