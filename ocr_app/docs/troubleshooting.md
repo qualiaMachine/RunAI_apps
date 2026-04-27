@@ -61,12 +61,16 @@ Common issues when deploying the OCR extraction pipeline on RunAI.
 - The notebook pipeline uses per-doc `<stem>_extracted.json` markers via
   `SKIP_EXISTING = True` — delete the `_extracted.json` to force re-run
 
-## Data volume not mounting
+## Storage not mounting
 
-- Verify the Data Volume exists in **Data & Storage** > **Data Volumes**
+- For `ocr-documents` / `ocr-extracted`: verify the Data Source exists
+  in **Data & Storage** > **Data Sources** (these are PVC or NFS Data
+  Sources, not Data Volumes)
+- For `shared-models`: that one *is* a Data Volume — check **Data &
+  Storage** > **Data Volumes**
 - Check that the mount path matches what the script expects
-  (`/data/documents`, `/data/extracted`)
-- For read-only volumes, ensure the access mode is correct
+  (`/data/documents`, `/data/extracted`, `/models`)
+- For read-only mounts, ensure the access mode is correct
 - Check pod events: click the workload in the RunAI UI, open the
   **Events** tab
 
@@ -76,4 +80,4 @@ Common issues when deploying the OCR extraction pipeline on RunAI.
   models at runtime
 - Verify the model exists: from a workspace with the PVC mounted,
   `ls /models/.cache/huggingface/models--QuantTrio--Qwen3-VL-32B-Instruct-AWQ/`
-- If missing, download it — see [Setup Data Volumes](setup-data-volumes.md)
+- If missing, download it — see [Setup Storage](setup-storage.md)
