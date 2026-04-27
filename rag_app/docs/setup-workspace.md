@@ -1,6 +1,6 @@
 # Setup Workspace (`wattbot-setup`)
 
-> **Step 1 of 5** in the [deployment guide](README.md). Comes after
+> **Step 1 of 5** in the [deployment guide](../README.md). Comes after
 > [Setup Shared Models PVC](setup-shared-models.md) (step 0).
 
 ## What this workspace does

@@ -1,6 +1,6 @@
 # Deploy Streamlit App (`ocr-app`)
 
-> **Step 2** *(optional)* in the [deployment guide](README.md). Comes
+> **Step 2** *(optional)* in the [deployment guide](../README.md). Comes
 > after [Setup & Test Workspace](setup-workspace.md) (Step 1). You can
 > also test Streamlit directly from the setup workspace first.
 

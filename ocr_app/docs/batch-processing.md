@@ -1,6 +1,6 @@
 # Batch Processing Workspace (`ocr-batch`)
 
-> **Step 4** in the [deployment guide](README.md). Comes after
+> **Step 4** in the [deployment guide](../README.md). Comes after
 > [Deploy vLLM Server](deploy-vllm.md) (Step 3).
 
 Production workspace for processing large document collections. Mounts

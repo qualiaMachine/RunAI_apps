@@ -14,10 +14,11 @@ ahead if you already have your bearings.
 | 05 | *Going to production* (TBD) | Your pilot worked and you need autoscaling, multi-user access, batch ingestion, or shared model weights |
 
 Sections marked **TBD** are stubs; the framing in 00 explains where they
-fit. The OCR-specific and RAG-specific deployment guides live under
-[`ocr_app/docs/`](../ocr_app/docs/README.md) and
-[`rag_app/docs/`](../rag_app/docs/README.md) — those assume you've
-already worked through 00–03 here.
+fit. The OCR-specific and RAG-specific deployment guides live in the
+app READMEs — [`ocr_app/README.md`](../ocr_app/README.md) and
+[`rag_app/README.md`](../rag_app/README.md) — with per-step details
+under each app's `docs/`. Those assume you've already worked through
+00–03 here.
 
 > **Audience assumption.** These docs are written for a researcher or
 > lab admin who can use a terminal and edit code, but who is not a
