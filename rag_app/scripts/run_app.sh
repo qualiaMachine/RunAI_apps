@@ -18,15 +18,13 @@ PORT="${PORT:-8501}"
 
 # Quick sanity checks
 if ! python -c "import streamlit" 2>/dev/null; then
-    echo "ERROR: streamlit not installed. Run setup first:"
-    echo "  bash scripts/setup_poweredge_pod.sh"
+    echo "ERROR: streamlit not installed."
     exit 1
 fi
 
 DB_PATH="$REPO_ROOT/data/embeddings/wattbot_jinav4.db"
 if [ ! -f "$DB_PATH" ]; then
     echo "ERROR: Vector database not found at $DB_PATH"
-    echo "Run setup first:  bash scripts/setup_poweredge_pod.sh"
     exit 1
 fi
 

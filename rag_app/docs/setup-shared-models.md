@@ -1,22 +1,25 @@
-# Setup Shared Models PVC (Admin / Owner)
+# Provision Your Own Shared Models PVC (Advanced)
 
-> **Who needs this:** The person who will own and maintain the shared
-> model weights. This is typically done once, and the resulting Data
-> Volume is shared read-only with all consumers. **Only the PVC creator
-> can write to it** — even other admins on the cluster get read-only
-> access if they mount it from a different project.
+> **You probably don't need this.** Most users should just consume the
+> admin-provisioned `shared-models` data volume — see the
+> [main deployment guide](../README.md). Only follow this doc if you want
+> **write control** over model weights (e.g. to add or update models
+> without going through an admin).
 
-This step creates a PVC you own, downloads model weights into it, and
-wraps it as a cluster-wide Data Volume so everyone can read from it.
-All subsequent deployment steps ([Setup Workspace](setup-workspace.md),
-[Deploy vLLM](deploy-vllm.md), etc.) mount this at `/models/`.
+This guide creates a PVC you own, downloads model weights into it, and
+optionally wraps it as a Data Volume so other projects can mount it
+read-only. The resulting volume is mounted at `/models/` exactly like
+the admin-provisioned one, so the rest of the deployment guide
+([Setup Workspace](setup-workspace.md), [Deploy vLLM](deploy-vllm.md),
+etc.) works the same way once you replace the data-volume name in the
+"Data & Storage" step of each workload.
 
 ---
 
-## Why create your own PVC?
+## When to do this
 
 If your cluster already has a shared models PVC (e.g. `shared-model-repository`),
-you might wonder why not just use it. The problem:
+you might wonder why not just use it. The catch:
 
 **RunAI enforces that only the original PVC creator's project can write
 to it.** When a PVC is shared across projects (via a Data Volume or

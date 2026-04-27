@@ -1,8 +1,12 @@
 # Managing Models
 
 Model weights live on a shared PVC mounted at `/models/.cache/huggingface/`.
-If you haven't created your own PVC yet, see
-**[Setup Shared Models PVC](setup-shared-models.md)** first.
+On the DoIT AI cluster this is the admin-provisioned `shared-models`
+data volume (read-only consumers, written via the
+`update-shared-models` workspace — see below). If you'd rather own and
+write to your own PVC, see
+**[Provision Your Own Shared Models PVC](setup-shared-models.md)**
+*(advanced)*.
 
 ---
 
@@ -79,11 +83,11 @@ python /models/provision_shared_models.py verify jinaai/jina-embeddings-v4
 
 If you **don't** have access to the `shared-models` project, either ask
 an admin to add models on your behalf, or create your own PVC — see
-[Setup Shared Models PVC](setup-shared-models.md).
+[Provision Your Own Shared Models PVC](setup-shared-models.md).
 
 ## Adding a new model to your own PVC
 
-If you created your own PVC (via [Setup Shared Models](setup-shared-models.md)),
+If you provisioned your own PVC (via [Provision Your Own Shared Models PVC](setup-shared-models.md)),
 re-start your provisioning Workspace and use the same script:
 
 ```bash
@@ -191,10 +195,10 @@ automatically — no manual workaround needed:
 
 ---
 
-## Creating your own shared models PVC
+## Provisioning your own shared models PVC
 
-See **[Setup Shared Models PVC](setup-shared-models.md)** for the
-complete guide. In short:
+See **[Provision Your Own Shared Models PVC](setup-shared-models.md)**
+for the complete guide. In short:
 
 1. Create a PVC data source in your project (you own it, you can write to it)
 2. Spin up a provisioning Workspace, download models with `huggingface-cli`

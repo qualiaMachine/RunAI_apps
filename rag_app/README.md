@@ -98,9 +98,26 @@ GPU** total — 0.80 for vLLM, 0.10 for embeddings, 0.10 for reranker
 
 All steps use the **RunAI web UI only** — no CLI tools required.
 
+### Prerequisite: shared models data volume
+
+This guide assumes your cluster has an admin-provisioned
+**`shared-models`** data volume that mounts read-only at `/models/` and
+contains the model weights this app needs (Qwen LLM, Jina V4
+embeddings, optionally Qwen2.5-VL for figure verification). On the
+DoIT AI cluster this is provisioned and maintained by the cluster
+admin — you just attach it to your workloads in the steps below. To
+check what's available, see [Models currently on the admin's shared
+PVC](docs/managing-models.md#models-currently-on-the-admins-shared-pvc).
+
+> **Need write control?** If you want to add or swap model weights
+> without going through an admin, you can provision your own
+> project-level PVC instead — see [Provision Your Own Shared Models
+> PVC](docs/setup-shared-models.md) *(advanced, optional)*.
+
+### Deployment steps
+
 Follow these docs in order:
 
-0. **[Setup Shared Models PVC](docs/setup-shared-models.md)** *(admin/owner, one-time)* — Create a PVC in your project, download model weights (Qwen, Jina V4), then share cluster-wide as a Data Volume. Only workloads in the creator's project can write to the PVC — everyone else gets read-only access via the Data Volume.
 1. **[Setup & Prerequisites](docs/setup-workspace.md)** — Create the Data Source for the vector index, clone the repo, build the index (one-time)
 2. **[Deploy vLLM Server](docs/deploy-vllm.md)** — LLM inference with Qwen 7B
 3. **[Deploy Embedding Server](docs/deploy-embedding.md)** — Jina V4 query encoding
@@ -111,15 +128,14 @@ Additional: **[Troubleshooting](docs/troubleshooting.md)** | **[Managing Models]
 
 ### Deployment order notes
 
-0. **Shared models PVC** — download model weights (one-time, then stop workspace)
 1. **Setup workspace** — clone repo, install deps, build vector index, then stop
-2. **vLLM** — loads Qwen from your PVC (~30s)
-3. **Embedding server** — loads Jina V4 from your PVC (~30s)
-4. **Reranker** *(optional)* — loads cross-encoder from your PVC (~10s)
+2. **vLLM** — loads Qwen from `/models/` (~30s)
+3. **Embedding server** — loads Jina V4 from `/models/` (~30s)
+4. **Reranker** *(optional)* — loads cross-encoder from `/models/` (~10s)
 5. **Streamlit app** — last, needs vLLM + embedding running (reranker is optional)
 
-Restarts are fast since all model weights are on the PVC — no downloads
-at runtime.
+Restarts are fast since all model weights are on the shared PVC — no
+downloads at runtime.
 
 ---
 
