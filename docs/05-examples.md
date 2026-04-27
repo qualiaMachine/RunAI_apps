@@ -1,13 +1,15 @@
-# 04 — Examples
+# 05 — Examples
 
-> **Step 4** in the [New User Guide](README.md). You should have
+> **Step 5** in the [New User Guide](README.md). You should have
 > worked through [00 Overview](00-overview.md), [02 First
-> Workspace](02-first-workspace.md), and [03 Storage](03-storage.md)
+> Workspace](02-first-workspace.md), [03 Share a Model as a vLLM
+> Endpoint](03-share-as-endpoint.md), and [04 Storage](04-storage.md)
 > before picking an example to deploy.
 
-The repo ships two reference deployments. They're meant to be copied
-and adapted, not used as-is — pick the one closest to your use case
-and follow that app's README.
+The repo currently has two example deployments — PoCs that have been
+exercised on real data and are growing as more use cases come up.
+They're meant to be copied and adapted, not used as-is. Pick the one
+closest to your use case and follow that app's README.
 
 ## Document extraction (OCR pipeline)
 
@@ -68,10 +70,10 @@ There's nothing magic about either app. The actual RunAI patterns are:
   as a template
 - **Shared model weights** via the cluster-wide Data Volume so you
   don't re-download a 20 GB checkpoint per workload → see
-  [03 Storage](03-storage.md) and
+  [04 Storage](04-storage.md) and
   [`rag_app/docs/setup-shared-models.md`](../rag_app/docs/setup-shared-models.md)
 - **Project PVCs** for outputs and shared in-project state → see
-  the storage walkthrough in [03 Storage](03-storage.md)
+  the storage walkthrough in [04 Storage](04-storage.md)
 
 If you can describe your workload as some combination of those
 patterns, you can build it from these examples. If you can't, that's a

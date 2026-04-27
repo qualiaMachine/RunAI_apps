@@ -1,6 +1,6 @@
-# 03 — Storage
+# 04 — Storage
 
-> **Step 3** in the [New User Guide](README.md). Read [00 Overview](00-overview.md)
+> **Step 4** in the [New User Guide](README.md). Read [00 Overview](00-overview.md)
 > first if "Data Source vs Data Volume" doesn't ring a bell.
 
 Storage is where new users get the most lost — RunAI exposes several

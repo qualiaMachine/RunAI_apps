@@ -6,35 +6,44 @@
 
 ## What the cluster is for
 
-The RunAI cluster (`doit-ai-cluster`) is a shared GPU environment for
-running AI workloads close to institutional data — document corpora,
-research datasets, anything that's awkward or impossible to send out to
-a third-party API. It's not a substitute for your laptop, and it's not
-a personal cloud account. Practically, it's good at:
+The RunAI cluster (`doit-ai-cluster`) is a small DoIT pilot — two
+96 GB GPUs with high-speed interconnect, big enough to host models up
+to ~150B parameters. RunAI is the scheduling layer on top; if you've
+used a major cloud's notebook + endpoint UI, the experience is
+similar (workspaces, fractional GPU allocation, autoscaling
+endpoints).
 
-- **Hosting models that need a GPU.** A researcher who would otherwise
-  pay for ChatGPT-style API access can call a self-hosted equivalent
-  inside the cluster — with private data, no per-token billing, and
-  full control over the model and prompts.
-- **Running long jobs without holding open a laptop.** Batch
-  extraction over thousands of documents, vector index builds,
-  fine-tuning runs.
-- **Sharing model weights once across many users.** A 20–700 GB model
-  download lives in one place; everyone's workloads mount it
-  read-only.
-- **Sharing curated datasets across projects.** Once a dataset is
-  staged on cluster storage, multiple research groups can read it
-  without each holding a copy.
+It fills niches that the cloud and CHTC don't serve well:
+
+- **Long-term LLM/VLM apps the institution wants to support.** When a
+  service is going to live for years, renting cloud capacity
+  permanently doesn't make sense.
+- **Long-running training or fine-tuning jobs.** These get expensive
+  fast in the cloud.
+- **Sensitive / PHI-related data workflows.** Pending the relevant
+  cybersecurity reviews — talk to your DoIT contact about current
+  status.
+- **Hosting a model close to institutional data** — research corpora,
+  imaging archives, anything that's awkward or impossible to send to a
+  third-party API.
+- **Sharing model weights and curated datasets once across many
+  users.** A 20–700 GB model download lives in one place; everyone's
+  workloads mount it read-only.
 
 It's *not* the right tool when:
 
-- The data has to leave the institution to be useful (e.g. you need
-  ChatGPT specifically and the data isn't sensitive).
+- The data has to leave the institution to be useful anyway (e.g.
+  you'd genuinely prefer ChatGPT and the data isn't sensitive).
 - You want a one-off interactive Python session — your laptop is
   faster to spin up.
 - You need persistent custom services (24/7 web apps with their own
-  databases, user accounts, etc.). RunAI workloads can do this with
-  Inference workloads, but it's overkill for non-AI hosting.
+  databases, user accounts, etc.). RunAI Inference workloads can do
+  this, but it's overkill for non-AI hosting.
+- You need cloud-scale concurrency *today*. At the current pilot
+  size, two GPUs realistically serve **2–5 concurrent users per app**
+  via RunAI's GPU partitioning. Plans to scale up depend on real
+  usage from labs like yours, so it's worth flagging your needs early
+  rather than waiting for the cluster to grow into them.
 
 ## The three concepts you actually need
 
@@ -70,13 +79,14 @@ re-downloading it.
 > **Don't conflate Data Source and Data Volume.** Almost everything you
 > mount in your own project is a **Data Source**. Data Volume is the
 > "share what I've built across the whole cluster" tier. The
-> [Storage doc](03-storage.md) walks through the difference with a
+> [Storage doc](04-storage.md) walks through the difference with a
 > hands-on example.
 
 ## What lives in this repo
 
-This repo is the institution's reference deployments — copy-pasteable
-workloads for the most common pilot use cases:
+This repo is a growing collection of example use cases — PoCs Chris
+is building out as the pilot uncovers what labs actually need. Use
+them as patterns to crib from, not finished products:
 
 | Path | What it is | When you'd use it |
 |------|------------|-------------------|
@@ -88,37 +98,3 @@ You don't have to use these — they're examples of the *pattern*. If
 you're building your own workload, treat the
 `*/docs/setup-workspace.md` files as the closest things to a template.
 
-## How to read the rest of this guide
-
-Pick the path that matches what you're doing right now.
-
-**"I just got a login and have no idea what to do."**
-→ [01 Access](README.md) (TBD), then [02 First workspace](02-first-workspace.md),
-   then [03 Storage](03-storage.md). Skim the rest.
-
-**"I have a corpus I want to extract / chat with and the cluster looks
-relevant."**
-→ Skim 00–03, then [04 Examples](04-examples.md) to pick between the
-   OCR pipeline and the RAG chatbot. Each app's README links back to
-   specific sections of 03 when storage decisions come up.
-
-**"I'm a workflow/docs admin onboarding lab PIs onto the cluster."**
-→ Read 00–04 in full so you know what to copy/cut/customize.
-
-**"I'm the cluster admin (kubectl, install/upgrade, StorageClass
-work)."**
-→ This guide isn't for you — see
-   [NVIDIA's RunAI docs](https://run-ai-docs.nvidia.com/) for the
-   admin/install side. Section 03 lists the four questions a workflow
-   admin will likely come ask you once.
-
-## A note on what changes underneath you
-
-RunAI is third-party software (NVIDIA, currently v2.24). UI buttons
-get renamed, fields move between tabs, and concepts occasionally shift
-between releases (the Data Source vs Data Volume split, for example, is
-a v2.24-era feature). This guide tries to teach the *mental model* —
-the things that change slowly — and link out to NVIDIA's official docs
-for click-by-click steps. When something in this guide doesn't match
-what you see on screen, the official docs are the source of truth and
-this guide is the bug report.
