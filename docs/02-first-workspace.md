@@ -210,24 +210,3 @@ reflects the latest `main`.
 Don't leave the workspace running idle either — Stop is reversible,
 the GPU goes back into the project's pool for others to use, and
 your data is still there when you Start again.
-
-## What this exercise does and doesn't show
-
-**Does:**
-- Cluster scheduling actually works for your project
-- The `shared-models` Data Volume mounts correctly read-only
-- `HF_HUB_OFFLINE=1` prevents accidental downloads
-- Your account has GPU quota
-
-**Doesn't:**
-- Test multi-user concurrency or share the loaded model with anyone
-  else — for that, the next step is to host it as an endpoint. See
-  [03 Share a Model as a vLLM Endpoint](03-share-as-endpoint.md)
-- Demonstrate sharing data with other projects (that's the
-  [04 Storage](04-storage.md) walkthrough)
-- Cover anything OCR-specific (vision-language models, chunking,
-  prompts — see [`ocr_app/README.md`](../ocr_app/README.md))
-
-Once you understand both the direct-load pattern (above) and the
-endpoint pattern (03), head to [05 Examples](05-examples.md) and pick
-whichever app matches what you're trying to build.
