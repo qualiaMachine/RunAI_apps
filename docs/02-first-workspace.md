@@ -60,15 +60,11 @@ it, your cluster hasn't been provisioned with shared models yet; see
 
    - **Environment variables:**
 
-     | Name | Value |
-     |------|-------|
-     | `HF_HOME` | `/models/.cache/huggingface` |
-     | `HF_HUB_CACHE` | `/models/.cache/huggingface` |
-     | `HF_HUB_OFFLINE` | `1` |
-
-     `HF_HUB_OFFLINE=1` makes sure the workspace never silently
-     downloads a model — if the cache isn't where it should be, you
-     get a clear error instead of a multi-GB surprise download.
+     | Name | Value | Why |
+     |------|-------|-----|
+     | `HF_HOME` | `/models/.cache/huggingface` | HuggingFace cache root. Default is `~/.cache/huggingface` inside the pod's ephemeral disk; pointing it at the mounted `shared-models` volume is what makes `transformers.from_pretrained(...)` find the pre-cached weights. |
+     | `HF_HUB_CACHE` | `/models/.cache/huggingface` | More specific override for the hub-cache path used by `huggingface_hub`. Different transformers versions respect different vars; setting both `HF_HOME` and `HF_HUB_CACHE` is belt-and-suspenders so every code path lands at the same directory. |
+     | `HF_HUB_OFFLINE` | `1` | Forbid network downloads. If the model isn't in the cache, you get a fast, loud error instead of a silent multi-GB download to ephemeral disk that vanishes on restart. |
 8. **Compute resources:**
    - **GPU devices:** `1`
    - **GPU fractioning:** Enabled — `25%` (≈20 GB on an 80 GB H100,
