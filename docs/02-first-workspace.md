@@ -41,6 +41,9 @@ it, your cluster hasn't been provisioned with shared models yet; see
      ```
      -c "curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp; mv /tmp/RunAI_apps-main /tmp/RunAI_apps 2>/dev/null; ln -sf /tmp/RunAI_apps /work/repo; pip install --no-cache-dir transformers accelerate; jupyter-lab --ip=0.0.0.0 --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/work"
      ```
+   - **Set the container's working directory:** *(leave empty)* — the
+     args above use absolute paths everywhere, so there's no working
+     directory to set.
 
      Yes, this is annoying. Most of these are RunAI / proxy /
      headless-container glue that has nothing to do with your actual
