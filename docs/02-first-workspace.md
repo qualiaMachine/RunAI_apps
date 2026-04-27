@@ -87,19 +87,32 @@ deployment guides.
 Create a new notebook in `/work/` (Jupyter > File > New > Notebook,
 pick the Python 3 kernel).
 
-### Cell 1 — confirm the shared model is on the volume
+### Cell 1 — list what's on the shared-models volume
 
 ```python
 from pathlib import Path
 
 cache = Path("/models/.cache/huggingface")
-matches = list(cache.glob("models--Qwen--Qwen2.5-7B-Instruct"))
-print("Found:", matches[0] if matches else "MISSING")
+for d in sorted(cache.glob("models--*")):
+    # HF cache layout: models--<org>--<name>
+    print(d.name.replace("models--", "").replace("--", "/"))
 ```
 
-You should see a path under `/models/.cache/huggingface/`. If not,
-either the model wasn't pre-cached on this cluster or you mounted the
-wrong volume. Check `Data & Storage > Data Volumes` in the RunAI UI.
+You should see a list of HuggingFace repo IDs that are pre-cached on
+the cluster — likely some Qwen models, Jina V4, possibly a Qwen-VL,
+etc. If the cell prints nothing, the `shared-models` Data Volume
+didn't mount; check `Data & Storage > Data Volumes` in the RunAI UI.
+
+> **Need a model that isn't listed?** Email Chris or Mike at DoIT
+> (see [01 Access](01-access.md)) — adding a model to `shared-models`
+> is a quick admin task, much cheaper than every workload downloading
+> its own copy. Tell them the HuggingFace repo ID and your rough
+> timeline.
+
+For the rest of this walkthrough we'll use `Qwen/Qwen2.5-7B-Instruct`
+— if your output above doesn't include it, swap in any other text
+generation model from the list (the loading code below works
+unchanged).
 
 ### Cell 2 — load the model
 
