@@ -80,7 +80,7 @@ it, talk to cluster admin.
      
 8. **Compute resources:**
    - **GPU devices:** `1`
-   - **GPU fractioning:** Enabled — `25%` (≈20 GB on an 80 GB H100,
+   - **GPU fractioning:** Enabled — `25%` (≈24 GB on a 96 GB card,
      enough to load Qwen2.5-7B in bf16)
 9. **Data & storage:**
    - **+ Data Volume** > pick `shared-models`, mount path `/models`,

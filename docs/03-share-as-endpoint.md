@@ -127,29 +127,47 @@ In the RunAI UI:
      below already constrains the pod's allocation.
 
      > **Save GPU when you can — quantize.** A 7B model in bf16 at
-     > 50% of an 80 GB card has plenty of headroom, so this
+     > 50% of a 96 GB card has plenty of headroom, so this
      > walkthrough doesn't bother. But the moment you move to 14B,
      > 32B, 70B+, or want to stack multiple endpoints on one GPU,
      > quantization is the lever that buys you back the headroom.
-     > Two routes, both supported by vLLM:
+     > Two vLLM routes for the same Qwen 2.5 7B example:
      >
-     > - **`--quantization bitsandbytes --load-format bitsandbytes`**
-     >   — works on any HuggingFace model, no special build required.
-     >   Trades a small amount of accuracy and throughput for
-     >   ~2× memory savings. Useful when no quantized build exists
-     >   for the model you want.
-     > - **`--quantization awq_marlin --dtype half`** — requires a
-     >   pre-quantized AWQ build of the model (e.g.
-     >   `Qwen/Qwen2.5-72B-Instruct-AWQ`,
-     >   `QuantTrio/Qwen3-VL-32B-Instruct-AWQ`). Faster and more
-     >   accurate than bitsandbytes when the build exists. The OCR
-     >   app's shared endpoint runs this way at 75% GPU.
+     > **bf16 baseline** *(this walkthrough)* — full precision, no
+     > quantization, runs on any HF model:
+     > ```
+     > Qwen/Qwen2.5-7B-Instruct --dtype auto --max-model-len 8192
+     > ```
+     >
+     > **bitsandbytes** — works on the same `Qwen/Qwen2.5-7B-Instruct`
+     > weights you already have cached. ~2× memory savings, small
+     > accuracy/throughput cost, no separate model build needed:
+     > ```
+     > Qwen/Qwen2.5-7B-Instruct --quantization bitsandbytes --load-format bitsandbytes --dtype auto --max-model-len 8192
+     > ```
+     >
+     > **AWQ** — uses the pre-quantized build
+     > `Qwen/Qwen2.5-7B-Instruct-AWQ` *(note: different model ID
+     > from the bf16 / bitsandbytes version)*. Faster and more
+     > accurate than bitsandbytes when an AWQ build exists.
+     > **`HF_HUB_OFFLINE=1` will hard-fail if `Qwen/Qwen2.5-7B-Instruct-AWQ`
+     > isn't already cached on the `shared-models` volume — verify
+     > with the listing cell from 02, and if it's missing email
+     > Chris/Mike to add it.**
+     > ```
+     > Qwen/Qwen2.5-7B-Instruct-AWQ --quantization awq_marlin --dtype half --max-model-len 8192
+     > ```
+     >
+     > With either quantized form on a 7B you can drop GPU
+     > fractioning from `50%` to `25%` and still have headroom —
+     > frees up half a card for someone else's workload.
      >
      > See [`rag_app/docs/deploy-vllm.md`](../rag_app/docs/deploy-vllm.md)
      > for the full table of model + flag combinations the rag_app
-     > has tested. For the conceptual side — what bf16 vs int8 vs
-     > int4 actually does to a model and when each makes sense —
-     > the ML-X Nexus has a primer:
+     > has tested (Qwen 14B, 30B-A3B, 32B, 72B, OpenScholar 8B).
+     > For the conceptual side — what bf16 vs int8 vs int4 actually
+     > does to a model and when each makes sense — the ML-X Nexus
+     > has a primer:
      > [Quantization and Precision](https://uw-madison-datascience.github.io/ML-X-Nexus/Learn/Notebooks/Quantization-and-Precision.html).
 
    - **Environment variables:**
@@ -163,7 +181,7 @@ In the RunAI UI:
 6. **Compute resources:**
    - **GPU devices:** `1`
    - **GPU fractioning:** Enabled — `50%` (Qwen 7B in bf16 + KV cache
-     fits comfortably on 40 GB of an 80 GB H100)
+     fits comfortably on 48 GB of a 96 GB card)
 7. **Data & storage:** **+ Data Volume** > `shared-models`, mount path
    `/models`, read-only.
 8. **Endpoint:**
