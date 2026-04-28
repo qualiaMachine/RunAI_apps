@@ -49,6 +49,12 @@ A pointer to "data lives here, mount it at this path." Types include
 and a few others. Per-project. You'll create one per dataset, model, or
 output location your workload reads or writes.
 
+> **You already get one for free.** Every project on this cluster
+> auto-mounts a ~30 GB user volume into every workload — you don't
+> have to create a Data Source to start storing notebooks and small
+> datasets. The [Storage doc](04-storage.md) Step A shows where it
+> lands and when to graduate to a larger PVC.
+
 ### 3. Data Volume — a shared, read-only wrapper around a populated PVC
 
 Lets one project's PVC be mounted by **other projects** read-only. The
