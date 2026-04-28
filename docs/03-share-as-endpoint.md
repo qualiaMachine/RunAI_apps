@@ -21,8 +21,8 @@ instead of loading weights.
 By the end you'll have:
 - A `qwen-Qwen2.5--7B--Instruct` Inference workload exposing an
   OpenAI-compatible HTTP endpoint
-- A 0-GPU workspace whose notebook gets the same answer at a fraction
-  of the resource cost
+- The same workspace from 02, now reconfigured to 0 GPU, with a
+  notebook that gets the same answer by calling the endpoint
 - An intuition for when each pattern is appropriate
 
 You'll tear both down at the end. At the current 2-GPU pilot scale
@@ -169,34 +169,44 @@ http://qwen-Qwen2.5--7B--Instruct.runai-<your-project>.svc.cluster.local/v1
 It speaks the OpenAI Chat Completions API, so any OpenAI-compatible
 client works.
 
-## Step B. New workspace, zero GPU
+## Step B. Reuse the 02 workspace at zero GPU
 
-Now create a *separate* workspace whose only job is to call the
-endpoint. It needs no GPU and no `shared-models` mount — just network
-access.
+You don't need a fresh workspace for this — the
+`first-workspace` you built in [02](02-first-workspace.md) already has
+everything you need (Jupyter, the persistent `/work` volume, the
+shared-models mount that we no longer use, the `bash -c` boilerplate).
+The only thing that has to change is the GPU.
 
-1. **Workloads** > **+ NEW WORKLOAD** > **Workspace**
-2. **Workspace name:** `qwen-client`
-3. **Environment image:** `nvcr.io/nvidia/pytorch:25.02-py3` (or any
-   Python image — you don't need PyTorch here, it's just convenient)
-4. **Tools:** Jupyter on port 8888.
-5. **Runtime settings — Arguments:**
-   ```
-   -c "pip install --no-cache-dir openai; jupyter-lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*'"
-   ```
-6. **Compute resources:**
-   - **GPU devices:** `0` ← the whole point
-   - CPU/memory: defaults
-7. **Data & storage:** *(optional)* a `local-path` PVC at `/work` if
-   you want notebook persistence.
-8. **CREATE WORKSPACE**.
+1. **Stop** `first-workspace` from the RunAI UI.
+2. **Edit** it:
+   - **Compute resources** > **GPU devices:** change to `0`. Disable
+     GPU fractioning. That's the whole point — the model lives in
+     the Inference workload now, your notebook just calls it.
+   - **Runtime settings** > **Arguments:** add `openai` to the pip
+     install list so the next Start has the client library
+     available. The full string becomes:
+     ```
+     -c "curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp; mv /tmp/RunAI_apps-main /tmp/RunAI_apps 2>/dev/null; ln -sf /tmp/RunAI_apps /work/repo; pip install --no-cache-dir transformers accelerate openai; jupyter-lab --ip=0.0.0.0 --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/work"
+     ```
+     (The `transformers` and `accelerate` installs are now wasted CPU
+     since you won't load the model in-process, but leaving them in
+     keeps the args identical to 02 minus the `openai` addition,
+     which is easier to remember than maintaining two near-duplicate
+     arg strings.)
+3. **Save** the edits and **Start** the workspace.
+4. Once it's `Running`, open Jupyter and **duplicate the notebook
+   from 02** (right-click > Duplicate, rename to something like
+   `endpoint-client.ipynb`). You'll edit the same three cells in
+   place to call the endpoint instead of loading the model.
 
-The workspace boots in seconds because there's no GPU scheduling and
-no model loading.
+The workspace boots in seconds this time — no GPU to schedule and no
+model weights to load.
 
 ## Step C. Call the endpoint from a notebook
 
-Open Jupyter, create a new notebook in `/work/`.
+Open the duplicated `endpoint-client.ipynb`. You'll replace the three
+cells from 02's notebook in place — same prompt, same expected
+answer, but the model lives somewhere else now.
 
 ### Cell 1 — confirm the endpoint is reachable
 
@@ -267,7 +277,7 @@ single-threaded.
 
 ## Step D. Tear down when you're done
 
-When you're done with the notebook, **Stop** `qwen-client` and then
+When you're done with the notebook, **Stop** `first-workspace` and then
 **delete** `qwen-Qwen2.5--7B--Instruct` from **Workloads**. At the
 current 2-GPU pilot scale we don't leave personal endpoints running —
 even with Min replicas = 0, an idle Inference workload still occupies
