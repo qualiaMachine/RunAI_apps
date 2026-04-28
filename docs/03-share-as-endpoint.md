@@ -35,7 +35,7 @@ Use the rule of thumb:
 | **Cold start** | ~30–60s once per workspace start | ~30s once per autoscale; near-zero per call |
 | **Concurrency** | Single-threaded `model.generate()` blocks | Continuous batching — 2–4× more throughput |
 | **Setup effort** | One workspace with a notebook | One Inference workload + workspaces that consume it |
-| **Best for** | Solo experimentation, debugging, training-style workloads | Anything multi-user, anything called from multiple workloads, anything that should scale |
+| **Best for** | Solo experimentation, debugging, testing future RunAI apps | Anything multi-user, anything called from multiple workloads, anything that should scale |
 
 If you're the only user and you'll prompt the model interactively for
 an hour and stop, just stay on the 02 pattern. As soon as a second
