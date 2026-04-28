@@ -213,6 +213,31 @@ Don't leave the workspace running idle either — Stop is reversible,
 the GPU goes back into the project's pool for others to use, and
 your data is still there when you Start again.
 
+## Step E. Try repeating the above steps with your own GitHub code repository.
+
+The whole walkthrough hinges on one URL — the
+`curl -sL https://github.com/qualiaMachine/RunAI_apps/.../main.tar.gz`
+in your runtime args. Swap that for any GitHub repo of your own and
+the rest of the workspace config is unchanged: `/work` still
+persists your notebooks, `shared-models` still mounts the same
+weights, the `bash -c` boilerplate still glues Jupyter into the
+RunAI proxy.
+
+A good way to internalize the pattern:
+
+1. **Stop and Edit** your existing workspace.
+2. Replace the GitHub URL in the runtime args with one of your own
+   repos (use the `archive/refs/heads/<branch>.tar.gz` form). Update
+   the `mv /tmp/<repo>-<branch> /tmp/<repo>` rename to match the
+   tarball's top-level directory, and the `ln -sf` target to a
+   matching name under `/work/`.
+3. **Start** the workspace and confirm `/work/<your-repo>` shows up
+   in Jupyter.
+
+Once you've done that successfully, you can build any new workload
+by editing `runtime args + image + GPU + Data Sources` and leaving
+the rest of the boilerplate alone. That's the whole job.
+
 ## What this exercise does and doesn't show
 
 **Does:**
