@@ -19,11 +19,16 @@ notebook in a workspace with **zero GPU** that calls the endpoint
 instead of loading weights.
 
 By the end you'll have:
-- A running `qwen-Qwen2.5--7B--Instruct` Inference workload that any project member
-  can hit
+- A `qwen-Qwen2.5--7B--Instruct` Inference workload exposing an
+  OpenAI-compatible HTTP endpoint
 - A 0-GPU workspace whose notebook gets the same answer at a fraction
   of the resource cost
 - An intuition for when each pattern is appropriate
+
+You'll tear both down at the end. At the current 2-GPU pilot scale
+we don't leave per-project endpoints running — see [Step
+D](#step-d-tear-down-when-youre-done) for the full reasoning. The
+pattern itself is what matters here, not the persistent artifact.
 
 ## When to host vs load directly
 
@@ -109,8 +114,22 @@ In the RunAI UI:
      `python -m vllm.entrypoints.openai.api_server`)*
    - **Arguments:**
      ```
-     --model Qwen/Qwen2.5-7B-Instruct --max-model-len 8192 --gpu-memory-utilization 0.85
+     Qwen/Qwen2.5-7B-Instruct --dtype auto --max-model-len 8192
      ```
+
+     The model ID goes in as a **positional argument**, not behind a
+     `--model` flag — that's what `vllm.entrypoints.openai.api_server`
+     expects, and it's the shape every vLLM workload in this repo
+     uses (see [`rag_app/docs/deploy-vllm.md`](../rag_app/docs/deploy-vllm.md)
+     for more model+quantization combinations like
+     `--quantization bitsandbytes --load-format bitsandbytes` for
+     tighter GPU budgets, or `--quantization awq_marlin --dtype half`
+     for AWQ builds). `--dtype auto` lets vLLM pick bf16 here (same
+     precision as 02's direct load); `--max-model-len 8192` caps KV
+     cache so the model fits comfortably in a 50% GPU fraction. Don't
+     set `--gpu-memory-utilization` here — RunAI's GPU fraction
+     setting below already constrains the pod's allocation.
+
    - **Environment variables:**
 
      | Name | Value |
@@ -246,17 +265,30 @@ Ten requests hitting one GPU, processed in parallel via vLLM's
 continuous batching. On the 02 pattern, those would queue up
 single-threaded.
 
-## Step D. Stop the workspace, leave the endpoint
+## Step D. Tear down when you're done
 
-When you're done with the notebook, stop `qwen-client`. The endpoint
-(`qwen-Qwen2.5--7B--Instruct`) keeps running — or rather, scales to zero when no
-one is calling it (because Min replicas = 0). Other project members
-can keep hitting the same URL without you doing anything; new
-workspaces just need the BASE_URL above.
+When you're done with the notebook, **Stop** `qwen-client` and then
+**delete** `qwen-Qwen2.5--7B--Instruct` from **Workloads**. At the
+current 2-GPU pilot scale we don't leave personal endpoints running —
+even with Min replicas = 0, an idle Inference workload still occupies
+project quota and a `pending` pod can block scheduling for whoever
+wants the GPU next. The autoscaler is doing its job; the cluster just
+doesn't have headroom for many simultaneous catalog entries yet.
 
-If you want to fully tear down: **Workloads** > delete `qwen-Qwen2.5--7B--Instruct`.
-This is reversible — recreating the Inference workload from the
-saved settings takes a minute.
+Recreating the Inference workload from your saved settings takes a
+minute, so the cost of a delete-and-recreate cycle is small. If you
+find yourself recreating the same endpoint daily, that's a strong
+signal it should become a shared catalog entry — flag it to
+Chris/Mike (see the
+[shared-endpoints catalog](#where-this-is-heading) up top).
+
+> **Why even configure autoscaling, then?** Because the underlying
+> pattern is right; only the scale isn't there yet. The same
+> Inference + autoscale-to-zero workload moves cleanly into the
+> shared-models project once a model graduates to catalog status,
+> and at that point it's fine to leave running because *one* such
+> workload per popular model is much cheaper than dozens of
+> per-project copies.
 
 ## Bridging to the real apps
 
