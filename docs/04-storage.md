@@ -53,44 +53,62 @@ This walkthrough takes ~15 minutes if your access is already set up
 Most readers only need Step A. Steps B–E exist so the next time
 someone hands you a 200 GB dataset you know what to reach for.
 
-### Step A. Use the auto-mounted user volume
+### Step A. Find and use the auto-mounted user volume
 
 Every project on this cluster has a dynamically-attached user volume
 of about 30 GB. It shows up automatically the first time you start a
 workload — you don't create a PVC, register a Data Source, or click
-**+ Volume**. This is the path of least resistance for notebooks,
-small datasets, and ad-hoc files.
+**+ Volume** to get it. This is the path of least resistance for
+notebooks, small datasets, and ad-hoc files.
 
-1. Spin up the workspace from
-   [02 First workspace](02-first-workspace.md) if you don't already
-   have one running. The Data & storage section can stay empty — the
-   user volume attaches on its own.
-2. Open Jupyter > File > New > Terminal.
-3. See where it landed:
+If you came from [02 First workspace](02-first-workspace.md), your
+running workspace also has an inline `/work` PVC (`local-path`) and
+the read-only `/models` Data Volume that 02 walked you through
+attaching. The auto-mounted user volume is *additional* to those —
+it's there whether or not you clicked **+ Volume**. The steps below
+show you how to find it and pick it out from the rest.
+
+1. Open the workspace's **Jupyter** tool, then File > New >
+   Terminal.
+2. List what's mounted:
    ```
    df -h
    ```
-   Look for an entry sized at roughly 30 GB that isn't `/dev/shm`,
-   `/tmp`, or a system filesystem. That path is your user volume; on
-   this cluster it's typically mounted at the workspace's working
-   directory (e.g. `/work`) but the exact path is set per-project, so
-   trust `df -h` over any path you read in another doc.
-4. Write a file to it:
+   You'll see several entries. Skip `/dev/shm`, `/tmp`, and the
+   system filesystems. The remaining ones are your storage:
+   - `/work` (or wherever 02 mounted its inline `local-path` PVC) —
+     created by you in 02. Tied to this workspace's lifecycle.
+   - `/models` — the read-only `shared-models` Data Volume.
+   - **A separate ~30 GB filesystem** at some other path — that's
+     the auto-mounted user volume. Mount path is set per-project,
+     so trust `df -h` over any specific path you read in another
+     doc.
+3. Write a file to the user volume:
    ```
    cd <your-user-volume-path>
    echo "first words on cluster storage" > hello.txt
    ```
-5. **Stop** the workspace from the RunAI UI, then **Start** it again.
-   Re-open Jupyter > Terminal, `cat <path>/hello.txt` — still there.
-   The user volume is project-scoped, so it survives workspace Stop /
-   Start *and* full workspace deletion: a future workspace in the
-   same project will mount the same volume with the same contents.
+4. **Stop** the workspace from the RunAI UI, then **Start** it
+   again. Re-open Jupyter > Terminal, `cat <path>/hello.txt` —
+   still there. The user volume is project-scoped, so it survives
+   workspace Stop / Start *and* full workspace deletion: a future
+   workspace in the same project will mount the same volume with
+   the same contents. (Compare with `/work` from 02, which goes
+   away the moment you delete that workspace.)
 
 For most pilots that's the entire storage story. The 1 TB high-perf
 NVMe drives currently being procured will give you a similar
 auto-mounted experience at a much larger size; until then, 30 GB
 covers notebooks, intermediate outputs, small corpora, and most
 workshop-scale work.
+
+> **Why does 02 still bother creating `/work`?** Mostly inertia, plus
+> a deterministic mount path the runtime args can hard-code (the
+> Jupyter `--notebook-dir=/work` and the `/work/repo` symlink). Once
+> the per-cluster auto-mount path is confirmed and stable, 02 can
+> drop the inline `/work` step and lean on the auto-mount alone. For
+> now treat `/work` as ephemeral-ish (gone on workspace delete) and
+> the auto-mounted user volume as the durable spot.
 
 Move on to Step B only if you've answered yes to one of:
 
