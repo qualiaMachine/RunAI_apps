@@ -42,6 +42,40 @@ an hour and stop, just stay on the 02 pattern. As soon as a second
 person wants the same model — or the same workload itself wants to be
 called by another service — host it.
 
+### Where this is heading
+
+The walkthrough below has you spin up an endpoint for one model in
+your own project, but the bigger play once the cluster scales past
+the 2-GPU pilot pod is a small, curated set of **always-on shared
+endpoints** that any lab can call without doing any of this setup
+themselves. Picture a per-cluster catalog along the lines of:
+
+| Endpoint | Use case |
+|----------|----------|
+| `qwen-Qwen2.5--7B--Instruct` / `--14B--Instruct` / `--72B--Instruct` | General-purpose chat at three size/cost points |
+| `qwen-Qwen3--VL--32B--Instruct--AWQ` | Vision-language extraction (the OCR app already shares one of these) |
+| `meta--Llama--3.1--8B--Instruct` / `--70B--Instruct` | Llama-family alternative for labs that prefer it |
+| `bge--reranker--v2--m3` or similar | Cross-encoder reranker for RAG |
+| `jinaai--jina--embeddings--v4` | Multilingual embeddings (the RAG app already shares this) |
+
+Each one would be a single Inference workload, autoscaled `min=0` so
+unused models release their GPU, weights mounted read-only from the
+cluster-wide `shared-models` Data Volume so there's exactly one copy
+to maintain per model. A lab that wants to build a RAG over their
+papers wouldn't deploy any of these — they'd just point their
+notebook or app at
+`http://qwen-Qwen2.5--72B--Instruct.runai-shared-models.svc.cluster.local/v1`
+and start asking questions.
+
+We're not there yet — at 2 GPUs, hosting more than two or three
+models simultaneously isn't realistic, and the current pilot only
+runs one shared endpoint (`qwen3--vl--32b--instruct-awq` for OCR).
+But this is the direction, and every endpoint a lab stands up under
+this doc's pattern is one less wheel that has to be reinvented when
+the cluster grows. If your use case would benefit from a specific
+model being available cluster-wide, tell Chris/Mike — that's how the
+catalog gets prioritized.
+
 ## Step A. Deploy Qwen2.5-7B as a vLLM Inference workload
 
 In the RunAI UI:
