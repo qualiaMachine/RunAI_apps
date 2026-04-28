@@ -13,8 +13,8 @@ ahead if you already have your bearings.
 
 | # | Doc | Read this if... |
 |---|-----|-----------------|
-| 00 | [Overview](docs/00-overview.md) | You've been told "use the RunAI cluster" and don't yet know what that means or whether it fits your work |
-| 01 | [Access](docs/01-access.md) | You need a login, project assignment, or storage quota and aren't sure what to ask DoIT |
+| 00 | [Overview](docs/00-overview.md) | You're new to the NVIDIA RunAI cluster and want to know whether it fits your work |
+| 01 | [Access](docs/01-access.md) | You need a login, project assignment, or storage quota |
 | 02 | [First workspace](docs/02-first-workspace.md) | You want a working Jupyter notebook on the cluster with this repo cloned and a shared model loaded, in ~15 minutes |
 | 03 | [Share a model as a vLLM endpoint](docs/03-share-as-endpoint.md) | You want to host a model once and have multiple users / workloads hit it via HTTP, instead of every user loading their own copy onto a GPU |
 | 04 | [Storage](docs/04-storage.md) | You need to know where data lives — short-term scratch through cluster-wide shared datasets — and how to get it from "a drive in my lab" to "mountable in a workload" |
@@ -27,6 +27,16 @@ under each app's `docs/`. Those assume you've already worked through
 00–04 here. All workloads are created through the RunAI web UI.
 
 ## Applications
+
+This repo is a growing collection of example use cases — PoCs we are building out as the pilot uncovers what labs actually need. Use
+them as starting templates and adapt to your needs.
+
+| Path | What it is | When you'd use it |
+|------|------------|-------------------|
+| [`ocr_app/`](../ocr_app/README.md) | Vision-language document extraction (Qwen3-VL-32B). Turns PDFs/scans into structured JSON. | Grant administration, archival corpora, library digitization, anything where layout matters |
+| [`rag_app/`](../rag_app/README.md) | Retrieval-augmented chatbot over a curated corpus (Qwen 7B/14B/72B). | Q&A over institutional knowledge bases, research literature search, "ChatGPT for our docs" |
+| [`scripts/`](../scripts) | Shared utilities used by both apps. | You usually don't touch this directly. |
+
 
 ### [Document Extraction (`ocr_app/`)](ocr_app/README.md)
 
