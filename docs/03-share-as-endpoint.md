@@ -19,7 +19,7 @@ notebook in a workspace with **zero GPU** that calls the endpoint
 instead of loading weights.
 
 By the end you'll have:
-- A running `qwen-7b-chat` Inference workload that any project member
+- A running `qwen-Qwen2.5--7B--Instruct` Inference workload that any project member
   can hit
 - A 0-GPU workspace whose notebook gets the same answer at a fraction
   of the resource cost
@@ -51,7 +51,17 @@ In the RunAI UI:
    and command, not using a built-in template).
 3. Basic settings:
    - **Project:** your project
-   - **Workload name:** `qwen-7b-chat`
+   - **Workload name:** `qwen-Qwen2.5--7B--Instruct`
+
+   > **Naming convention.** RunAI workload names can't contain `/`,
+   > so the convention used elsewhere in this repo (and what the
+   > shared OCR endpoint follows) is: replace `/` with `-` and every
+   > existing `-` with `--`. So the HuggingFace ID
+   > `Qwen/Qwen2.5-7B-Instruct` becomes the workload name
+   > `qwen-Qwen2.5--7B--Instruct` — fully reversible, lowercases the
+   > org prefix (Kubernetes service names have to start with a lowercase
+   > letter), and preserves the model's own capitalization so it's
+   > obvious which model the workload is hosting.
 4. **Environment image** — Custom:
    - **Image URL:** `vllm/vllm-openai:v0.7.0` (or whatever the current
      vLLM tag is; see [the rag_app vLLM
@@ -97,7 +107,7 @@ probe passes.
 The endpoint is reachable from any workload in the same project at:
 
 ```
-http://qwen-7b-chat.runai-<your-project>.svc.cluster.local/v1
+http://qwen-Qwen2.5--7B--Instruct.runai-<your-project>.svc.cluster.local/v1
 ```
 
 It speaks the OpenAI Chat Completions API, so any OpenAI-compatible
@@ -138,7 +148,7 @@ Open Jupyter, create a new notebook in `/work/`.
 import os, urllib.request, json
 
 PROJECT = os.environ["RUNAI_PROJECT"]   # set automatically by RunAI
-BASE_URL = f"http://qwen-7b-chat.runai-{PROJECT}.svc.cluster.local/v1"
+BASE_URL = f"http://qwen-Qwen2.5--7B--Instruct.runai-{PROJECT}.svc.cluster.local/v1"
 
 with urllib.request.urlopen(f"{BASE_URL}/models", timeout=10) as r:
     print(json.loads(r.read())["data"][0]["id"])
@@ -146,7 +156,7 @@ with urllib.request.urlopen(f"{BASE_URL}/models", timeout=10) as r:
 
 You should see `Qwen/Qwen2.5-7B-Instruct`. If the request hangs or
 returns 404, the workload isn't healthy yet — check the **Pods** tab
-on `qwen-7b-chat` and wait for readiness.
+on `qwen-Qwen2.5--7B--Instruct` and wait for readiness.
 
 ### Cell 2 — send a prompt via the OpenAI client
 
@@ -202,12 +212,12 @@ single-threaded.
 ## Step D. Stop the workspace, leave the endpoint
 
 When you're done with the notebook, stop `qwen-client`. The endpoint
-(`qwen-7b-chat`) keeps running — or rather, scales to zero when no
+(`qwen-Qwen2.5--7B--Instruct`) keeps running — or rather, scales to zero when no
 one is calling it (because Min replicas = 0). Other project members
 can keep hitting the same URL without you doing anything; new
 workspaces just need the BASE_URL above.
 
-If you want to fully tear down: **Workloads** > delete `qwen-7b-chat`.
+If you want to fully tear down: **Workloads** > delete `qwen-Qwen2.5--7B--Instruct`.
 This is reversible — recreating the Inference workload from the
 saved settings takes a minute.
 
