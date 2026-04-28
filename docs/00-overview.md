@@ -13,37 +13,17 @@ used a major cloud's notebook + endpoint UI, the experience is
 similar (workspaces, fractional GPU allocation, autoscaling
 endpoints).
 
-It fills niches that the cloud and CHTC don't serve well:
+This is intended to fill the following niches:
 
 - **Long-term LLM/VLM apps the institution wants to support.** When a
   service is going to live for years, renting cloud capacity
   permanently doesn't make sense.
 - **Long-running training or fine-tuning jobs.** These get expensive
-  fast in the cloud.
-- **Sensitive / PHI-related data workflows.** Pending the relevant
-  cybersecurity reviews — talk to your DoIT contact about current
-  status.
-- **Hosting a model close to institutional data** — research corpora,
-  imaging archives, anything that's awkward or impossible to send to a
-  third-party API.
-- **Sharing model weights and curated datasets once across many
-  users.** A 20–700 GB model download lives in one place; everyone's
-  workloads mount it read-only.
+  fast in the cloud. Sometimes doable in CHTC, but requires batching and smaller LLMs.
+- **Sensitive / PHI / Institutional data workflows.** Pending the relevant
+  cybersecurity reviews.
+- **Sharing model endpoints across many users.** Large models live in one place; and many users can easily access them for their work. Graceful GPU scheduling and scaling means that GPUs can be used efficiently.
 
-It's *not* the right tool when:
-
-- The data has to leave the institution to be useful anyway (e.g.
-  you'd genuinely prefer ChatGPT and the data isn't sensitive).
-- You want a one-off interactive Python session — your laptop is
-  faster to spin up.
-- You need persistent custom services (24/7 web apps with their own
-  databases, user accounts, etc.). RunAI Inference workloads can do
-  this, but it's overkill for non-AI hosting.
-- You need cloud-scale concurrency *today*. At the current pilot
-  size, two GPUs realistically serve **2–5 concurrent users per app**
-  via RunAI's GPU partitioning. Plans to scale up depend on real
-  usage from labs like yours, so it's worth flagging your needs early
-  rather than waiting for the cluster to grow into them.
 
 ## The three concepts you actually need
 
