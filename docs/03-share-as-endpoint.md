@@ -97,10 +97,13 @@ In the RunAI UI:
    > letter), and preserves the model's own capitalization so it's
    > obvious which model the workload is hosting.
 4. **Environment image** — Custom:
-   - **Image URL:** `vllm/vllm-openai:v0.7.0` (or whatever the current
-     vLLM tag is; see [the rag_app vLLM
-     deploy](../rag_app/docs/deploy-vllm.md) for the version that's
-     known to work on this cluster)
+   - **Image URL:** `vllm/vllm-openai:latest` — same image every
+     other deployment in this repo uses
+     ([rag_app/docs/deploy-vllm.md](../rag_app/docs/deploy-vllm.md),
+     [ocr_app/docs/deploy-vllm.md](../ocr_app/docs/deploy-vllm.md)).
+     The image entrypoint already runs
+     `python -m vllm.entrypoints.openai.api_server`, so all
+     configuration is via Arguments below.
 5. **Runtime settings:**
    - **Command:** *(leave empty — vLLM's image entrypoint runs
      `python -m vllm.entrypoints.openai.api_server`)*
