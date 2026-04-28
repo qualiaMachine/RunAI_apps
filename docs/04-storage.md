@@ -218,3 +218,10 @@ When you're done with the walkthrough:
 If you skip the cleanup, the storage stays attached to your project's
 quota indefinitely. Cheap to leave but easy to forget about — most
 pilots accumulate a few sandbox PVCs that nobody remembers creating.
+
+## Next
+
+You've got the storage primitives down. Time to apply them to a real
+deployment — head to [05 Examples](05-examples.md) to pick between
+the OCR pipeline and the RAG chatbot, both of which are layered
+directly on top of the patterns from 02, 03, and this doc.

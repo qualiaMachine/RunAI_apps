@@ -229,6 +229,11 @@ When you read those app docs, you'll recognize the structure: pick
 image, set args, attach `shared-models`, configure autoscaling, point
 your client at `http://<workload>.runai-<project>.svc.cluster.local`.
 
-Once you're comfortable with this conversion, head to
-[04 Storage](04-storage.md) for the input/output side, then
-[05 Examples](05-examples.md) to pick a real app to deploy.
+## Next
+
+Now that you've seen both the direct-load and the
+endpoint-and-call-it patterns, the next question is where the *data*
+those models read and write actually lives. Head to
+[04 Storage](04-storage.md) — Data Source vs Data Volume, the
+hands-on PVC → Data Volume promotion, and the recipes for getting
+lab data onto the cluster in the first place.

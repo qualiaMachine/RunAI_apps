@@ -79,3 +79,12 @@ If you can describe your workload as some combination of those
 patterns, you can build it from these examples. If you can't, that's a
 good time to ask your DoIT contact whether the cluster is the right
 tool for the job.
+
+## Next
+
+This is the end of the new-user guide. From here you go into one of
+the app READMEs — [`ocr_app/README.md`](../ocr_app/README.md) for
+document extraction or [`rag_app/README.md`](../rag_app/README.md)
+for retrieval-augmented chat — and follow that app's deployment
+steps. Both reference back into this guide for the underlying
+concepts when something looks new.
