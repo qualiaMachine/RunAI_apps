@@ -22,9 +22,13 @@ two-stage so worth flagging up front:
 3. They connect to the **campus VPN**, open the URL, and log in once.
    The dashboard will look mostly empty — that first login is just to
    register their identity in RunAI so we can attach things to it.
-4. They ping us back to say they've logged in. We then attach the
-   project, GPU quota, and the cluster's `shared-models` Data Volume
-   (pre-cached weights for Qwen, Jina, etc.) to their account.
+4. They ping us back to say they've logged in. We then assign the
+   project, GPU quota, and grant access to the cluster's
+   `shared-models` Data Volume — pre-cached weights for Qwen, Jina,
+   etc. that they (or any workload they create) can mount read-only
+   from `Data & storage` when spinning up a workspace. It's not
+   auto-attached to every job; they pick it up per-workload, same as
+   any other Data Source.
 5. Reload the dashboard and they're in — workspaces, inference
    endpoints, data sources, all clickable from the UI. No CLI
    required.
