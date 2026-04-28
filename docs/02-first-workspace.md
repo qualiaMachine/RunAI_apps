@@ -39,9 +39,6 @@ it, talk to cluster admin.
      ```
      -c "curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp; mv /tmp/RunAI_apps-main /tmp/RunAI_apps 2>/dev/null; ln -sf /tmp/RunAI_apps /work/repo; pip install --no-cache-dir transformers accelerate; jupyter-lab --ip=0.0.0.0 --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/work"
      ```
-   - **Set the container's working directory:** *(leave empty)* — the
-     args above use absolute paths everywhere, so there's no working
-     directory to set.
 
      Yes, this is annoying. Most of these are RunAI / proxy /
      headless-container glue that has nothing to do with your actual
@@ -69,7 +66,7 @@ it, talk to cluster admin.
      | `--ServerApp.token=''` | Disable Jupyter's own login token — RunAI's portal already authenticated you, and a token here would just block the proxy. |
      | `--ServerApp.allow_origin='*'` | Allow cross-origin requests. RunAI's proxy and Jupyter end up on different origins; without this, the browser blocks the websocket. |
      | `--notebook-dir=/work` | Open Jupyter's file browser at `/work` so you land directly on the persistent volume (where the cloned repo lives). |
-
+     
    - **Environment variables:**
 
      | Name | Value | Why |
@@ -77,6 +74,12 @@ it, talk to cluster admin.
      | `HF_HOME` | `/models/.cache/huggingface` | HuggingFace cache root. Default is `~/.cache/huggingface` inside the pod's ephemeral disk; pointing it at the mounted `shared-models` volume is what makes `transformers.from_pretrained(...)` find the pre-cached weights. |
      | `HF_HUB_CACHE` | `/models/.cache/huggingface` | More specific override for the hub-cache path used by `huggingface_hub`. Different transformers versions respect different vars; setting both `HF_HOME` and `HF_HUB_CACHE` is belt-and-suspenders so every code path lands at the same directory. |
      | `HF_HUB_OFFLINE` | `1` | Forbid network downloads. If the model isn't in the cache, you get a fast, loud error instead of a silent multi-GB download to ephemeral disk that vanishes on restart. |
+
+          
+   - **Set the container's working directory:** *(leave empty)* — the
+     args above use absolute paths everywhere, so there's no working
+     directory to set.
+     
 8. **Compute resources:**
    - **GPU devices:** `1`
    - **GPU fractioning:** Enabled — `25%` (≈20 GB on an 80 GB H100,
