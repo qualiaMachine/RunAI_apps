@@ -110,6 +110,36 @@ you'll see all the docs and code from the repo. Notebooks under
 Data Sources are attached, but that's the job of those apps' own
 deployment guides.
 
+> **Getting your own data into the workspace.** For small,
+> ad-hoc files there are two easy routes that don't require any
+> Data Source setup:
+>
+> 1. **Drag and drop** files from your laptop's file browser
+>    straight into the Jupyter file browser pane (drop them anywhere
+>    under `/work/`). They land on the persistent volume and survive
+>    Stop/Start.
+> 2. **Pull from a URL** in a Jupyter terminal:
+>    ```
+>    cd /work
+>    curl -LO https://example.org/some-dataset.tar.gz
+>    # or wget, git clone, aws s3 cp, rclone copy, ...
+>    ```
+>
+> Browser uploads start choking around a few GB; for anything
+> bigger, or for a dataset you need shared across multiple
+> workloads, use a Data Source — see [04 Storage](04-storage.md).
+>
+> **Heads up — what happens if you delete the workspace.** The
+> `/work` volume here was created inline as part of *this* workspace,
+> so when the workspace gets deleted the volume goes with it (and
+> anything you dropped into `/work` is gone). To make data survive
+> workspace deletion — i.e., live independently and be reusable from
+> a future workspace — you have to register it as a standalone
+> **Data Source** in your project. [04 Storage](04-storage.md)
+> walks through that exact promotion: workspace creates a PVC,
+> register it as a Data Source, optionally promote to a cluster-wide
+> Data Volume.
+
 ## Step C. Load a shared model and generate
 
 Create a new notebook in `/work/` (Jupyter > File > New > Notebook,

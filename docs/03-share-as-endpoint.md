@@ -19,11 +19,16 @@ notebook in a workspace with **zero GPU** that calls the endpoint
 instead of loading weights.
 
 By the end you'll have:
-- A running `qwen-7b-chat` Inference workload that any project member
-  can hit
-- A 0-GPU workspace whose notebook gets the same answer at a fraction
-  of the resource cost
+- A `qwen-Qwen2.5--7B--Instruct` Inference workload exposing an
+  OpenAI-compatible HTTP endpoint
+- The same workspace from 02, now reconfigured to 0 GPU, with a
+  notebook that gets the same answer by calling the endpoint
 - An intuition for when each pattern is appropriate
+
+You'll tear both down at the end. At the current 2-GPU pilot scale
+we don't leave per-project endpoints running — see [Step
+D](#step-d-tear-down-when-youre-done) for the full reasoning. The
+pattern itself is what matters here, not the persistent artifact.
 
 ## When to host vs load directly
 
@@ -42,6 +47,40 @@ an hour and stop, just stay on the 02 pattern. As soon as a second
 person wants the same model — or the same workload itself wants to be
 called by another service — host it.
 
+### Where this is heading
+
+The walkthrough below has you spin up an endpoint for one model in
+your own project, but the bigger play once the cluster scales past
+the 2-GPU pilot pod is a small, curated set of **always-on shared
+endpoints** that any lab can call without doing any of this setup
+themselves. Picture a per-cluster catalog along the lines of:
+
+| Endpoint | Use case |
+|----------|----------|
+| `qwen-Qwen2.5--7B--Instruct` / `--14B--Instruct` / `--72B--Instruct` | General-purpose chat at three size/cost points |
+| `qwen-Qwen3--VL--32B--Instruct--AWQ` | Vision-language extraction (the OCR app already shares one of these) |
+| `meta--Llama--3.1--8B--Instruct` / `--70B--Instruct` | Llama-family alternative for labs that prefer it |
+| `bge--reranker--v2--m3` or similar | Cross-encoder reranker for RAG |
+| `jinaai--jina--embeddings--v4` | Multilingual embeddings (the RAG app already shares this) |
+
+Each one would be a single Inference workload, autoscaled `min=0` so
+unused models release their GPU, weights mounted read-only from the
+cluster-wide `shared-models` Data Volume so there's exactly one copy
+to maintain per model. A lab that wants to build a RAG over their
+papers wouldn't deploy any of these — they'd just point their
+notebook or app at
+`http://qwen-Qwen2.5--72B--Instruct.runai-shared-models.svc.cluster.local/v1`
+and start asking questions.
+
+We're not there yet — at 2 GPUs, hosting more than two or three
+models simultaneously isn't realistic, and the current pilot only
+runs one shared endpoint (`qwen3--vl--32b--instruct-awq` for OCR).
+But this is the direction, and every endpoint a lab stands up under
+this doc's pattern is one less wheel that has to be reinvented when
+the cluster grows. If your use case would benefit from a specific
+model being available cluster-wide, tell Chris/Mike — that's how the
+catalog gets prioritized.
+
 ## Step A. Deploy Qwen2.5-7B as a vLLM Inference workload
 
 In the RunAI UI:
@@ -51,19 +90,46 @@ In the RunAI UI:
    and command, not using a built-in template).
 3. Basic settings:
    - **Project:** your project
-   - **Workload name:** `qwen-7b-chat`
+   - **Workload name:** `qwen-Qwen2.5--7B--Instruct`
+
+   > **Naming convention.** RunAI workload names can't contain `/`,
+   > so the convention used elsewhere in this repo (and what the
+   > shared OCR endpoint follows) is: replace `/` with `-` and every
+   > existing `-` with `--`. So the HuggingFace ID
+   > `Qwen/Qwen2.5-7B-Instruct` becomes the workload name
+   > `qwen-Qwen2.5--7B--Instruct` — fully reversible, lowercases the
+   > org prefix (Kubernetes service names have to start with a lowercase
+   > letter), and preserves the model's own capitalization so it's
+   > obvious which model the workload is hosting.
 4. **Environment image** — Custom:
-   - **Image URL:** `vllm/vllm-openai:v0.7.0` (or whatever the current
-     vLLM tag is; see [the rag_app vLLM
-     deploy](../rag_app/docs/deploy-vllm.md) for the version that's
-     known to work on this cluster)
+   - **Image URL:** `vllm/vllm-openai:latest` — same image every
+     other deployment in this repo uses
+     ([rag_app/docs/deploy-vllm.md](../rag_app/docs/deploy-vllm.md),
+     [ocr_app/docs/deploy-vllm.md](../ocr_app/docs/deploy-vllm.md)).
+     The image entrypoint already runs
+     `python -m vllm.entrypoints.openai.api_server`, so all
+     configuration is via Arguments below.
 5. **Runtime settings:**
    - **Command:** *(leave empty — vLLM's image entrypoint runs
      `python -m vllm.entrypoints.openai.api_server`)*
    - **Arguments:**
      ```
-     --model Qwen/Qwen2.5-7B-Instruct --max-model-len 8192 --gpu-memory-utilization 0.85
+     Qwen/Qwen2.5-7B-Instruct --dtype auto --max-model-len 8192
      ```
+
+     The model ID goes in as a **positional argument**, not behind a
+     `--model` flag — that's what `vllm.entrypoints.openai.api_server`
+     expects, and it's the shape every vLLM workload in this repo
+     uses (see [`rag_app/docs/deploy-vllm.md`](../rag_app/docs/deploy-vllm.md)
+     for more model+quantization combinations like
+     `--quantization bitsandbytes --load-format bitsandbytes` for
+     tighter GPU budgets, or `--quantization awq_marlin --dtype half`
+     for AWQ builds). `--dtype auto` lets vLLM pick bf16 here (same
+     precision as 02's direct load); `--max-model-len 8192` caps KV
+     cache so the model fits comfortably in a 50% GPU fraction. Don't
+     set `--gpu-memory-utilization` here — RunAI's GPU fraction
+     setting below already constrains the pod's allocation.
+
    - **Environment variables:**
 
      | Name | Value |
@@ -97,40 +163,50 @@ probe passes.
 The endpoint is reachable from any workload in the same project at:
 
 ```
-http://qwen-7b-chat.runai-<your-project>.svc.cluster.local/v1
+http://qwen-Qwen2.5--7B--Instruct.runai-<your-project>.svc.cluster.local/v1
 ```
 
 It speaks the OpenAI Chat Completions API, so any OpenAI-compatible
 client works.
 
-## Step B. New workspace, zero GPU
+## Step B. Reuse the 02 workspace at zero GPU
 
-Now create a *separate* workspace whose only job is to call the
-endpoint. It needs no GPU and no `shared-models` mount — just network
-access.
+You don't need a fresh workspace for this — the
+`first-workspace` you built in [02](02-first-workspace.md) already has
+everything you need (Jupyter, the persistent `/work` volume, the
+shared-models mount that we no longer use, the `bash -c` boilerplate).
+The only thing that has to change is the GPU.
 
-1. **Workloads** > **+ NEW WORKLOAD** > **Workspace**
-2. **Workspace name:** `qwen-client`
-3. **Environment image:** `nvcr.io/nvidia/pytorch:25.02-py3` (or any
-   Python image — you don't need PyTorch here, it's just convenient)
-4. **Tools:** Jupyter on port 8888.
-5. **Runtime settings — Arguments:**
-   ```
-   -c "pip install --no-cache-dir openai; jupyter-lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*'"
-   ```
-6. **Compute resources:**
-   - **GPU devices:** `0` ← the whole point
-   - CPU/memory: defaults
-7. **Data & storage:** *(optional)* a `local-path` PVC at `/work` if
-   you want notebook persistence.
-8. **CREATE WORKSPACE**.
+1. **Stop** `first-workspace` from the RunAI UI.
+2. **Edit** it:
+   - **Compute resources** > **GPU devices:** change to `0`. Disable
+     GPU fractioning. That's the whole point — the model lives in
+     the Inference workload now, your notebook just calls it.
+   - **Runtime settings** > **Arguments:** add `openai` to the pip
+     install list so the next Start has the client library
+     available. The full string becomes:
+     ```
+     -c "curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp; mv /tmp/RunAI_apps-main /tmp/RunAI_apps 2>/dev/null; ln -sf /tmp/RunAI_apps /work/repo; pip install --no-cache-dir transformers accelerate openai; jupyter-lab --ip=0.0.0.0 --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/work"
+     ```
+     (The `transformers` and `accelerate` installs are now wasted CPU
+     since you won't load the model in-process, but leaving them in
+     keeps the args identical to 02 minus the `openai` addition,
+     which is easier to remember than maintaining two near-duplicate
+     arg strings.)
+3. **Save** the edits and **Start** the workspace.
+4. Once it's `Running`, open Jupyter and **duplicate the notebook
+   from 02** (right-click > Duplicate, rename to something like
+   `endpoint-client.ipynb`). You'll edit the same three cells in
+   place to call the endpoint instead of loading the model.
 
-The workspace boots in seconds because there's no GPU scheduling and
-no model loading.
+The workspace boots in seconds this time — no GPU to schedule and no
+model weights to load.
 
 ## Step C. Call the endpoint from a notebook
 
-Open Jupyter, create a new notebook in `/work/`.
+Open the duplicated `endpoint-client.ipynb`. You'll replace the three
+cells from 02's notebook in place — same prompt, same expected
+answer, but the model lives somewhere else now.
 
 ### Cell 1 — confirm the endpoint is reachable
 
@@ -138,7 +214,7 @@ Open Jupyter, create a new notebook in `/work/`.
 import os, urllib.request, json
 
 PROJECT = os.environ["RUNAI_PROJECT"]   # set automatically by RunAI
-BASE_URL = f"http://qwen-7b-chat.runai-{PROJECT}.svc.cluster.local/v1"
+BASE_URL = f"http://qwen-Qwen2.5--7B--Instruct.runai-{PROJECT}.svc.cluster.local/v1"
 
 with urllib.request.urlopen(f"{BASE_URL}/models", timeout=10) as r:
     print(json.loads(r.read())["data"][0]["id"])
@@ -146,7 +222,7 @@ with urllib.request.urlopen(f"{BASE_URL}/models", timeout=10) as r:
 
 You should see `Qwen/Qwen2.5-7B-Instruct`. If the request hangs or
 returns 404, the workload isn't healthy yet — check the **Pods** tab
-on `qwen-7b-chat` and wait for readiness.
+on `qwen-Qwen2.5--7B--Instruct` and wait for readiness.
 
 ### Cell 2 — send a prompt via the OpenAI client
 
@@ -199,17 +275,30 @@ Ten requests hitting one GPU, processed in parallel via vLLM's
 continuous batching. On the 02 pattern, those would queue up
 single-threaded.
 
-## Step D. Stop the workspace, leave the endpoint
+## Step D. Tear down when you're done
 
-When you're done with the notebook, stop `qwen-client`. The endpoint
-(`qwen-7b-chat`) keeps running — or rather, scales to zero when no
-one is calling it (because Min replicas = 0). Other project members
-can keep hitting the same URL without you doing anything; new
-workspaces just need the BASE_URL above.
+When you're done with the notebook, **Stop** `first-workspace` and then
+**delete** `qwen-Qwen2.5--7B--Instruct` from **Workloads**. At the
+current 2-GPU pilot scale we don't leave personal endpoints running —
+even with Min replicas = 0, an idle Inference workload still occupies
+project quota and a `pending` pod can block scheduling for whoever
+wants the GPU next. The autoscaler is doing its job; the cluster just
+doesn't have headroom for many simultaneous catalog entries yet.
 
-If you want to fully tear down: **Workloads** > delete `qwen-7b-chat`.
-This is reversible — recreating the Inference workload from the
-saved settings takes a minute.
+Recreating the Inference workload from your saved settings takes a
+minute, so the cost of a delete-and-recreate cycle is small. If you
+find yourself recreating the same endpoint daily, that's a strong
+signal it should become a shared catalog entry — flag it to
+Chris/Mike (see the
+[shared-endpoints catalog](#where-this-is-heading) up top).
+
+> **Why even configure autoscaling, then?** Because the underlying
+> pattern is right; only the scale isn't there yet. The same
+> Inference + autoscale-to-zero workload moves cleanly into the
+> shared-models project once a model graduates to catalog status,
+> and at that point it's fine to leave running because *one* such
+> workload per popular model is much cheaper than dozens of
+> per-project copies.
 
 ## Bridging to the real apps
 
