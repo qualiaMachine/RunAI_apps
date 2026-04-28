@@ -3,13 +3,14 @@
 > **Step 4** in the [New User Guide](../README.md#new-user-guide). Read [00 Overview](00-overview.md)
 > first if "Data Source vs Data Volume" doesn't ring a bell.
 
-RunAI exposes several overlapping primitives, and the right one depends on how long the data
-needs to live and who else needs to read it. The good news is that
-most users on this cluster are covered by the auto-mounted ~30 GB
-user volume that ships with every project: notebooks, intermediate
-output, small datasets all just land on it without any setup. This
-doc walks you through that default first, then — only if you need
-more — through creating a larger PVC inline in a workspace,
+RunAI exposes several overlapping primitives, and the right one
+depends on how long the data needs to live and who else needs to
+read it. The good news for most users on this cluster: there's a
+pre-prepped **`user-workspace`** template that ships with a ~30 GB
+persistent PVC already attached, so notebooks and small datasets land
+somewhere durable without you configuring anything. This doc walks
+you through that template-based default first, then — only if you
+need more — through creating a larger PVC inline in a workspace,
 registering it as a shareable **Data Source**, and finally promoting
 it to a cluster-shared **Data Volume**. By the end you'll have felt
 the difference between the three concepts instead of just read about
@@ -23,27 +24,31 @@ to set up and the easiest to clean up.
 | Horizon | What it is | Survives... | When to use |
 |---------|------------|-------------|-------------|
 | **Ephemeral** | The pod's own filesystem (no PVC attached) | The current pod only — gone on restart | Cache files, scratch output you'll re-derive, anything you don't care about |
-| **Project** | A **PVC Data Source** (or NFS Data Source) attached to your workloads. Includes the auto-mounted ~30 GB user volume that ships with every project. | Workspace restarts and deletion; lives until you delete the Data Source | Notebooks, in-progress datasets, model output, anything one project needs across multiple workloads |
+| **Project** | A **PVC Data Source** (or NFS Data Source) attached to your workloads. Includes the ~30 GB PVC that ships with the **`user-workspace`** template. | Workspace restarts and deletion; lives until you delete the Data Source | Notebooks, in-progress datasets, model output, anything one project needs across multiple workloads |
 | **Cluster-shared** | A **Data Volume** wrapped around a populated PVC, scoped to other projects/departments | The origin project keeps RW; sharers mount RO | Pre-trained model weights, shared reference datasets, anything multiple projects read |
 
 Most pilots only need the middle tier. The cluster-shared tier comes up
 when you have something genuinely worth sharing (a 20 GB model
 download, a curated corpus that took a week to build).
 
-> **Heads up — you already have ~30 GB.** Every project on this cluster
-> ships with a dynamically-mounted user volume of about 30 GB. It
-> attaches on its own when a workload starts; you don't pick it from a
-> dropdown. Step A below uses it directly. Skip ahead to Step B only
-> when you've outgrown 30 GB or need to share storage across projects.
+> **Heads up — there's already a 30 GB PVC waiting for you.** When
+> you create a workspace, choose **Load from existing** > **`user-workspace`**
+> instead of **Start from scratch** and you'll get a pre-attached
+> ~30 GB persistent PVC for free. It survives across workspaces in
+> your project, so notebooks you save there stick around between
+> Stop / Start cycles and even full workspace deletes. Step A below
+> uses that template; Step B onward is for when the 30 GB isn't
+> enough or you need to share storage across projects.
 
-## Hands-on: user volume → workspace PVC → Data Source → Data Volume
+## Hands-on: user-workspace template → workspace PVC → Data Source → Data Volume
 
 This walkthrough takes ~15 minutes if your access is already set up
 (see [01 Access](01-access.md)). At the end you'll have:
 
-1. Found the auto-mounted ~30 GB user volume and written a file to it
-2. Created a *bigger* PVC inline in a sandbox workspace, in case 30 GB
-   isn't enough
+1. Loaded the `user-workspace` template and written a file to its
+   pre-attached ~30 GB PVC
+2. Created a *bigger* PVC inline in a sandbox workspace, in case
+   30 GB isn't enough
 3. Registered that PVC as a **Data Source** in your project, attachable
    to any other workload by name
 4. Wrapped it in a **Data Volume** that any other project on the cluster
@@ -52,62 +57,64 @@ This walkthrough takes ~15 minutes if your access is already set up
 Most readers only need Step A. Steps B–E exist so the next time
 someone hands you a 200 GB dataset you know what to reach for.
 
-### Step A. Find and use the auto-mounted user volume
+### Step A. Use the `user-workspace` template
 
-Every project on this cluster has a dynamically-attached user volume
-of about 30 GB. It shows up automatically the first time you start a
-workload — you don't create a PVC, register a Data Source, or click
-**+ Volume** to get it. This is the path of least resistance for
-notebooks, small datasets, and ad-hoc files.
+The pre-prepped path: instead of building a workspace from nothing,
+launch from a template that already has the ~30 GB persistent PVC
+attached. Anything you write under that mount sticks around — across
+Stop / Start cycles and even across full workspace deletions, as
+long as you stay in the same project.
 
-If you came from [02 First workspace](02-first-workspace.md), your
-running workspace also has an inline `/work` PVC (`local-path`) and
-the read-only `/models` Data Volume that 02 walked you through
-attaching. The auto-mounted user volume is *additional* to those —
-it's there whether or not you clicked **+ Volume**. The steps below
-show you how to find it and pick it out from the rest.
+1. **Workloads** > **+ NEW WORKLOAD** > **Workspace**
+2. **Project:** your project
+3. **Template:** click **Load from existing** > **`user-workspace`**.
+   *(This is the key step that gets you the persistent volume.
+   "Start from scratch" — what 02 uses — does not include it.)*
+4. Tweak the workspace name, image, and runtime args if you need to.
+   The template's pre-set fields are sensible defaults; you don't
+   have to change anything.
+5. **CREATE WORKSPACE**.
 
-1. Open the workspace's **Jupyter** tool, then File > New >
-   Terminal.
-2. List what's mounted:
-   ```
-   df -h
-   ```
-   You'll see several entries. Skip `/dev/shm`, `/tmp`, and the
-   system filesystems. The remaining ones are your storage:
-   - `/work` (or wherever 02 mounted its inline `local-path` PVC) —
-     created by you in 02. Tied to this workspace's lifecycle.
-   - `/models` — the read-only `shared-models` Data Volume.
-   - **A separate ~30 GB filesystem** at some other path — that's
-     the auto-mounted user volume. Mount path is set per-project,
-     so trust `df -h` over any specific path you read in another
-     doc.
-3. Write a file to the user volume:
-   ```
-   cd <your-user-volume-path>
-   echo "first words on cluster storage" > hello.txt
-   ```
-4. **Stop** the workspace from the RunAI UI, then **Start** it
-   again. Re-open Jupyter > Terminal, `cat <path>/hello.txt` —
-   still there. The user volume is project-scoped, so it survives
-   workspace Stop / Start *and* full workspace deletion: a future
-   workspace in the same project will mount the same volume with
-   the same contents. (Compare with `/work` from 02, which goes
-   away the moment you delete that workspace.)
+Wait for it to flip to `Running`, then open Jupyter > File > New >
+Terminal:
+
+```
+df -h
+```
+
+You'll see the ~30 GB PVC mounted at the path the template defines
+(check the workspace's **Data & storage** section in the RunAI UI
+to read the mount path off the template, or just look for the
+~30 GB entry in `df -h` that isn't `/tmp`, `/dev/shm`, or a system
+filesystem).
+
+Write a file to it:
+
+```
+cd <user-workspace-mount-path>
+echo "first words on cluster storage" > hello.txt
+```
+
+Now **Stop** the workspace, then **Start** it again — `cat` the
+file, still there. **Delete** the workspace, create a *new* one
+from the same `user-workspace` template, `cat` again — still
+there. That's the whole pitch: the PVC outlives any individual
+workspace.
 
 For most pilots that's the entire storage story. The 1 TB high-perf
-NVMe drives currently being procured will give you a similar
-auto-mounted experience at a much larger size; until then, 30 GB
-covers notebooks, intermediate outputs, small corpora, and most
-workshop-scale work.
+NVMe drives currently being procured will eventually give you a
+similar pre-attached experience at much larger size; until then,
+30 GB covers notebooks, intermediate outputs, small corpora, and
+most workshop-scale work.
 
-> **Why does 02 still bother creating `/work`?** Mostly inertia, plus
-> a deterministic mount path the runtime args can hard-code (the
-> Jupyter `--notebook-dir=/work` and the `/work/repo` symlink). Once
-> the per-cluster auto-mount path is confirmed and stable, 02 can
-> drop the inline `/work` step and lean on the auto-mount alone. For
-> now treat `/work` as ephemeral-ish (gone on workspace delete) and
-> the auto-mounted user volume as the durable spot.
+> **What if I started from scratch (like 02)?** Then you don't have
+> the 30 GB PVC — only the inline `/work` PVC you created yourself
+> and the `/models` shared-models Data Volume. That's by design: 02
+> uses **Start from scratch** so a new user can see every moving
+> part by hand, but it costs you the persistent user PVC. Move
+> finished work into the `user-workspace` template (or a Data
+> Source you register yourself, see Step C) before deleting a
+> from-scratch workspace.
 
 Move on to Step B only if you've answered yes to one of:
 
@@ -309,8 +316,12 @@ to build the index inside it.
 A handful of storage questions come up over and over. Here's what's
 already settled on `doit-ai-cluster` so you don't have to re-ask:
 
-- **Per-user storage default.** Every project auto-mounts a ~30 GB
-  user volume on workload start (Step A above). No selection step.
+- **Per-user storage default.** A `user-workspace` workload template
+  ships with a pre-attached ~30 GB persistent PVC. Pick it via
+  **Load from existing** when creating a workspace (Step A above).
+  Workloads built with **Start from scratch** don't get it
+  automatically — that's the trade-off 02 makes for pedagogical
+  clarity.
 - **High-perf bigger storage.** 1 TB NVMe drives are on order; until
   they arrive, "I need 200 GB of fast scratch" doesn't have a clean
   answer beyond "create a larger inline PVC and accept the
