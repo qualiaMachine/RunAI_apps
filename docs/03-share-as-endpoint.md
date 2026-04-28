@@ -127,7 +127,7 @@ In the RunAI UI:
      below already constrains the pod's allocation.
 
      > **Save GPU when you can — quantize.** A 7B model in bf16 at
-     > 50% of an 80 GB card has plenty of headroom, so this
+     > 50% of a 96 GB card has plenty of headroom, so this
      > walkthrough doesn't bother. But the moment you move to 14B,
      > 32B, 70B+, or want to stack multiple endpoints on one GPU,
      > quantization is the lever that buys you back the headroom.
@@ -163,7 +163,7 @@ In the RunAI UI:
 6. **Compute resources:**
    - **GPU devices:** `1`
    - **GPU fractioning:** Enabled — `50%` (Qwen 7B in bf16 + KV cache
-     fits comfortably on 40 GB of an 80 GB H100)
+     fits comfortably on 48 GB of a 96 GB card)
 7. **Data & storage:** **+ Data Volume** > `shared-models`, mount path
    `/models`, read-only.
 8. **Endpoint:**
