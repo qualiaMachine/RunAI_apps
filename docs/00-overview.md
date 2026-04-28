@@ -49,11 +49,15 @@ A pointer to "data lives here, mount it at this path." Types include
 and a few others. Per-project. You'll create one per dataset, model, or
 output location your workload reads or writes.
 
-> **You already get one for free.** Every project on this cluster
-> auto-mounts a ~30 GB user volume into every workload — you don't
-> have to create a Data Source to start storing notebooks and small
-> datasets. The [Storage doc](04-storage.md) Step A shows where it
-> lands and when to graduate to a larger PVC.
+> **You already get one for free — if you load the right template.**
+> Every project on this cluster has a `user-workspace` workload
+> template with a pre-attached ~30 GB persistent PVC. Choose
+> **Load from existing** > **`user-workspace`** when creating a
+> workspace and notebooks survive across stop/start cycles and
+> workspace deletes without you setting anything up. The
+> [Storage doc](04-storage.md) Step A shows the flow; 02's
+> "Start from scratch" path opts out of this on purpose to keep
+> the moving parts visible.
 
 ### 3. Data Volume — a shared, read-only wrapper around a populated PVC
 
