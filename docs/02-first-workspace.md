@@ -128,6 +128,17 @@ deployment guides.
 > Browser uploads start choking around a few GB; for anything
 > bigger, or for a dataset you need shared across multiple
 > workloads, use a Data Source — see [04 Storage](04-storage.md).
+>
+> **Heads up — what happens if you delete the workspace.** The
+> `/work` volume here was created inline as part of *this* workspace,
+> so when the workspace gets deleted the volume goes with it (and
+> anything you dropped into `/work` is gone). To make data survive
+> workspace deletion — i.e., live independently and be reusable from
+> a future workspace — you have to register it as a standalone
+> **Data Source** in your project. [04 Storage](04-storage.md)
+> walks through that exact promotion: workspace creates a PVC,
+> register it as a Data Source, optionally promote to a cluster-wide
+> Data Volume.
 
 ## Step C. Load a shared model and generate
 
