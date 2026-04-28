@@ -120,15 +120,37 @@ In the RunAI UI:
      The model ID goes in as a **positional argument**, not behind a
      `--model` flag — that's what `vllm.entrypoints.openai.api_server`
      expects, and it's the shape every vLLM workload in this repo
-     uses (see [`rag_app/docs/deploy-vllm.md`](../rag_app/docs/deploy-vllm.md)
-     for more model+quantization combinations like
-     `--quantization bitsandbytes --load-format bitsandbytes` for
-     tighter GPU budgets, or `--quantization awq_marlin --dtype half`
-     for AWQ builds). `--dtype auto` lets vLLM pick bf16 here (same
-     precision as 02's direct load); `--max-model-len 8192` caps KV
-     cache so the model fits comfortably in a 50% GPU fraction. Don't
-     set `--gpu-memory-utilization` here — RunAI's GPU fraction
-     setting below already constrains the pod's allocation.
+     uses. `--dtype auto` lets vLLM pick bf16 here (same precision as
+     02's direct load); `--max-model-len 8192` caps KV cache so the
+     model fits comfortably in a 50% GPU fraction. Don't set
+     `--gpu-memory-utilization` here — RunAI's GPU fraction setting
+     below already constrains the pod's allocation.
+
+     > **Save GPU when you can — quantize.** A 7B model in bf16 at
+     > 50% of an 80 GB card has plenty of headroom, so this
+     > walkthrough doesn't bother. But the moment you move to 14B,
+     > 32B, 70B+, or want to stack multiple endpoints on one GPU,
+     > quantization is the lever that buys you back the headroom.
+     > Two routes, both supported by vLLM:
+     >
+     > - **`--quantization bitsandbytes --load-format bitsandbytes`**
+     >   — works on any HuggingFace model, no special build required.
+     >   Trades a small amount of accuracy and throughput for
+     >   ~2× memory savings. Useful when no quantized build exists
+     >   for the model you want.
+     > - **`--quantization awq_marlin --dtype half`** — requires a
+     >   pre-quantized AWQ build of the model (e.g.
+     >   `Qwen/Qwen2.5-72B-Instruct-AWQ`,
+     >   `QuantTrio/Qwen3-VL-32B-Instruct-AWQ`). Faster and more
+     >   accurate than bitsandbytes when the build exists. The OCR
+     >   app's shared endpoint runs this way at 75% GPU.
+     >
+     > See [`rag_app/docs/deploy-vllm.md`](../rag_app/docs/deploy-vllm.md)
+     > for the full table of model + flag combinations the rag_app
+     > has tested. For the conceptual side — what bf16 vs int8 vs
+     > int4 actually does to a model and when each makes sense —
+     > the ML-X Nexus has a primer:
+     > [Quantization and Precision](https://uw-madison-datascience.github.io/ML-X-Nexus/Learn/Notebooks/Quantization-and-Precision.html).
 
    - **Environment variables:**
 
