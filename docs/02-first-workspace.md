@@ -76,9 +76,7 @@ it, talk to cluster admin.
      | `HF_HUB_OFFLINE` | `1` | Forbid network downloads. If the model isn't in the cache, you get a fast, loud error instead of a silent multi-GB download to ephemeral disk that vanishes on restart. |
 
           
-   - **Set the container's working directory:** *(leave empty)* — the
-     args above use absolute paths everywhere, so there's no working
-     directory to set.
+   - **Set the container's working directory:** *(leave empty)* 
      
 8. **Compute resources:**
    - **GPU devices:** `1`
