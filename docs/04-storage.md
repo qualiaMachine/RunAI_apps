@@ -3,8 +3,7 @@
 > **Step 4** in the [New User Guide](../README.md#new-user-guide). Read [00 Overview](00-overview.md)
 > first if "Data Source vs Data Volume" doesn't ring a bell.
 
-Storage is where new users get the most lost — RunAI exposes several
-overlapping primitives, and the right one depends on how long the data
+RunAI exposes several overlapping primitives, and the right one depends on how long the data
 needs to live and who else needs to read it. The good news is that
 most users on this cluster are covered by the auto-mounted ~30 GB
 user volume that ships with every project: notebooks, intermediate
