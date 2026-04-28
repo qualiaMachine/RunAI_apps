@@ -128,17 +128,23 @@ deployment guides.
 > Browser uploads start choking around a few GB; for anything
 > bigger, or for a dataset you need shared across multiple
 > workloads, use a Data Source — see [04 Storage](04-storage.md).
+> Before that though, run `df -h` from a Jupyter terminal: every
+> project on this cluster auto-mounts a ~30 GB user volume on top
+> of the inline `/work` volume you created above, and it covers most
+> notebook-scale work without any setup. [04 Storage](04-storage.md)
+> Step A shows how to use it.
 >
 > **Heads up — what happens if you delete the workspace.** The
 > `/work` volume here was created inline as part of *this* workspace,
 > so when the workspace gets deleted the volume goes with it (and
-> anything you dropped into `/work` is gone). To make data survive
-> workspace deletion — i.e., live independently and be reusable from
-> a future workspace — you have to register it as a standalone
-> **Data Source** in your project. [04 Storage](04-storage.md)
-> walks through that exact promotion: workspace creates a PVC,
-> register it as a Data Source, optionally promote to a cluster-wide
-> Data Volume.
+> anything you dropped into `/work` is gone). The auto-mounted user
+> volume mentioned just above is project-scoped and survives
+> workspace deletion, so for anything you'd like to keep across a
+> delete-and-recreate cycle, write it there instead — or register a
+> standalone **Data Source** in your project. [04 Storage](04-storage.md)
+> walks through both options: use the auto-mounted volume in Step A,
+> or in Step B–D create a PVC, register it as a Data Source, and
+> optionally promote it to a cluster-wide Data Volume.
 
 ## Step C. Load a shared model and generate
 

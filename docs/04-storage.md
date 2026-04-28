@@ -5,12 +5,16 @@
 
 Storage is where new users get the most lost — RunAI exposes several
 overlapping primitives, and the right one depends on how long the data
-needs to live and who else needs to read it. This doc walks you through
-the spectrum hands-on: you'll create a PVC the reliable way (as part
-of a workspace, so it actually binds), populate it, register it as a
-shareable **Data Source**, and finally promote it to a cluster-shared
-**Data Volume**. By the end you'll have felt the difference between
-the three concepts instead of just read about them.
+needs to live and who else needs to read it. The good news is that
+most users on this cluster are covered by the auto-mounted ~30 GB
+user volume that ships with every project: notebooks, intermediate
+output, small datasets all just land on it without any setup. This
+doc walks you through that default first, then — only if you need
+more — through creating a larger PVC inline in a workspace,
+registering it as a shareable **Data Source**, and finally promoting
+it to a cluster-shared **Data Volume**. By the end you'll have felt
+the difference between the three concepts instead of just read about
+them.
 
 ## The three time horizons
 
@@ -20,40 +24,94 @@ to set up and the easiest to clean up.
 | Horizon | What it is | Survives... | When to use |
 |---------|------------|-------------|-------------|
 | **Ephemeral** | The pod's own filesystem (no PVC attached) | The current pod only — gone on restart | Cache files, scratch output you'll re-derive, anything you don't care about |
-| **Project** | A **PVC Data Source** (or NFS Data Source) attached to your workloads | Workspace restarts and deletion; lives until you delete the Data Source | Notebooks, in-progress datasets, model output, anything one project needs across multiple workloads |
+| **Project** | A **PVC Data Source** (or NFS Data Source) attached to your workloads. Includes the auto-mounted ~30 GB user volume that ships with every project. | Workspace restarts and deletion; lives until you delete the Data Source | Notebooks, in-progress datasets, model output, anything one project needs across multiple workloads |
 | **Cluster-shared** | A **Data Volume** wrapped around a populated PVC, scoped to other projects/departments | The origin project keeps RW; sharers mount RO | Pre-trained model weights, shared reference datasets, anything multiple projects read |
 
 Most pilots only need the middle tier. The cluster-shared tier comes up
 when you have something genuinely worth sharing (a 20 GB model
 download, a curated corpus that took a week to build).
 
-## Hands-on: workspace-PVC → Data Source → Data Volume
+> **Heads up — you already have ~30 GB.** Every project on this cluster
+> ships with a dynamically-mounted user volume of about 30 GB. It
+> attaches on its own when a workload starts; you don't pick it from a
+> dropdown. Step A below uses it directly. Skip ahead to Step B only
+> when you've outgrown 30 GB or need to share storage across projects.
+
+## Hands-on: user volume → workspace PVC → Data Source → Data Volume
 
 This walkthrough takes ~15 minutes if your access is already set up
 (see [01 Access](01-access.md)). At the end you'll have:
 
-1. A workspace whose attached PVC has a file you wrote
-2. That PVC registered as a **Data Source** in your project, attachable
+1. Found the auto-mounted ~30 GB user volume and written a file to it
+2. Created a *bigger* PVC inline in a sandbox workspace, in case 30 GB
+   isn't enough
+3. Registered that PVC as a **Data Source** in your project, attachable
    to any other workload by name
-3. A **Data Volume** wrapped around it that any other project on the
-   cluster could mount read-only
+4. Wrapped it in a **Data Volume** that any other project on the cluster
+   could mount read-only
 
-You can keep these as your sandbox or delete them — they're cheap
-either way.
+Most readers only need Step A. Steps B–E exist so the next time
+someone hands you a 200 GB dataset you know what to reach for.
 
-### Why the order matters on this cluster
+### Step A. Use the auto-mounted user volume
 
-You *could* try to create the Data Source first (RunAI's UI lets you).
-But the cluster's StorageClass uses `WaitForFirstConsumer` binding
-mode, which means a freshly-provisioned PVC stays in `Pending` state
-until a pod actually mounts it. Wrapping a `Pending` PVC in a Data
-Volume fails with `OriginalPvcNotBound` (see
+Every project on this cluster has a dynamically-attached user volume
+of about 30 GB. It shows up automatically the first time you start a
+workload — you don't create a PVC, register a Data Source, or click
+**+ Volume**. This is the path of least resistance for notebooks,
+small datasets, and ad-hoc files.
+
+1. Spin up the workspace from
+   [02 First workspace](02-first-workspace.md) if you don't already
+   have one running. The Data & storage section can stay empty — the
+   user volume attaches on its own.
+2. Open Jupyter > File > New > Terminal.
+3. See where it landed:
+   ```
+   df -h
+   ```
+   Look for an entry sized at roughly 30 GB that isn't `/dev/shm`,
+   `/tmp`, or a system filesystem. That path is your user volume; on
+   this cluster it's typically mounted at the workspace's working
+   directory (e.g. `/work`) but the exact path is set per-project, so
+   trust `df -h` over any path you read in another doc.
+4. Write a file to it:
+   ```
+   cd <your-user-volume-path>
+   echo "first words on cluster storage" > hello.txt
+   ```
+5. **Stop** the workspace from the RunAI UI, then **Start** it again.
+   Re-open Jupyter > Terminal, `cat <path>/hello.txt` — still there.
+   The user volume is project-scoped, so it survives workspace Stop /
+   Start *and* full workspace deletion: a future workspace in the
+   same project will mount the same volume with the same contents.
+
+For most pilots that's the entire storage story. The 1 TB high-perf
+NVMe drives currently being procured will give you a similar
+auto-mounted experience at a much larger size; until then, 30 GB
+covers notebooks, intermediate outputs, small corpora, and most
+workshop-scale work.
+
+Move on to Step B only if you've answered yes to one of:
+
+- "I need more than 30 GB and the 1 TB drives aren't here yet."
+- "I want this storage shareable across projects, not just inside mine."
+- "I need to learn the Data Source / Data Volume model because I'll be
+  setting up storage for someone else."
+
+### Why the order matters in Steps B–E
+
+You *could* try to create a Data Source directly (RunAI's UI lets
+you). But the cluster's StorageClass uses `WaitForFirstConsumer`
+binding mode, which means a freshly-provisioned PVC stays in
+`Pending` state until a pod actually mounts it. Wrapping a `Pending`
+PVC in a Data Volume fails with `OriginalPvcNotBound` (see
 [`rag_app/docs/troubleshooting.md`](../rag_app/docs/troubleshooting.md#pvc-wont-bind--originalpvcnotbound-error)).
-The walkthrough below sidesteps that entirely by creating the PVC as
-part of a workspace, so the workspace's pod is already there to
-consume it the moment it exists. Binding is automatic.
+The walkthrough below sidesteps that by creating the PVC as part of
+a workspace, so the workspace's pod is already there to consume it
+the moment it exists. Binding is automatic.
 
-### Step A. Create a workspace with a fresh PVC
+### Step B. Create a workspace with a larger inline PVC
 
 1. **Workloads** > **+ NEW WORKLOAD** > **Workspace**
 2. **Project:** your project
@@ -76,7 +134,8 @@ consume it the moment it exists. Binding is automatic.
      for a single-node sanity check but pins the data to one node.
    - **Access mode:** Read-write by many nodes (RWX) if available,
      otherwise Read-write by one node (RWO).
-   - **Claim size:** `5Gi`
+   - **Claim size:** pick something larger than the 30 GB you'd
+     get for free from Step A. `100Gi` is a reasonable sandbox.
    - **Volume mode:** Filesystem
    - **Container path:** `/sandbox`
    - **Volume persistency:** Persistent *(survives Stop/Start)*
@@ -85,24 +144,17 @@ consume it the moment it exists. Binding is automatic.
 Wait for the workspace to flip to `Running`. The PVC binds the moment
 the pod schedules — no `Pending` purgatory, no `OriginalPvcNotBound`.
 
-### Step B. Open Jupyter, write a file, observe persistence
+Open Jupyter > Terminal and confirm both volumes are visible: `df -h`
+will show the 30 GB user volume from Step A *and* your new `/sandbox`
+PVC side by side. Drop a file on the new PVC so you can prove the
+later steps actually mounted it:
 
-1. Click the workspace name → **Jupyter**.
-2. File > New > Terminal.
-3. Write to `/sandbox`:
-   ```
-   cd /sandbox
-   echo "first words on cluster storage" > hello.txt
-   ls -la
-   ```
-4. **Stop** the workspace from the RunAI UI, then **Start** it again.
-   Re-open Jupyter, re-open the terminal, `cat /sandbox/hello.txt` —
-   still there. That's "Volume persistency: Persistent" doing its
-   job; the PVC and its contents survive Stop/Start cycles.
+```
+echo "first words on cluster storage" > /sandbox/hello.txt
+```
 
-But the PVC right now is tied to *this workspace's lifecycle*. If you
-delete the workspace, the inline PVC goes with it. The next two steps
-fix that.
+This larger PVC is still tied to *this workspace's lifecycle*. If you
+delete the workspace, the inline PVC goes with it. Step C fixes that.
 
 ### Step C. Register the PVC as a Data Source
 
@@ -127,7 +179,7 @@ without losing the data.
 3. **CREATE DATA SOURCE**.
 
 Status should flip to "No issues found" immediately — the PVC was
-already bound back in Step A.
+already bound back in Step B.
 
 You can verify by creating a *second* workspace, attaching the
 `<your-username>-sandbox` Data Source under Data & storage, and
@@ -195,12 +247,30 @@ staged location. The OCR app's
 the three concrete paths (PoC drag-drop, NFS Data Source, PVC + cloud
 staging) including the firewall reality check.
 
+### "My data already lives on ResearchDrive (or another campus NFS share)."
+
+You don't have to copy it onto the cluster. Ask the cluster admin to
+mount the share as an NFS **Data Source** in your project — the
+firewall path between the cluster and ResearchDrive is open, so it's
+a configuration step on their end, not a network exception request.
+You'll get a Data Source you can attach to any workload at a mount
+path of your choice, and writes from your workloads land directly on
+ResearchDrive.
+
+Caveat: NFS over the network is much slower than the cluster's local
+NVMe. Fine for "I want my training script to read straight from where
+my data already is" or for staging output that has to end up on
+ResearchDrive anyway. Not the right pick for hot loops over millions
+of small files, or for vector indexes you'll re-query thousands of
+times — for those, copy into a project PVC (Step B above) or wait for
+the 1 TB NVMe drives that are on order.
+
 ### "I need a 20 GB model that I'd like to share with other groups."
 
 Use [`rag_app/docs/setup-shared-models.md`](../rag_app/docs/setup-shared-models.md).
 That doc creates a writable PVC in a dedicated `shared-models`
 project, populates it with a model download script, and shares it as
-a cluster-wide Data Volume — the same pattern as Steps A–D, applied
+a cluster-wide Data Volume — the same pattern as Steps B–D, applied
 to a real artifact.
 
 ### "I'm running OCR over a corpus of PDFs."
@@ -217,24 +287,40 @@ Project-tier PVC. The [RAG app's setup-workspace
 doc](../rag_app/docs/setup-workspace.md) creates one and shows how
 to build the index inside it.
 
-## Questions to ask your cluster admin once
+## What we already know about this cluster
 
-If you're going to be doing storage work regularly, get these answers
-once and you'll rarely need to bother them again:
+A handful of storage questions come up over and over. Here's what's
+already settled on `doit-ai-cluster` so you don't have to re-ask:
 
-1. **What StorageClasses are installed?** Which support
-   `ReadWriteMany` (RWX)? This is the dropdown that appears when
-   you click + Volume. Without an RWX class, only one workload at
-   a time can mount the PVC RW.
-2. **Is the NFS Data Source type usable?** Depends on whether an NFS
-   CSI driver is installed or the in-tree NFS volume support is
-   available, and whether cluster nodes can route to your specific
-   NFS server (firewalls!).
-3. **Are S3 Data Sources enabled?** If yes, you can mount cloud
+- **Per-user storage default.** Every project auto-mounts a ~30 GB
+  user volume on workload start (Step A above). No selection step.
+- **High-perf bigger storage.** 1 TB NVMe drives are on order; until
+  they arrive, "I need 200 GB of fast scratch" doesn't have a clean
+  answer beyond "create a larger inline PVC and accept the
+  StorageClass you get."
+- **NFS to ResearchDrive (and similar campus shares).** Available on
+  request from the cluster admin. The firewall path is open, so it's
+  a config step on their side rather than a DoIT-wide exception.
+  Slower than local NVMe — see the ResearchDrive recipe above for
+  when it's the right pick.
+- **Data Volumes feature.** Enabled — that's how `shared-models`
+  works for everyone today.
+
+## Questions still worth asking your cluster admin once
+
+A few items aren't fully nailed down and only matter once you start
+doing serious storage work. Get these answers once and you'll rarely
+need to bother them again:
+
+1. **What StorageClasses are installed, and which support
+   `ReadWriteMany` (RWX)?** This is the dropdown that appears when
+   you click + Volume in Step B. Without an RWX class, only one
+   workload at a time can mount your PVC RW.
+2. **Are S3 Data Sources enabled?** If yes, you can mount cloud
    buckets directly without a populate-then-pull step.
-4. **Is the Data Volumes feature enabled?** It's per-cluster
-   configuration. Without it, "share across projects" requires
-   workarounds.
+3. **For non-ResearchDrive NFS shares — are they reachable?** The
+   ResearchDrive path is open by default. Other lab or department NFS
+   exports may still need a per-host firewall exception.
 
 ## Cleanup
 
