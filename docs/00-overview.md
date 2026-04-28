@@ -82,21 +82,7 @@ re-downloading it.
 > [Storage doc](04-storage.md) walks through the difference with a
 > hands-on example.
 
-## What lives in this repo
 
-This repo is a growing collection of example use cases — PoCs Chris
-is building out as the pilot uncovers what labs actually need. Use
-them as patterns to crib from, not finished products:
-
-| Path | What it is | When you'd use it |
-|------|------------|-------------------|
-| [`ocr_app/`](../ocr_app/README.md) | Vision-language document extraction (Qwen3-VL-32B). Turns PDFs/scans into structured JSON. | Grant administration, archival corpora, library digitization, anything where layout matters |
-| [`rag_app/`](../rag_app/README.md) | Retrieval-augmented chatbot over a curated corpus (Qwen 7B/14B/72B). | Q&A over institutional knowledge bases, research literature search, "ChatGPT for our docs" |
-| [`scripts/`](../scripts) | Shared utilities used by both apps. | You usually don't touch this directly. |
-
-You don't have to use these — they're examples of the *pattern*. If
-you're building your own workload, treat the
-`*/docs/setup-workspace.md` files as the closest things to a template.
 
 ## Next
 

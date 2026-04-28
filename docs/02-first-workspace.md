@@ -19,9 +19,7 @@ You need a project on the cluster (see [01 Access](01-access.md) once
 that doc exists; for now ask your DoIT contact). You also need the
 `shared-models` Data Volume to be available on the cluster — confirm
 with `Data & Storage > Data Volumes` in the RunAI UI. If you don't see
-it, your cluster hasn't been provisioned with shared models yet; see
-[`rag_app/docs/setup-shared-models.md`](../rag_app/docs/setup-shared-models.md)
-*(advanced)*.
+it, talk to cluster admin.
 
 ## Step A. Create the workspace
 
@@ -41,9 +39,6 @@ it, your cluster hasn't been provisioned with shared models yet; see
      ```
      -c "curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp; mv /tmp/RunAI_apps-main /tmp/RunAI_apps 2>/dev/null; ln -sf /tmp/RunAI_apps /work/repo; pip install --no-cache-dir transformers accelerate; jupyter-lab --ip=0.0.0.0 --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/work"
      ```
-   - **Set the container's working directory:** *(leave empty)* — the
-     args above use absolute paths everywhere, so there's no working
-     directory to set.
 
      Yes, this is annoying. Most of these are RunAI / proxy /
      headless-container glue that has nothing to do with your actual
@@ -71,7 +66,7 @@ it, your cluster hasn't been provisioned with shared models yet; see
      | `--ServerApp.token=''` | Disable Jupyter's own login token — RunAI's portal already authenticated you, and a token here would just block the proxy. |
      | `--ServerApp.allow_origin='*'` | Allow cross-origin requests. RunAI's proxy and Jupyter end up on different origins; without this, the browser blocks the websocket. |
      | `--notebook-dir=/work` | Open Jupyter's file browser at `/work` so you land directly on the persistent volume (where the cloned repo lives). |
-
+     
    - **Environment variables:**
 
      | Name | Value | Why |
@@ -79,6 +74,10 @@ it, your cluster hasn't been provisioned with shared models yet; see
      | `HF_HOME` | `/models/.cache/huggingface` | HuggingFace cache root. Default is `~/.cache/huggingface` inside the pod's ephemeral disk; pointing it at the mounted `shared-models` volume is what makes `transformers.from_pretrained(...)` find the pre-cached weights. |
      | `HF_HUB_CACHE` | `/models/.cache/huggingface` | More specific override for the hub-cache path used by `huggingface_hub`. Different transformers versions respect different vars; setting both `HF_HOME` and `HF_HUB_CACHE` is belt-and-suspenders so every code path lands at the same directory. |
      | `HF_HUB_OFFLINE` | `1` | Forbid network downloads. If the model isn't in the cache, you get a fast, loud error instead of a silent multi-GB download to ephemeral disk that vanishes on restart. |
+
+          
+   - **Set the container's working directory:** *(leave empty)* 
+     
 8. **Compute resources:**
    - **GPU devices:** `1`
    - **GPU fractioning:** Enabled — `25%` (≈20 GB on an 80 GB H100,
@@ -237,23 +236,6 @@ A good way to internalize the pattern:
 Once you've done that successfully, you can build any new workload
 by editing `runtime args + image + GPU + Data Sources` and leaving
 the rest of the boilerplate alone. That's the whole job.
-
-## What this exercise does and doesn't show
-
-**Does:**
-- Cluster scheduling actually works for your project
-- The `shared-models` Data Volume mounts correctly read-only
-- `HF_HUB_OFFLINE=1` prevents accidental downloads
-- Your account has GPU quota
-
-**Doesn't:**
-- Test multi-user concurrency or share the loaded model with anyone
-  else — for that, the next step is to host it as an endpoint. See
-  [03 Share a Model as a vLLM Endpoint](03-share-as-endpoint.md)
-- Demonstrate sharing data with other projects (that's the
-  [04 Storage](04-storage.md) walkthrough)
-- Cover anything OCR-specific (vision-language models, chunking,
-  prompts — see [`ocr_app/README.md`](../ocr_app/README.md))
 
 ## Next
 

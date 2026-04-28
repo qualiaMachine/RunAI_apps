@@ -33,7 +33,7 @@ URL, log in."
 - Access to the cluster-wide **`shared-models`** Data Volume, which
   holds pre-cached weights for the models the example apps use (Qwen
   series, Jina V4, Qwen3-VL). You mount this read-only into your
-  workloads — see [04 Storage](04-storage.md).
+  workloads.
 - A GPU quota. Whatever Chris/Mike assigned at onboarding determines
   how many GPUs (or fractions) your workloads can request
   concurrently.
