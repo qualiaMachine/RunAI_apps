@@ -23,8 +23,9 @@ By the end of this doc you'll have:
 - A browser-reachable URL (over campus VPN) you can `curl` and that an
   internal site can call from JavaScript
 - A clear picture of what changes if you later need the same endpoint
-  reachable from off-VPN (short version: talk to your cluster admin
-  about the firewall — it's not self-serve)
+  reachable from off-VPN — cross-VLAN within the DoIT data center is a
+  per-workload firewall conversation with the cluster admin;
+  public-internet exposure is a separate, much bigger lift
 
 ## Workspace or Inference?
 
@@ -215,25 +216,34 @@ docs." Plug retrieval in by importing `KohakuRAG` (see
 [`rag_app/`](../rag_app/README.md)) inside `/chat` and embedding+searching
 your corpus before forwarding to the LLM.
 
-## Step E. Thinking about going public
+## Step E. Reaching it from off-VPN
 
 A Workspace proxy URL is **only** reachable through the RunAI portal,
-which lives behind the campus VPN. To expose the same FastAPI to
-off-VPN users, two things have to change:
+which lives behind the campus VPN. There are two distinct "off-VPN"
+cases, and they have different cost profiles:
 
-1. **Workload type → Inference.** Inference workloads on this cluster
-   get a Knative HTTPS route that *can* be reached from outside the
-   data center. The cluster admin has validated this path (the OCR
-   `qwen3--vl--32b--instruct-awq` shared endpoint and the DAPIR PoC
-   both use it), but it's a per-workload firewall conversation, not a
-   self-serve checkbox. Email Chris/Mike with the workload name and
-   the source IPs/networks that need access.
-2. **Auth.** The `Auth: Internal` setting on Inference workloads
-   blocks external ingress entirely, which is the right default. Once
-   you do open it up, the FastAPI itself needs to enforce auth — at
-   minimum a static API key checked in a `Depends(...)`, ideally OAuth
-   / institutional SSO if real users will hit it. The example app
-   ships with **no auth**.
+1. **Another DoIT-data-center service needs to call it (cross-VLAN,
+   still on DoIT network).** Solved problem on this cluster — the
+   shared OCR endpoint (`qwen3--vl--32b--instruct-awq`) and the DAPIR
+   PoC both work this way. Redeploy the FastAPI as an **Inference**
+   workload (it gets a Knative HTTPS route) and ask the cluster admin
+   to open the cross-VLAN path on the Palo Alto firewall. Per-workload
+   firewall conversation, not a self-serve checkbox; email Chris/Mike
+   with the workload name and the source VLAN/IPs that need access.
+2. **Public-internet exposure (off-DoIT-network, e.g. a website
+   anyone on the internet can load).** Not a paved path on the current
+   pilot. Everything in (1) plus an institutional ingress story —
+   public DNS, TLS cert, WAF, and whatever review process applies to
+   externally-hosted UW services. If this is what you actually need,
+   start that conversation early; don't assume the cross-VLAN recipe
+   transfers.
+
+Either way, **`Auth: Internal` on the Inference workload blocks
+external ingress entirely, which is the right default.** Once you do
+open it up, the FastAPI itself becomes the gatekeeper — at minimum a
+static API key checked in a `Depends(...)`, ideally OAuth /
+institutional SSO if real users will hit it. The example app ships
+with **no auth**.
 
 Other things worth getting right before exposing publicly:
 
@@ -273,5 +283,5 @@ on the 2-GPU pilot.
 - Add structured outputs: vLLM supports JSON-schema-constrained
   decoding via the OpenAI client's `response_format` argument — handy
   if downstream code is parsing the answer.
-- Promote to Inference + external ingress once the use case is real
-  (see [Step E](#step-e-thinking-about-going-public)).
+- Promote to Inference + cross-VLAN ingress once the use case is real
+  (see [Step E](#step-e-reaching-it-from-off-vpn)).
