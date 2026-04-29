@@ -82,9 +82,15 @@ tool for the job.
 
 ## Next
 
-This is the end of the new-user guide. From here you go into one of
-the app READMEs — [`ocr_app/README.md`](../ocr_app/README.md) for
+This is the end of the core new-user guide. From here you go into one
+of the app READMEs — [`ocr_app/README.md`](../ocr_app/README.md) for
 document extraction or [`rag_app/README.md`](../rag_app/README.md)
 for retrieval-augmented chat — and follow that app's deployment
 steps. Both reference back into this guide for the underlying
 concepts when something looks new.
+
+If you're building something *between* a notebook and a full app —
+e.g. a small HTTP API that a website or another service will call —
+[06 Build a FastAPI app](06-fastapi-app.md) is an optional follow-on
+that walks through the deployment shape (Workspace + proxy URL) with
+a working reference app you can `curl` end-to-end.

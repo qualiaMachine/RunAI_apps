@@ -16,6 +16,7 @@ High-signal pairings to double-check:
 | Model name defaults (`VLM_MODEL`, `LLM_MODEL`) | The relevant `docs/*.md` env-var table and `.env.example` |
 | `rag_app/app.py`, `rag_app/scripts/*` | `rag_app/README.md` and matching `rag_app/docs/*.md` |
 | `scripts/*` at the repo root | Top-level `README.md` "Shared utilities" section |
+| `scripts/fastapi_example.py` | `docs/06-fastapi-app.md` (Step B arguments block, env-var table, endpoint table) |
 
 Anything in `rag_app/vendor/` is upstream — leave vendor docs alone.
 

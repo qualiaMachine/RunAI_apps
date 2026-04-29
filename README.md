@@ -19,6 +19,7 @@ ahead if you already have your bearings.
 | 03 | [Share a model as a vLLM endpoint](docs/03-share-as-endpoint.md) | You want to host a model once and have multiple users / workloads hit it via HTTP, instead of every user loading their own copy onto a GPU |
 | 04 | [Storage](docs/04-storage.md) | You need to know where data lives — short-term scratch through cluster-wide shared datasets — and how to get it from "a drive in my lab" to "mountable in a workload" |
 | 05 | [Examples](docs/05-examples.md) | You're ready to deploy something — pointers to the OCR pipeline, the RAG/chatbot, and the patterns to copy when building your own |
+| 06 | [Build a FastAPI app](docs/06-fastapi-app.md) | You want to expose a custom HTTP API on the cluster — the layer between a frontend (or external website) and the shared vLLM endpoints |
 
 The OCR-specific and RAG-specific deployment guides live in the app
 READMEs — [`ocr_app/README.md`](ocr_app/README.md) and
@@ -106,6 +107,7 @@ All apps use the same approach:
 |--------|---------|
 | `hardware_metrics.py` | GPU/energy profiling — VRAM, power draw, energy per request |
 | `provision_shared_models.py` | Download HuggingFace models to the shared PVC |
+| `fastapi_example.py` | Reference FastAPI app for the [06 FastAPI deployment doc](docs/06-fastapi-app.md) — proxies a chat completion to a vLLM workload |
 
 
 
