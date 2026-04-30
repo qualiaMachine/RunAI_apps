@@ -52,7 +52,7 @@ piece only matters for the second case.
 
 ## Step A. Re-deploy with External access
 
-If you already followed 03 and have `qwen-Qwen2.5--7B--Instruct`
+If you already followed 03 and have `qwen-qwen25--7b--instruct`
 running with Auth: Internal, the only field that needs to change is
 the endpoint access. **Stop** the workload, **Edit**, change Step 8
 of the 03 walkthrough:
@@ -80,7 +80,7 @@ access)** when you get to step 8.
 After the workload's pod becomes Ready (~30s on a warm image pull),
 the public URL appears in the RunAI UI:
 
-1. **Workloads** > `qwen-Qwen2.5--7B--Instruct` > the workload's
+1. **Workloads** > `qwen-qwen25--7b--instruct` > the workload's
    detail pane.
 2. Look for the **Connections** / **Endpoints** section (UI label
    varies by RunAI version) — it lists an `https://...` URL.
