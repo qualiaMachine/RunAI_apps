@@ -84,24 +84,30 @@ the public URL appears in the RunAI UI:
    detail pane.
 2. Look for the **Connections** / **Endpoints** section (UI label
    varies by RunAI version) — it lists an `https://...` URL.
-3. Copy the URL. The OpenAI-compatible API lives under `/v1`, so
-   the full base URL you'll hand to clients ends in `/v1`.
+3. Copy that URL. The UI shows the **base** only; the OpenAI-compatible
+   API lives under `/v1`, so the full base URL you'll hand to clients
+   is the UI URL with `/v1` appended.
 
-The URL follows the same path-based form Streamlit workloads use
-([rag_app/docs/deploy-streamlit.md](../rag_app/docs/deploy-streamlit.md)),
-minus the `proxy/<port>/` suffix because Inference workloads expose
-their container port directly:
-
-```
-https://<cluster-host>/<project>/<workload-name>/v1
-```
-
-**Worked example.** For project `jupyter-endemann01` on the
-`deepthought.doit.wisc.edu` cluster, the workload created in Step A
-gives:
+RunAI exposes Inference workloads via Knative-style FQDNs on this
+cluster — one subdomain per workload, derived from the workload name
+and the project namespace:
 
 ```
-https://deepthought.doit.wisc.edu/jupyter-endemann01/qwen-qwen25--7b--instruct/v1
+https://<workload-name>-runai-<project>.<cluster-host>
+```
+
+**Worked example.** For workload `qwen-qwen25--7b--instruct` in
+project `jupyter-endemann01` on the `deepthought.doit.wisc.edu`
+cluster, the UI shows:
+
+```
+https://qwen-qwen25--7b--instruct-runai-jupyter-endemann01.deepthought.doit.wisc.edu
+```
+
+…and the full base URL for the OpenAI API is therefore:
+
+```
+https://qwen-qwen25--7b--instruct-runai-jupyter-endemann01.deepthought.doit.wisc.edu/v1
 ```
 
 That's the URL you'll paste into the smoke tests below and into the
@@ -110,12 +116,6 @@ more times.
 
 > **If the URL the UI shows is `…svc.cluster.local…`**, the
 > workload is still on Auth: Internal — re-check Step A.
->
-> **If the UI shows a Knative-style FQDN** like
-> `https://qwen-qwen25--7b--instruct-runai-<project>.<cluster-host>/v1`
-> instead of the path-based form, that's also valid — RunAI's
-> ingress mode is cluster-config dependent. Use whichever form the
-> UI shows; everything below works the same either way.
 
 ## Step C. Smoke-test from your VPN'd laptop
 
@@ -125,12 +125,13 @@ outside the cluster).
 
 ```bash
 # Replace the project segment with your own (e.g. jupyter-yourname)
-export VLLM_URL="https://deepthought.doit.wisc.edu/jupyter-endemann01/qwen-qwen25--7b--instruct/v1"
+export VLLM_URL="https://qwen-qwen25--7b--instruct-runai-jupyter-endemann01.deepthought.doit.wisc.edu/v1"
 
-# 1. Endpoint is alive and serving the expected model
-curl -s "$VLLM_URL/models" | python -m json.tool
+# 1. Endpoint is alive and serving the expected model — should print: Qwen/Qwen2.5-7B-Instruct
+curl -s "$VLLM_URL/models" \
+  | python -c "import sys, json; print(json.load(sys.stdin)['data'][0]['id'])"
 
-# 2. Chat completion works
+# 2. Chat completion works — should print: OK
 curl -s "$VLLM_URL/chat/completions" \
   -H "Content-Type: application/json" \
   -d '{
@@ -138,14 +139,15 @@ curl -s "$VLLM_URL/chat/completions" \
     "messages": [{"role": "user", "content": "Reply with just the word OK."}],
     "max_tokens": 8,
     "temperature": 0
-  }' | python -m json.tool
+  }' \
+  | python -c "import sys, json; print(json.load(sys.stdin)['choices'][0]['message']['content'])"
 ```
 
-Expected:
-- `/models` returns a JSON object whose `data[0].id` is
-  `Qwen/Qwen2.5-7B-Instruct`
-- `/chat/completions` returns a `choices[0].message.content` of `OK`
-  (or close to it)
+Both commands extract just the field that matters with a one-line
+Python parse, so a healthy run prints two short strings and nothing
+else. To see the full JSON instead — useful when something looks
+off — drop the `python -c` pipe and use `curl -i` so you can also
+inspect status code and headers.
 
 If you'd rather use the OpenAI Python client (this is what Denodo and
 most other consumers will do under the hood):
@@ -154,7 +156,7 @@ most other consumers will do under the hood):
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="https://deepthought.doit.wisc.edu/jupyter-endemann01/qwen-qwen25--7b--instruct/v1",
+    base_url="https://qwen-qwen25--7b--instruct-runai-jupyter-endemann01.deepthought.doit.wisc.edu/v1",
     api_key="not-used",
 )
 resp = client.chat.completions.create(
@@ -163,7 +165,7 @@ resp = client.chat.completions.create(
     max_tokens=8,
     temperature=0,
 )
-print(resp.choices[0].message.content)
+print(resp.choices[0].message.content)  # -> OK
 ```
 
 If both pass, the cluster-side work is done. The endpoint will accept
@@ -175,8 +177,9 @@ calls from any client the firewall lets through.
 |---------|--------------|
 | `curl: (6) Could not resolve host` | Not on VPN, or DNS not refreshed after VPN connect. Reconnect the VPN client. |
 | `curl: (7) Failed to connect ... 443` | DNS resolved but VPN policy doesn't permit your laptop to reach the cluster ingress. Contact Mike. |
-| HTTP 503 / "no healthy upstream" | Workload pod hasn't passed readiness yet. Watch the **Pods** tab on the workload until it's Ready, then retry. |
-| HTTP 404 on `/v1/models` | You copied the URL without `/v1`, or the workload is exposing a non-vLLM path. Re-check Step B. |
+| HTTP 200 with an HTML body (RunAI UI's `<!DOCTYPE html>` shell, often ~2 KB, `Content-Type: text/html`) | URL is wrong — you've hit the cluster's UI hostname instead of the workload's Knative subdomain. Re-copy the URL from the workload's Connections panel; the right form is `https://<workload>-runai-<project>.<cluster-host>`. |
+| HTTP 503 / "no healthy upstream" | Workload pod hasn't passed readiness yet, or it's BackOff-restarting. Watch the **Pods** tab on the workload; if it's restart-looping, open the `user-container` logs to see why vLLM is exiting. |
+| HTTP 404 on `/v1/models` | You copied the UI URL but didn't append `/v1`. The OpenAI API is at `<base>/v1`. |
 | HTTP 200 on `/models` but `/chat/completions` returns model-not-found | The `model` field in the request body must exactly match the HF model ID vLLM was launched with — check the args in Step A and the `data[0].id` from `/models`. |
 
 ## Step D. Network access for a non-VPN caller (cluster admin)
@@ -192,7 +195,7 @@ of information so they can add a Palo Alto rule without a back-and-forth:
 | Item | Where you get it | Example |
 |------|------------------|---------|
 | **Source host(s)** | Ask the consuming team (e.g. Brad / Eric for Denodo) for the IP or subnet of the server that will call the endpoint. | `10.x.y.z` or `10.x.y.0/24` |
-| **Destination URL** | The URL from Step B. | `https://deepthought.doit.wisc.edu/jupyter-endemann01/qwen-qwen25--7b--instruct/v1` |
+| **Destination URL** | The URL from Step B. | `https://qwen-qwen25--7b--instruct-runai-jupyter-endemann01.deepthought.doit.wisc.edu/v1` |
 | **Destination port** | Always 443 for the public URL. | `443` |
 | **Why** | One-line reason so the rule is auditable. | "Denodo PoC — DAPIR LLM endpoint, public data only" |
 
