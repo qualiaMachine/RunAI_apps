@@ -19,7 +19,7 @@ notebook in a workspace with **zero GPU** that calls the endpoint
 instead of loading weights.
 
 By the end you'll have:
-- A `qwen-Qwen2.5--7B--Instruct` Inference workload exposing an
+- A `qwen-qwen25--7b--instruct` Inference workload exposing an
   OpenAI-compatible HTTP endpoint
 - The same workspace from 02, now reconfigured to 0 GPU, with a
   notebook that gets the same answer by calling the endpoint
@@ -57,9 +57,9 @@ themselves. Picture a per-cluster catalog along the lines of:
 
 | Endpoint | Use case |
 |----------|----------|
-| `qwen-Qwen2.5--7B--Instruct` / `--14B--Instruct` / `--72B--Instruct` | General-purpose chat at three size/cost points |
-| `qwen-Qwen3--VL--32B--Instruct--AWQ` | Vision-language extraction (the OCR app already shares one of these) |
-| `meta--Llama--3.1--8B--Instruct` / `--70B--Instruct` | Llama-family alternative for labs that prefer it |
+| `qwen-qwen25--7b--instruct` / `--14b--instruct` / `--72b--instruct` | General-purpose chat at three size/cost points |
+| `qwen-qwen3--vl--32b--instruct--awq` | Vision-language extraction (the OCR app already shares one of these) |
+| `meta--llama-llama--31--8b--instruct` / `--70b--instruct` | Llama-family alternative for labs that prefer it |
 | `bge--reranker--v2--m3` or similar | Cross-encoder reranker for RAG |
 | `jinaai--jina--embeddings--v4` | Multilingual embeddings (the RAG app already shares this) |
 
@@ -69,7 +69,7 @@ cluster-wide `shared-models` Data Volume so there's exactly one copy
 to maintain per model. A lab that wants to build a RAG over their
 papers wouldn't deploy any of these — they'd just point their
 notebook or app at
-`http://qwen-Qwen2.5--72B--Instruct.runai-shared-models.svc.cluster.local/v1`
+`http://qwen-qwen25--72b--instruct.runai-shared-models.svc.cluster.local/v1`
 and start asking questions.
 
 We're not there yet — at 2 GPUs, hosting more than two or three
@@ -90,17 +90,18 @@ In the RunAI UI:
    and command, not using a built-in template).
 3. Basic settings:
    - **Project:** your project
-   - **Workload name:** `qwen-Qwen2.5--7B--Instruct`
+   - **Workload name:** `qwen-qwen25--7b--instruct`
 
-   > **Naming convention.** RunAI workload names can't contain `/`,
-   > so the convention used elsewhere in this repo (and what the
-   > shared OCR endpoint follows) is: replace `/` with `-` and every
-   > existing `-` with `--`. So the HuggingFace ID
-   > `Qwen/Qwen2.5-7B-Instruct` becomes the workload name
-   > `qwen-Qwen2.5--7B--Instruct` — fully reversible, lowercases the
-   > org prefix (Kubernetes service names have to start with a lowercase
-   > letter), and preserves the model's own capitalization so it's
-   > obvious which model the workload is hosting.
+   > **Naming convention.** RunAI workload names must be all
+   > lowercase and can't contain `/` or `.` (Kubernetes service
+   > names inherit those restrictions). The convention used
+   > elsewhere in this repo is: lowercase everything, drop periods,
+   > replace `/` with `-`, and replace every existing `-` with `--`
+   > so the original `/` boundary stays distinguishable. So the
+   > HuggingFace ID `Qwen/Qwen2.5-7B-Instruct` becomes the workload
+   > name `qwen-qwen25--7b--instruct` — readable as
+   > `qwen` / `qwen25-7b-instruct` and reversible enough to figure
+   > out which model the workload is hosting.
 4. **Environment image** — Custom:
    - **Image URL:** `vllm/vllm-openai:latest` — same image every
      other deployment in this repo uses
@@ -203,7 +204,7 @@ probe passes.
 The endpoint is reachable from any workload in the same project at:
 
 ```
-http://qwen-Qwen2.5--7B--Instruct.runai-<your-project>.svc.cluster.local/v1
+http://qwen-qwen25--7b--instruct.runai-<your-project>.svc.cluster.local/v1
 ```
 
 It speaks the OpenAI Chat Completions API, so any OpenAI-compatible
@@ -254,7 +255,7 @@ answer, but the model lives somewhere else now.
 import os, urllib.request, json
 
 PROJECT = os.environ["RUNAI_PROJECT"]   # set automatically by RunAI
-BASE_URL = f"http://qwen-Qwen2.5--7B--Instruct.runai-{PROJECT}.svc.cluster.local/v1"
+BASE_URL = f"http://qwen-qwen25--7b--instruct.runai-{PROJECT}.svc.cluster.local/v1"
 
 with urllib.request.urlopen(f"{BASE_URL}/models", timeout=10) as r:
     print(json.loads(r.read())["data"][0]["id"])
@@ -262,7 +263,7 @@ with urllib.request.urlopen(f"{BASE_URL}/models", timeout=10) as r:
 
 You should see `Qwen/Qwen2.5-7B-Instruct`. If the request hangs or
 returns 404, the workload isn't healthy yet — check the **Pods** tab
-on `qwen-Qwen2.5--7B--Instruct` and wait for readiness.
+on `qwen-qwen25--7b--instruct` and wait for readiness.
 
 ### Cell 2 — send a prompt via the OpenAI client
 
@@ -318,7 +319,7 @@ single-threaded.
 ## Step D. Tear down when you're done
 
 When you're done with the notebook, **Stop** `first-workspace` and then
-**delete** `qwen-Qwen2.5--7B--Instruct` from **Workloads**. At the
+**delete** `qwen-qwen25--7b--instruct` from **Workloads**. At the
 current 2-GPU pilot scale we don't leave personal endpoints running —
 even with Min replicas = 0, an idle Inference workload still occupies
 project quota and a `pending` pod can block scheduling for whoever

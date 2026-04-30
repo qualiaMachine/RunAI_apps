@@ -52,7 +52,7 @@ piece only matters for the second case.
 
 ## Step A. Re-deploy with External access
 
-If you already followed 03 and have `qwen-Qwen2.5--7B--Instruct`
+If you already followed 03 and have `qwen-qwen25--7b--instruct`
 running with Auth: Internal, the only field that needs to change is
 the endpoint access. **Stop** the workload, **Edit**, change Step 8
 of the 03 walkthrough:
@@ -80,19 +80,42 @@ access)** when you get to step 8.
 After the workload's pod becomes Ready (~30s on a warm image pull),
 the public URL appears in the RunAI UI:
 
-1. **Workloads** > `qwen-Qwen2.5--7B--Instruct` > the workload's
+1. **Workloads** > `qwen-qwen25--7b--instruct` > the workload's
    detail pane.
 2. Look for the **Connections** / **Endpoints** section (UI label
    varies by RunAI version) — it lists an `https://...` URL.
-3. Copy the URL. The OpenAI-compatible API lives under `/v1`, so the
-   full base URL you'll hand to clients is `<url>/v1`.
+3. Copy the URL. The OpenAI-compatible API lives under `/v1`, so
+   the full base URL you'll hand to clients ends in `/v1`.
 
-> **If you only see the cluster-internal `svc.cluster.local`
-> address**, the workload is still on Auth: Internal — re-check Step
-> A.
+The URL follows the same path-based form Streamlit workloads use
+([rag_app/docs/deploy-streamlit.md](../rag_app/docs/deploy-streamlit.md)),
+minus the `proxy/<port>/` suffix because Inference workloads expose
+their container port directly:
 
-Save the URL somewhere — you'll paste it into the smoke tests below
-and again into the firewall request in Step D.
+```
+https://<cluster-host>/<project>/<workload-name>/v1
+```
+
+**Worked example.** For project `jupyter-endemann01` on the
+`deepthought.doit.wisc.edu` cluster, the workload created in Step A
+gives:
+
+```
+https://deepthought.doit.wisc.edu/jupyter-endemann01/qwen-qwen25--7b--instruct/v1
+```
+
+That's the URL you'll paste into the smoke tests below and into the
+firewall request in Step D. Save it somewhere — you'll need it three
+more times.
+
+> **If the URL the UI shows is `…svc.cluster.local…`**, the
+> workload is still on Auth: Internal — re-check Step A.
+>
+> **If the UI shows a Knative-style FQDN** like
+> `https://qwen-qwen25--7b--instruct-runai-<project>.<cluster-host>/v1`
+> instead of the path-based form, that's also valid — RunAI's
+> ingress mode is cluster-config dependent. Use whichever form the
+> UI shows; everything below works the same either way.
 
 ## Step C. Smoke-test from your VPN'd laptop
 
@@ -101,7 +124,8 @@ workspace — the point is to prove the endpoint is reachable from
 outside the cluster).
 
 ```bash
-export VLLM_URL="https://<paste-the-url-from-step-B>/v1"
+# Replace the project segment with your own (e.g. jupyter-yourname)
+export VLLM_URL="https://deepthought.doit.wisc.edu/jupyter-endemann01/qwen-qwen25--7b--instruct/v1"
 
 # 1. Endpoint is alive and serving the expected model
 curl -s "$VLLM_URL/models" | python -m json.tool
@@ -129,7 +153,10 @@ most other consumers will do under the hood):
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="https://<paste-the-url>/v1", api_key="not-used")
+client = OpenAI(
+    base_url="https://deepthought.doit.wisc.edu/jupyter-endemann01/qwen-qwen25--7b--instruct/v1",
+    api_key="not-used",
+)
 resp = client.chat.completions.create(
     model="Qwen/Qwen2.5-7B-Instruct",
     messages=[{"role": "user", "content": "Reply with just the word OK."}],
@@ -165,7 +192,7 @@ of information so they can add a Palo Alto rule without a back-and-forth:
 | Item | Where you get it | Example |
 |------|------------------|---------|
 | **Source host(s)** | Ask the consuming team (e.g. Brad / Eric for Denodo) for the IP or subnet of the server that will call the endpoint. | `10.x.y.z` or `10.x.y.0/24` |
-| **Destination URL** | The URL from Step B. | `https://<cluster-host>/.../v1` |
+| **Destination URL** | The URL from Step B. | `https://deepthought.doit.wisc.edu/jupyter-endemann01/qwen-qwen25--7b--instruct/v1` |
 | **Destination port** | Always 443 for the public URL. | `443` |
 | **Why** | One-line reason so the rule is auditable. | "Denodo PoC — DAPIR LLM endpoint, public data only" |
 
