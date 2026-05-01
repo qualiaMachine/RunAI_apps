@@ -14,6 +14,7 @@ ahead if you already have your bearings.
 | # | Doc | Read this if... |
 |---|-----|-----------------|
 | 00 | [Overview](docs/00-overview.md) | You're new to the NVIDIA RunAI cluster and want to know whether it fits your work |
+| 00b | [Hardware](docs/00b-hardware.md) | You're sizing a workload or deciding between single-GPU and tensor-parallel deployment, and want the specs and PCIe-vs-NVLink trade-offs spelled out |
 | 01 | [Access](docs/01-access.md) | You need a login, project assignment, or storage quota |
 | 02 | [First workspace](docs/02-first-workspace.md) | You want a working Jupyter notebook on the cluster with this repo cloned and a shared model loaded, in ~15 minutes |
 | 03 | [Share a model as a vLLM endpoint](docs/03-share-as-endpoint.md) | You want to host a model once and have multiple users / workloads hit it via HTTP, instead of every user loading their own copy onto a GPU |
