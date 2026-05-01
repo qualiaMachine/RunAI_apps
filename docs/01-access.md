@@ -45,10 +45,32 @@ or a Data Source pointing at a network share — those are also
 ## Web UI vs CLI
 
 This guide and the per-app deployment docs assume the **web UI**. The
-RunAI CLI exists and works, but it's not yet documented or tested
-against this repo's deployment patterns. If you want to use the CLI,
-let Chris know — getting it installed and verified end-to-end is in
-progress and your use case can help prioritize.
+RunAI CLI exists and works, but deployment patterns in this repo
+aren't yet documented or tested against it. If you want to use the
+CLI, let Chris know — getting it verified end-to-end against these
+apps is in progress and your use case can help prioritize.
+
+If you want a starting point now, the install + login flow is:
+
+1. **Download the binary** from the RunAI UI: *Help → Researcher
+   Command Line Interface*, then pick the build for your OS.
+2. **Put it on your PATH** and make it executable:
+   ```bash
+   mv runai /usr/local/bin/runai
+   chmod +x /usr/local/bin/runai
+   runai version
+   ```
+3. **Log in.** `runai login` opens a browser; authenticate with your
+   UW–Madison NetID, then return to the terminal for the success
+   confirmation.
+4. **Pin your default project** so you don't have to pass it every
+   time: `runai project set <your-project-name>`.
+5. **Sanity-check access** with `runai list workloads` — empty output
+   is fine if you haven't submitted anything yet.
+
+Beyond that (submitting workloads, mounting `shared-models`,
+exposing endpoints), the CLI equivalents of what these guides do via
+the UI aren't written up yet.
 
 ## Next
 
