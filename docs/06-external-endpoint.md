@@ -23,29 +23,15 @@ By the end you'll have:
 
 ## Two flavors of "external"
 
-RunAI's **External (Public access)** toggle and the data-center
-firewall are two independent layers — both have to be right for a
-non-RunAI caller to reach the endpoint.
+RunAI's **External (Public access)** toggle and the data-center Palo
+Alto firewall are two independent layers — both have to be right for
+a non-RunAI caller to reach the endpoint. Which layers you actually
+need to touch depends on where the caller sits:
 
-| Layer | Who controls it | What it gates |
-|-------|-----------------|---------------|
-| **RunAI ingress** | You, via the workload's **Endpoint > Access** setting | Whether RunAI provisions an `https://` URL with TLS at all |
-| **Palo Alto firewall** | DoIT cluster admin (Mike Cammilleri) | Whether a given source host/VLAN is allowed to reach that URL |
-
-Two common situations:
-
-- **Human caller on VPN** (your laptop, a colleague's browser). The
-  campus VPN already places you in a network the cluster ingress
-  accepts, so once RunAI provisions the public URL you can hit it
-  directly. No firewall ticket needed. Good enough to prove the
-  endpoint is live.
-- **Service-to-service caller in the data center** (Denodo, an
-  institutional app, another VLAN). Not on VPN. The cluster ingress
-  is reachable by IP within the data center, but the Palo Alto
-  firewall blocks cross-VLAN traffic by default — a rule has to be
-  added that allows the caller's source IP to the cluster ingress on
-  443. **You can't add this rule yourself** (no Palo Alto access);
-  cluster admin does it from a short ticket.
+| Situation | RunAI ingress (you) | Palo Alto firewall (DoIT cluster admin, Mike Cammilleri) |
+|-----------|---------------------|----------------------------------------------------------|
+| **Human caller on VPN** (your laptop, a colleague's browser) | Toggle **External (Public access)** in **Endpoint > Access** to provision an `https://` URL | VPN already permitted to reach the cluster ingress — no ticket needed |
+| **Service-to-service caller in the data center** (an institutional app on another VLAN, not on VPN) | Same toggle, same URL | Cross-VLAN traffic blocked by default — ticket adds the caller's source IP → cluster ingress on 443. You can't add this rule yourself. |
 
 The cluster-side steps below are identical for both. The firewall
 piece only matters for the second case.
@@ -194,7 +180,7 @@ of information so they can add a Palo Alto rule without a back-and-forth:
 
 | Item | Where you get it | Example |
 |------|------------------|---------|
-| **Source host(s)** | Ask the consuming team (e.g. Brad / Eric for Denodo) for the IP or subnet of the server that will call the endpoint. | `10.x.y.z` or `10.x.y.0/24` |
+| **Source host(s)** | Ask the consuming team for the IP or subnet of the server that will call the endpoint. | `10.x.y.z` or `10.x.y.0/24` |
 | **Destination URL** | The URL from Step B. | `https://qwen-qwen25--7b--instruct-runai-jupyter-endemann01.deepthought.doit.wisc.edu/v1` |
 | **Destination port** | Always 443 for the public URL. | `443` |
 | **Why** | One-line reason so the rule is auditable. | "Denodo PoC — DAPIR LLM endpoint, public data only" |
