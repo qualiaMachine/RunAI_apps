@@ -45,9 +45,17 @@ Almost everything in this repo's tutorials starts with a **Workspace**.
 ### 2. Data Source — storage you mount into a workload
 
 A pointer to "data lives here, mount it at this path." Types include
-**PVC** (cluster-managed disk), **NFS** (network share), **S3**, **Git**,
-and a few others. Per-project. You'll create one per dataset, model, or
-output location your workload reads or writes.
+**PVC** — *Persistent Volume Claim*, Kubernetes' name for a chunk of
+cluster-managed disk that survives pod restarts — plus **NFS**
+(network share), **S3**, **Git**, and a few others. Per-project.
+You'll create one per dataset, model, or output location your workload
+reads or writes.
+
+> **PVC is the term you'll see most.** The rest of these docs
+> (storage, the per-app deploy guides) say "PVC" rather than spelling
+> it out — when you see things like "shared PVC", "writable PVC", or
+> "read-only PVC mount", that's the same Persistent Volume Claim
+> concept introduced here.
 
 > **You already get one for free — if you load the right template.**
 > Every project on this cluster has a `user-workspace` workload
