@@ -66,14 +66,7 @@ bandwidth). It shapes what workloads fit well.
 **Don't plan around it:**
 
 - **Multi-GPU pretraining or full-parameter fine-tuning of 70B+
-  models.** Gradient all-reduce saturates PCIe; this is the wrong tool.
-  Use H100/H200 NVLink hardware (CHTC, cloud) for that.
-- **Tensor-parallel scaling beyond 2 GPUs.** Not applicable here, but
-  worth flagging if anyone extrapolates from "TP-2 works" to "TP-N will
-  scale linearly" — it won't, and there's no third GPU anyway.
-
-When in doubt, prefer one model per GPU over splitting one model
-across both.
+  models.** Gradient all-reduce saturates PCIe; this is the wrong tool unless future investment involves NVLinked GPUs.
 
 
 ## The three concepts you actually need
