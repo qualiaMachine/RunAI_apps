@@ -13,7 +13,7 @@ used a major cloud's notebook + endpoint UI, the experience is
 similar (workspaces, fractional GPU allocation, autoscaling
 endpoints).
 
-This is intended to fill the following niches:
+This hardware+RunAI may help fill the following niches:
 
 - **Long-term LLM/VLM apps the institution wants to support.** When a
   service is going to live for years, renting cloud capacity
