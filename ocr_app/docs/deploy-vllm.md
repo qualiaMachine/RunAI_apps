@@ -50,7 +50,7 @@ Leave defaults (HTTP, container port auto-detected).
 | Field | Value |
 |-------|-------|
 | **Command** | *(leave empty)* |
-| **Arguments** | `QuantTrio/Qwen3-VL-32B-Instruct-AWQ --quantization awq_marlin --dtype half --max-model-len 16384` |
+| **Arguments** | `Arguments: QuantTrio/Qwen3-VL-32B-Instruct-AWQ --quantization awq_marlin --dtype half --max-model-len 163840` |
 
 **Environment variables** (click **+ Environment Variable** for each):
 
