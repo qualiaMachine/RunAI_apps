@@ -57,9 +57,19 @@ In the RunAI UI: **Workloads** > **New Workload** > **Inference**
 -c "pip install uv && curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && mv /tmp/RunAI_apps-main /tmp/RunAI_apps && cd /tmp/RunAI_apps && uv pip install --system fastapi uvicorn sentence-transformers && python3 rag_app/scripts/reranker_server.py"
 ```
 
-> **Same pattern as the embedding server.** Downloads the repo tarball,
-> installs dependencies, and runs `rag_app/scripts/reranker_server.py` which
-> includes the writable HF cache overlay for read-only PVC mounts.
+Same shape as the [embedding server](deploy-embedding.md) — pull the
+repo tarball into the vLLM image, install a few packages, then run our
+own FastAPI wrapper. Piece by piece:
+
+| Chunk | Why it's there |
+|-------|----------------|
+| `-c "..."` | Tells `bash` to run the rest as a shell command, then exit. The whole arguments value is one string. |
+| `pip install uv` | Pulls in `uv` so the heavier installs below run in seconds instead of minutes. |
+| `curl -sL https://github.com/.../main.tar.gz \| tar xz -C /tmp` | Pull the current `main` branch as a tarball and unpack it under `/tmp`. The `vllm/vllm-openai` image doesn't ship `git`, so we use `curl` (which is present) instead of `git clone`. |
+| `mv /tmp/RunAI_apps-main /tmp/RunAI_apps` | GitHub's tarball unpacks to `<repo>-<branch>/`. Rename to a stable path. To deploy a different branch, swap `main` everywhere — note GitHub converts `/` → `-` in the tarball directory name. |
+| `cd /tmp/RunAI_apps` | The reranker server script is referenced from the repo root. |
+| `uv pip install --system fastapi uvicorn sentence-transformers` | Server runtime deps. `fastapi` + `uvicorn` for the HTTP wrapper, `sentence-transformers` for the cross-encoder model. `--system` installs into the container's system Python (no venv needed in an ephemeral pod). |
+| `python3 rag_app/scripts/reranker_server.py` | Start the server as the long-running foreground process. The script binds `0.0.0.0:8082` (matching the **Serving endpoint** above) and creates a writable HF cache overlay so the read-only `shared-models` PVC isn't a problem. The image provides `python3` but not the `python` alias, so we call `python3` explicitly. |
 
 **Environment variables:**
 

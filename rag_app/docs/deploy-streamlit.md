@@ -47,26 +47,27 @@ In the RunAI UI: **Workloads** > **New Workload** > **Workspace**
 | **Arguments** | `-c "pip install uv && rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED && git clone -b main --depth 1 https://github.com/qualiaMachine/RunAI_apps.git /tmp/RunAI_apps && cd /tmp/RunAI_apps && mkdir -p /tmp/vectordb && cp /wattbot-data/embeddings/wattbot_jinav4.db /tmp/vectordb/ && ln -sf /wattbot-data/corpus rag_app/data/corpus && uv pip install --system streamlit openai httpx 'numpy<2' python-dotenv && uv pip install --system rag_app/vendor/KohakuVault rag_app/vendor/KohakuRAG && python -m streamlit run rag_app/app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false --server.baseUrlPath=\$STREAMLIT_BASE_PATH"` |
 | **Working directory** | *(leave empty)* |
 
-> **What the command does:**
-> 1. Installs `uv` (fast Python package installer)
-> 2. Removes the PEP 668 `EXTERNALLY-MANAGED` marker (safe in ephemeral containers)
-> 3. Clones the repo to ephemeral `/tmp` (not on PVC)
-> 4. **Copies** the vector DB to a writable `/tmp/vectordb/` directory (the PPVC
->    is read-only, and KVaultNodeStore writes metadata on open, so symlinks
->    to the PPVC won't work — the app auto-discovers the DB at `/tmp/vectordb/`)
-> 5. Symlinks corpus data dir to the shared PPVC
-> 6. Installs Python deps + vendored KohakuVault/KohakuRAG
-> 7. Starts Streamlit with proxy-compatible settings
->
-> **Why copy instead of symlink for the DB?** KVaultNodeStore writes metadata
-> and runs `auto_pack` when opening the database. If the PPVC is mounted
-> read-only (or the volume doesn't support writes from this pod), the
-> store silently creates a new empty DB instead — resulting in **zero
-> vectors** and no local retrieval. The app auto-discovers the copied DB
-> at `/tmp/vectordb/wattbot_jinav4.db`.
->
-> **Using a different branch?** Replace `main` in the `git clone` command
-> with the desired branch name.
+Same shape as the `02 First workspace` args, with two
+Streamlit-specific wrinkles: a writable copy of the vector DB and a
+proxy-aware Streamlit launch. Piece by piece:
+
+| Chunk | Why it's there |
+|-------|----------------|
+| `-c "..."` | Tells `bash` to run the rest as a shell command, then exit. The whole arguments value is one string. |
+| `pip install uv` | Pulls in `uv`, a drop-in replacement for `pip` that's 10-100x faster. The dependency installs below use `uv pip install` so cold-starts finish in seconds instead of minutes. |
+| `rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED` | The NGC PyTorch image marks system Python as PEP 668 "externally managed", which makes `pip install` refuse without `--break-system-packages`. Removing the marker is safe in an ephemeral container — there's no host package manager to confuse. |
+| `git clone -b main --depth 1 https://github.com/.../RunAI_apps.git /tmp/RunAI_apps` | Pull only the latest commit of `main` into ephemeral `/tmp`. NGC PyTorch ships with `git`, so we use `git clone` here instead of the `curl` tarball pattern. To deploy a different branch, swap `main` for the branch name. |
+| `cd /tmp/RunAI_apps` | Subsequent `uv pip install` paths are relative to the repo root. |
+| `mkdir -p /tmp/vectordb && cp /wattbot-data/embeddings/wattbot_jinav4.db /tmp/vectordb/` | **Copy** the vector DB onto ephemeral disk instead of reading it directly from the PPVC. `KVaultNodeStore` writes metadata and runs `auto_pack` when it opens the DB. If the PPVC is read-only the store silently creates a new empty DB instead — you get zero vectors and no retrieval. The app auto-discovers the copied DB at `/tmp/vectordb/wattbot_jinav4.db`. |
+| `ln -sf /wattbot-data/corpus rag_app/data/corpus` | Point the corpus dir inside the cloned repo at the PPVC mount so the app reads parsed JSON docs from shared storage. Symlink is fine here (read-only is OK for the corpus). |
+| `uv pip install --system streamlit openai httpx 'numpy<2' python-dotenv` | App runtime deps. `--system` installs into the container's system Python (no venv needed for an ephemeral pod). `numpy<2` pins below the 2.x ABI break that several embedded libs aren't compatible with yet. |
+| `uv pip install --system rag_app/vendor/KohakuVault rag_app/vendor/KohakuRAG` | Install the two vendored libraries from their source paths. Order doesn't matter when both are passed in one `uv pip install` call. |
+| `python -m streamlit run rag_app/app.py` | Start Streamlit as the long-running foreground process. |
+| `--server.port=8501` | Match the **Connection (Tool)** container port further down. |
+| `--server.address=0.0.0.0` | Bind to all interfaces so the RunAI proxy can reach the server from outside the pod. |
+| `--server.headless=true` | Don't try to open a local browser — there's no display inside the pod. |
+| `--server.enableCORS=false --server.enableXsrfProtection=false` | RunAI's proxy and Streamlit end up on different origins; without these, the browser blocks the websocket and form posts. |
+| `--server.baseUrlPath=\$STREAMLIT_BASE_PATH` | Tells Streamlit its own URL prefix so static asset and websocket URLs round-trip through the proxy. The variable comes from the env-var table below — escaped with `\$` so the **outer** shell defers expansion until inside the pod. |
 
 **Environment variables:**
 
