@@ -194,7 +194,7 @@ of information so they can add a Palo Alto rule without a back-and-forth:
 
 | Item | Where you get it | Example |
 |------|------------------|---------|
-| **Source host(s)** | Ask the consuming team (e.g. Brad / Eric for Denodo) for the IP or subnet of the server that will call the endpoint. | `10.x.y.z` or `10.x.y.0/24` |
+| **Source host(s)** | Ask the consuming team for the IP or subnet of the server that will call the endpoint. | `10.x.y.z` or `10.x.y.0/24` |
 | **Destination URL** | The URL from Step B. | `https://qwen-qwen25--7b--instruct-runai-jupyter-endemann01.deepthought.doit.wisc.edu/v1` |
 | **Destination port** | Always 443 for the public URL. | `443` |
 | **Why** | One-line reason so the rule is auditable. | "Denodo PoC — DAPIR LLM endpoint, public data only" |
