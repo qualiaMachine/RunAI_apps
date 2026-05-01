@@ -62,18 +62,22 @@ Leave defaults (HTTP, container port auto-detected).
 
 **Working directory:** *(leave empty)*
 
-> **About the arguments:**
-> - `--quantization awq_marlin` uses the optimized Marlin kernel for
->   AWQ weights (~6-10x faster generation than plain `awq`)
-> - `--dtype half` = fp16 compute (required for AWQ on most GPUs)
-> - `--max-model-len 16384` caps KV cache allocation to 16K tokens.
->   The model supports 262K natively but that would need 64+ GB just
->   for KV cache. 16K covers a default notebook chunk (~20 page images
->   at 2x render, well under 16K input tokens) plus the JSON response.
->   If you bump `MAX_PAGES_PER_CHUNK` in the notebook and start seeing
->   `finish_reason == "length"`, raise this.
-> - `HF_HUB_OFFLINE=1` prevents any model downloads — loads from the
->   shared PVC only
+Unlike the workspace and embedding/reranker servers, the
+`vllm/vllm-openai` image's entrypoint already runs `vllm serve`, so the
+**Command** stays empty and **Arguments** is just the positional model
+plus flags. Piece by piece:
+
+| Chunk | Why it's there |
+|-------|----------------|
+| `QuantTrio/Qwen3-VL-32B-Instruct-AWQ` | Positional model arg passed to the image's `vllm serve` entrypoint. Combined with `HF_HUB_OFFLINE=1` below, vLLM loads the AWQ-quantized weights straight from the `shared-models` PVC mount — no network. |
+| `--quantization awq_marlin` | Use the optimized Marlin kernel for AWQ weights — ~6-10x faster generation than plain `awq`. |
+| `--dtype half` | fp16 compute (required for AWQ on most GPUs). |
+| `--max-model-len 16384` | Cap KV cache allocation to 16K tokens. The model supports 262K natively but that would need 64+ GB just for KV cache. 16K covers a default notebook chunk (~20 page images at 2x render, well under 16K input tokens) plus the JSON response. If you bump `MAX_PAGES_PER_CHUNK` in the notebook and start seeing `finish_reason == "length"`, raise this. |
+
+Plus the env vars above: `HF_HOME` and `HF_HUB_CACHE` point vLLM at
+the shared PVC's HuggingFace cache, and `HF_HUB_OFFLINE=1` makes a
+missing model fail loudly instead of silently kicking off a multi-GB
+download.
 
 ### Compute resources
 

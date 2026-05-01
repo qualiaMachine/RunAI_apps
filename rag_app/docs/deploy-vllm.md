@@ -56,10 +56,24 @@ command is required.
 | `HF_HUB_CACHE` | `/models/.cache/huggingface` |
 | `HF_HUB_OFFLINE` | `1` |
 
-> **Note:** The image defaults to `--host 0.0.0.0` and uses the
-> container port from the serving endpoint config. `HF_HUB_OFFLINE=1`
-> prevents downloads at runtime — the model must be pre-cached on the
-> shared PVC.
+The `vllm/vllm-openai` image's entrypoint already runs `vllm serve`,
+so **Command** stays empty and **Arguments** is just the positional
+model plus flags. Piece by piece:
+
+| Chunk | Why it's there |
+|-------|----------------|
+| `Qwen/Qwen3-30B-A3B-GPTQ-Int4` | Positional model arg passed to the image's `vllm serve` entrypoint. Combined with `HF_HUB_OFFLINE=1` below, vLLM loads the GPTQ-quantized weights straight from the `shared-models` PVC mount — no network. |
+| `--quantization gptq_marlin` | Use the optimized Marlin kernel for GPTQ weights — significantly faster generation than the default GPTQ kernel. |
+| `--dtype half` | fp16 compute (required for GPTQ on most GPUs). |
+
+The image defaults to `--host 0.0.0.0` and uses the container port
+from the serving endpoint config, so neither needs to be passed
+explicitly.
+
+Plus the env vars above: `HF_HOME` and `HF_HUB_CACHE` point vLLM at
+the shared PVC's HuggingFace cache, and `HF_HUB_OFFLINE=1` makes a
+missing model fail loudly instead of silently kicking off a multi-GB
+download to ephemeral disk.
 
 ## Compute resources
 

@@ -55,23 +55,19 @@ tarball and installs dependencies at startup.
 | **Arguments** | `-c "pip install uv && curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && mv /tmp/RunAI_apps-main /tmp/RunAI_apps && cd /tmp/RunAI_apps && uv pip install --system fastapi uvicorn httpx numpy sentence-transformers 'transformers>=4.42,<5' accelerate huggingface_hub peft && python3 rag_app/scripts/embedding_server.py"` |
 | **Working directory** | *(leave empty)* |
 
-> **Using a different branch?** Replace `main`
-> in the URL and the `mv` target with your branch name. GitHub converts
-> `/` → `-` in tarball directory names:
-> ```
-> # URL:  .../refs/heads/claude/my-feature.tar.gz   (slashes OK)
-> # mv:   RunAI_apps-claude-my-feature            (slashes become dashes)
-> ```
->
-> **Why `curl` tarball instead of `git clone`?** The vLLM image
-> doesn't include `git`. Downloading a tarball via `curl` (which is
-> pre-installed) avoids needing to install git at runtime.
->
-> **Why `python3` not `python`?** The vLLM image provides `python3`
-> but does not alias it to `python`.
->
-> **Why uv?** `uv` is a drop-in replacement for `pip` that's 10-100x
-> faster. Installs that take 1-3 minutes with pip finish in seconds.
+Same shape as the [reranker server](deploy-reranker.md) — pull the
+repo tarball into the vLLM image, install our deps, then run our own
+FastAPI wrapper. Piece by piece:
+
+| Chunk | Why it's there |
+|-------|----------------|
+| `-c "..."` | Tells `bash` to run the rest as a shell command, then exit. The whole arguments value is one string. |
+| `pip install uv` | Pulls in `uv`, a drop-in replacement for `pip` that's 10-100x faster. Installs that take 1-3 minutes with pip finish in seconds. |
+| `curl -sL https://github.com/.../main.tar.gz \| tar xz -C /tmp` | Pull the current `main` branch as a tarball and unpack it under `/tmp`. The `vllm/vllm-openai` image doesn't include `git`, so we use `curl` (which is pre-installed) instead of `git clone`. |
+| `mv /tmp/RunAI_apps-main /tmp/RunAI_apps` | GitHub's tarball unpacks to `<repo>-<branch>/`. Rename to a stable path. To deploy a different branch, swap `main` in both the URL and the `mv` target — GitHub converts `/` → `-` in the tarball directory name (so `refs/heads/claude/my-feature.tar.gz` becomes `RunAI_apps-claude-my-feature/`). |
+| `cd /tmp/RunAI_apps` | The embedding server script is referenced from the repo root. |
+| `uv pip install --system fastapi uvicorn httpx numpy sentence-transformers 'transformers>=4.42,<5' accelerate huggingface_hub peft` | Server runtime deps. `fastapi` + `uvicorn` for the HTTP wrapper; `sentence-transformers` + `transformers` + `accelerate` to load Jina V4; `peft` for LoRA adapter support that Jina V4 needs; `huggingface_hub` for the auto-adapter-download fallback. The `transformers>=4.42,<5` pin avoids the 5.x ABI break. `--system` installs into the container's system Python (no venv needed in an ephemeral pod). |
+| `python3 rag_app/scripts/embedding_server.py` | Start the server as the long-running foreground process. The script binds `0.0.0.0:8080` (matching the **Serving endpoint** above) and creates the writable HF cache overlay (see read-only PVC note below). The image provides `python3` but not the `python` alias, so we call `python3` explicitly. |
 
 **Environment variables:**
 

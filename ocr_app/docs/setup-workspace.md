@@ -95,14 +95,55 @@ Add Jupyter for browser access:
 -c "pip install --no-cache-dir httpx pymupdf Pillow python-dotenv matplotlib; curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp; mv /tmp/RunAI_apps-main /tmp/RunAI_apps 2>/dev/null; ln -sf /tmp/RunAI_apps /ocr/repo; jupyter-lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME} --ServerApp.token='' --ServerApp.allow_origin='*' --notebook-dir=/ocr"
 ```
 
-> **Remote mode** (default) installs a minimal set of packages — no
-> `transformers` or `qwen-vl-utils` needed since the model runs on the
-> vLLM server. If you plan to use `VLM_MODE = "local"`, the notebook's
-> install cell will add `transformers qwen-vl-utils autoawq` on demand.
->
-> **`--ServerApp.base_url`** is required so Jupyter's URL matches RunAI's
-> proxy path. **`--notebook-dir=/ocr`** opens Jupyter in the persistent
-> volume where your docs live.
+Same structural pattern as
+[02 First workspace](../../docs/02-first-workspace.md) — pip install,
+pull repo tarball, symlink into the persistent volume, then start
+JupyterLab tuned for the RunAI proxy. Once you have one workspace
+dialed in, save it as a Workload Template (RunAI UI > **Workload
+manager** > **Templates** > **+ NEW TEMPLATE**) so future workspaces
+start with this pre-filled.
+
+What that string actually does, piece by piece:
+
+| Chunk | Why it's there |
+|-------|----------------|
+| `-c "..."` | Tells `bash` to run the rest as a shell command, then exit. The whole arguments value is one string. |
+| `pip install --no-cache-dir httpx pymupdf Pillow python-dotenv matplotlib` | Remote-mode dependencies: `httpx` for the vLLM HTTP client, `pymupdf` to render PDF pages to images, `Pillow` for image manipulation, `python-dotenv` for env loading, `matplotlib` for the notebook's inline plots. `--no-cache-dir` skips writing wheel caches inside the pod. No `transformers` / `qwen-vl-utils` here — the model lives on the vLLM server. If you switch to `VLM_MODE = "local"`, the notebook's install cell adds `transformers qwen-vl-utils autoawq` on demand. |
+| `curl -sL https://github.com/.../main.tar.gz \| tar xz -C /tmp` | Pull the current `main` branch as a tarball and unpack it under `/tmp`. Faster and lighter than `git clone` (no `.git` history) and doesn't require git on the image. |
+| `mv /tmp/RunAI_apps-main /tmp/RunAI_apps 2>/dev/null` | GitHub's tarball unpacks to `<repo>-<branch>/`. Rename to a stable path. The redirect swallows the harmless "directory already exists" error on subsequent restarts. |
+| `ln -sf /tmp/RunAI_apps /ocr/repo` | Drop a symlink into the persistent `/ocr` volume so `repo/` shows up in Jupyter's file browser next to your sample documents and notebook outputs. The actual code lives in ephemeral `/tmp` and refreshes from GitHub on every restart — no stale local copy to worry about. |
+| `;` | Run the next command after the previous one finishes, regardless of exit status. |
+| `jupyter-lab` | Start JupyterLab as the long-running foreground process. |
+| `--ip=0.0.0.0` | Bind to all interfaces so RunAI's proxy can reach the server from outside the pod. The default (`localhost`) only accepts connections from inside the container. |
+| `--port=8888` | Match the port advertised in the **Tools** section above so RunAI's proxy lines up. |
+| `--no-browser` | Don't try to open a local browser — there's no display inside the pod. |
+| `--allow-root` | The container runs as root by default; Jupyter refuses to start as root unless you say it's fine. |
+| `--ServerApp.base_url=/${RUNAI_PROJECT}/${RUNAI_JOB_NAME}` | RunAI proxies your notebook at a path like `/<project>/<workload-name>/...`. Jupyter has to know its own base path or static asset URLs and websocket reconnects break. The two env vars are auto-set by RunAI inside the pod. |
+| `--ServerApp.token=''` | Disable Jupyter's own login token — RunAI's portal already authenticated you, and a token here would just block the proxy. |
+| `--ServerApp.allow_origin='*'` | Allow cross-origin requests. RunAI's proxy and Jupyter end up on different origins; without this, the browser blocks the websocket. |
+| `--notebook-dir=/ocr` | Open Jupyter's file browser at `/ocr` so you land directly on the persistent volume (where your sample documents and extraction output live). |
+
+### Environment variables
+
+In the **default remote mode** the workspace doesn't load any model
+weights itself — it only talks HTTP to the shared vLLM endpoint — so
+the HuggingFace cache vars from `02 First workspace` are not required.
+Leave the env-var section empty.
+
+If you plan to flip the notebook to **local mode** (`VLM_MODE =
+"local"`), set the same three vars `02` uses so `transformers` reads
+the cached weights from the shared PVC instead of trying to download:
+
+| Name | Value | Why |
+|------|-------|-----|
+| `HF_HOME` | `/models/.cache/huggingface` | HuggingFace cache root. Default is `~/.cache/huggingface` inside the pod's ephemeral disk; pointing it at the mounted `shared-models` volume is what makes `transformers.from_pretrained(...)` find the pre-cached weights. |
+| `HF_HUB_CACHE` | `/models/.cache/huggingface` | More specific override for the hub-cache path used by `huggingface_hub`. Different transformers versions respect different vars; setting both `HF_HOME` and `HF_HUB_CACHE` is belt-and-suspenders so every code path lands at the same directory. |
+| `HF_HUB_OFFLINE` | `1` | Forbid network downloads. If the model isn't in the cache, you get a fast, loud error instead of a silent multi-GB download to ephemeral disk that vanishes on restart. |
+
+These only matter when the workspace itself loads the VLM. The
+[Switching between remote and local mode](#switching-between-remote-and-local-mode)
+section below covers the rest of the local-mode flip (GPU, the
+`shared-models` Data Volume mount).
 
 ## Compute resources
 
