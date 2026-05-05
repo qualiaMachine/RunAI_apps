@@ -48,16 +48,23 @@ continuation flags, not by the LLM.
 The extraction prompt lives in `scripts/doc_prompt.py` and is saved in
 the output JSON for reproducibility.
 
-Two parallel notebooks ship with the repo:
+Two parallel notebooks ship with the repo, each in a full-featured
+"production" form and a stripped-down `*_demo.ipynb` form:
 
-| Use case | Notebook |
-|----------|----------|
-| Grant admin (award notices, budgets, terms, proposals) | `notebooks/RSP_example_extraction_pipeline.ipynb` |
-| Library / archival (books, manuscripts, sheet music, maps, multilingual) | `notebooks/library_extraction_pipeline.ipynb` |
+| Use case | Production | Demo / walkthrough |
+|----------|-----------|--------------------|
+| Grant admin (award notices, budgets, terms, proposals) | `notebooks/RSP_example_extraction_pipeline.ipynb` | `notebooks/RSP_example_extraction_pipeline_demo.ipynb` |
+| Library / archival (books, manuscripts, sheet music, maps, multilingual) | `notebooks/library_extraction_pipeline.ipynb` | `notebooks/library_extraction_pipeline_demo.ipynb` |
 
 Both use the same chunking + merging + pass-2 architecture; only the
 per-chunk prompts and merged schema differ
 (stakeholders/tables/narratives vs. bibliographic/body_text/marginalia).
+
+The demo notebooks assume **remote vLLM mode**, drop the local-mode
+plumbing, and import shared pieces (`chunk_page_ranges`,
+`build_chunk_messages`, `merge_chunks`, `DOC_SYNTHESIS_PROMPT`) directly
+from `ocr_app/scripts/`. They're meant for live walkthroughs — the
+production notebooks remain the canonical extraction path.
 
 > A simpler per-page path (`app.py`, `scripts/batch_extract.py`,
 > `scripts/ocr_server.py`) exists in the tree for local experimentation
@@ -140,8 +147,10 @@ responses, and pass-2 fields like `one_sentence_summary` and
 ```
 ocr_app/
 ├── notebooks/
-│   ├── RSP_example_extraction_pipeline.ipynb  # Grant-admin chunked pipeline
-│   └── library_extraction_pipeline.ipynb   # Library/archival chunked pipeline
+│   ├── RSP_example_extraction_pipeline.ipynb         # Grant-admin chunked pipeline
+│   ├── RSP_example_extraction_pipeline_demo.ipynb    # Grant-admin demo walkthrough
+│   ├── library_extraction_pipeline.ipynb             # Library/archival chunked pipeline
+│   └── library_extraction_pipeline_demo.ipynb        # Library/archival demo walkthrough
 ├── scripts/
 │   ├── chunk_extract.py            # Chunk planning + message builders
 │   ├── doc_prompt.py               # Shared doc-synthesis prompt

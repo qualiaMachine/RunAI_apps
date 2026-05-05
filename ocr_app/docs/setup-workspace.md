@@ -209,6 +209,9 @@ no model loading):
 2. **Open the notebook for your use case** (see table above):
    - Grant admin: `repo/ocr_app/notebooks/RSP_example_extraction_pipeline.ipynb`
    - Library/archival: `repo/ocr_app/notebooks/library_extraction_pipeline.ipynb`
+   - For a stripped-down walkthrough (remote vLLM only, no Gemini
+     comparison, no Streamlit launcher) use the matching
+     `*_demo.ipynb` next to each production notebook.
 3. **Work through it cell by cell.** Both notebooks share this flow
    (library notebook omits the Gemini comparison section):
 
