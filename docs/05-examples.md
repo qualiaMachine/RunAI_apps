@@ -22,7 +22,7 @@ programmatic merging across chunks, doc-level synthesis pass.
 
 Use this if you're processing:
 - Grant administration documents (award notices, budgets, terms,
-  proposals) — `notebooks/test_extraction_pipeline.ipynb`
+  proposals) — `notebooks/RSP_example_extraction_pipeline.ipynb`
 - Library / archival material (books, manuscripts, sheet music, maps,
   multilingual scans) — `notebooks/library_extraction_pipeline.ipynb`
 

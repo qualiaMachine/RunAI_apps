@@ -162,6 +162,57 @@ If it doesn't respond:
 
 ---
 
+## Access from outside the cluster (VPN)
+
+Each Knative inference endpoint also gets a public hostname, so you can hit
+the same vLLM server from your laptop or any other machine — no RunAI
+workspace required. You just need to be **connected to the campus VPN**.
+
+The hostname follows the pattern
+`https://<inference-name>-<project>.deepthought.doit.wisc.edu/v1/` (the
+project's `runai-` prefix is dropped, double-dashes in the inference name
+are preserved). For the shared Qwen3-VL endpoint:
+
+```
+https://qwen3--vl--32b--instruct-awq-runai-shared-models.deepthought.doit.wisc.edu/v1/
+```
+
+Quick sanity check from your laptop (VPN on):
+
+```bash
+curl https://qwen3--vl--32b--instruct-awq-runai-shared-models.deepthought.doit.wisc.edu/v1/models
+```
+
+It exposes the same OpenAI-compatible API as the in-cluster FQDN — you can
+point any OpenAI client at it. No API key is enforced, so any string works:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://qwen3--vl--32b--instruct-awq-runai-shared-models.deepthought.doit.wisc.edu/v1/",
+    api_key="not-used",
+)
+
+resp = client.chat.completions.create(
+    model="QuantTrio/Qwen3-VL-32B-Instruct-AWQ",
+    messages=[{"role": "user", "content": "In a single sentence, share with me the entire life story of Winnie the Pooh."}],
+    max_tokens=100,
+    temperature=0,
+    extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+)
+
+print(resp.choices[0].message.content)
+```
+
+This is handy for prototyping against the model from a local IDE or for
+plugging the endpoint into tools that don't run inside RunAI (LangChain
+notebooks, evaluation harnesses, etc.). The cluster-internal FQDN
+(`*.svc.cluster.local`) is still preferred from inside RunAI — it skips
+the ingress hop and doesn't depend on VPN.
+
+---
+
 ## GPU sizing reference
 
 | GPU | Arguments | GPU fraction |

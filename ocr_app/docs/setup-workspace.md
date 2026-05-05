@@ -30,7 +30,7 @@ different schemas tuned to each document type:
 
 | If you're processing... | Use this notebook |
 |-------------------------|-------------------|
-| **Grant administration docs** — award notices, budgets, RSP terms, research proposals, forms with stakeholders/addresses | `repo/ocr_app/notebooks/test_extraction_pipeline.ipynb` |
+| **Grant administration docs** — award notices, budgets, RSP terms, research proposals, forms with stakeholders/addresses | `repo/ocr_app/notebooks/RSP_example_extraction_pipeline.ipynb` |
 | **Library / archival materials** — books, manuscripts, sheet music, newspapers, maps, multilingual scans, materials needing bibliographic metadata | `repo/ocr_app/notebooks/library_extraction_pipeline.ipynb` |
 
 The two notebooks share:
@@ -207,7 +207,7 @@ no model loading):
 
 1. **Upload sample docs** to `/ocr/` using Jupyter's file upload button
 2. **Open the notebook for your use case** (see table above):
-   - Grant admin: `repo/ocr_app/notebooks/test_extraction_pipeline.ipynb`
+   - Grant admin: `repo/ocr_app/notebooks/RSP_example_extraction_pipeline.ipynb`
    - Library/archival: `repo/ocr_app/notebooks/library_extraction_pipeline.ipynb`
 3. **Work through it cell by cell.** Both notebooks share this flow
    (library notebook omits the Gemini comparison section):
