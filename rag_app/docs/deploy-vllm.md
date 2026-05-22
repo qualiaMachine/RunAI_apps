@@ -204,6 +204,44 @@ Qwen/Qwen2.5-7B-Instruct --quantization bitsandbytes --load-format bitsandbytes 
 
 ---
 
+## Enable tool calling (optional)
+
+The default args above stand up a vanilla chat completions endpoint —
+requests that include `tools=[...]` will come back with HTTP 400.
+OpenAI-compatible tool calling in vLLM is gated behind two server
+flags. Append them to the **Arguments** field:
+
+```
+--enable-auto-tool-choice --tool-call-parser hermes
+```
+
+- `--enable-auto-tool-choice` enables the `tool_choice="auto"` path.
+- `--tool-call-parser hermes` parses the model's text output back into
+  a structured `tool_calls` array. All the Qwen models in the
+  arguments reference above (Qwen 2.5 7B/72B, Qwen3-30B-A3B, Qwen3-32B,
+  Qwen3-VL-32B, OpenScholar 8B) ship a Hermes-style tool template in
+  their `tokenizer_config.json`, so this parser is the right pick and
+  no `--chat-template` override is needed.
+- If you've enabled Qwen3 thinking mode and want `<think>…</think>`
+  content separated from `tool_calls`, also add
+  `--reasoning-parser deepseek_r1`. Without it, the reasoning text can
+  confuse the Hermes parser
+  ([vllm-project/vllm#19513](https://github.com/vllm-project/vllm/issues/19513)).
+
+Worked example — taking the Qwen3-30B-A3B argument string and adding
+tool calling:
+
+```
+Qwen/Qwen3-30B-A3B-GPTQ-Int4 --quantization gptq_marlin --dtype half --enable-auto-tool-choice --tool-call-parser hermes
+```
+
+For non-Qwen model families the parser value changes
+(`llama3_json`, `mistral`, etc.) — see the [vLLM tool calling
+docs](https://docs.vllm.ai/en/stable/features/tool_calling/) for the
+current parser list.
+
+---
+
 ## CLI equivalent
 
 If you prefer the CLI over the UI:

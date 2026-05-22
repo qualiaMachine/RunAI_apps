@@ -22,6 +22,15 @@ Common issues when deploying the OCR extraction pipeline on RunAI.
   `curl http://qwen3--vl--32b--instruct-awq.runai-<project>.svc.cluster.local/v1/models`
 - Short names like `qwen3--vl--32b--instruct-awq:8000` return envoy 404
 
+## HTTP 400 when calling with `tools=[...]`
+
+- vLLM rejects tool-call requests unless the server was started with
+  `--enable-auto-tool-choice --tool-call-parser hermes` in the
+  **Arguments** field. Edit the workload, append those flags, and
+  restart. See [deploy-vllm.md](deploy-vllm.md#runtime-settings) for
+  the full Arguments string and details on `--reasoning-parser` for
+  Qwen3 thinking mode.
+
 ## Notebook chunk extraction hits `finish_reason == "length"`
 
 - The chunk's VLM output was truncated before the JSON was complete

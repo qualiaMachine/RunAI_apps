@@ -3,6 +3,7 @@
 ## Quick fixes
 
 - **vLLM OOM:** Reduce `--max-model-len` (e.g., 4096) or use `--quantization awq`
+- **HTTP 400 on `tools=[...]`:** vLLM requires `--enable-auto-tool-choice --tool-call-parser hermes` in the workload Arguments to accept tool-call requests. See [deploy-vllm § Enable tool calling](deploy-vllm.md#enable-tool-calling-optional).
 - **Embedding server 503:** Model still loading (~30s on first request). Check logs.
 - **Streamlit can't connect:** Verify service DNS names match your job names in the RunAI UI
 - **Vector DB not found / vec_count=0:** The app found no vectors. This usually means the DB file wasn't copied from the PPVC to a writable location. The PPVC is often read-only, and KVaultNodeStore writes metadata on open, so it silently creates a new empty DB. **Fix:** Ensure your startup command copies the DB: `mkdir -p /tmp/vectordb && cp /wattbot-data/embeddings/wattbot_jinav4.db /tmp/vectordb/`. The app auto-discovers it at `/tmp/vectordb/`, or set `VECTOR_DB_PATH=/tmp/vectordb/wattbot_jinav4.db`. See [deploy-streamlit](deploy-streamlit.md) for the full command. Symlinks to read-only volumes **will not work**.

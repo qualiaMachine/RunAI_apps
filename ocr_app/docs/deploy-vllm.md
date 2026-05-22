@@ -79,6 +79,34 @@ the shared PVC's HuggingFace cache, and `HF_HUB_OFFLINE=1` makes a
 missing model fail loudly instead of silently kicking off a multi-GB
 download.
 
+> **Want OpenAI-style tool calling?** The default args above do **not**
+> enable it — requests that pass `tools=[...]` will come back with HTTP
+> 400. Tool calling is gated behind two extra server flags. Append them
+> to the **Arguments** field:
+>
+> ```
+> --enable-auto-tool-choice --tool-call-parser hermes
+> ```
+>
+> `--enable-auto-tool-choice` opens the `tool_choice="auto"` code path;
+> `--tool-call-parser hermes` tells vLLM how to parse the model's text
+> output back into a structured `tool_calls` array. Qwen3 and Qwen3-VL
+> both ship the Hermes-style tool template in their
+> `tokenizer_config.json`, so no `--chat-template` override is needed.
+> If the model is run in thinking mode and you want `<think>…</think>`
+> content split out from `tool_calls`, also add
+> `--reasoning-parser deepseek_r1`. The full Arguments string for the
+> shared endpoint becomes:
+>
+> ```
+> QuantTrio/Qwen3-VL-32B-Instruct-AWQ --quantization awq_marlin --dtype half --max-model-len 16384 --enable-auto-tool-choice --tool-call-parser hermes
+> ```
+>
+> For non-Qwen models the parser value changes (`llama3_json`,
+> `mistral`, etc.) — see the [vLLM tool calling
+> docs](https://docs.vllm.ai/en/stable/features/tool_calling/) for the
+> current parser list.
+
 ### Compute resources
 
 | Field | Value |
