@@ -1,14 +1,13 @@
 # RunAI / PowerEdge Applications
 
-GPU-accelerated applications for UW-Madison research computing, deployed on
+GPU-accelerated applications for UW-Madison computing, deployed on
 RunAI with Dell PowerEdge infrastructure. Built for DoIT and the research
 community — production-ready patterns for running open-source AI models on
 local GPU clusters instead of cloud APIs.
 
 ## New User Guide
 
-A progressive walkthrough of the RunAI cluster for researchers and lab
-admins onboarding to the pilot. Read in order if you're new; skip
+A progressive walkthrough of the RunAI cluster for new users. Read in order if you're new; skip
 ahead if you already have your bearings.
 
 | # | Doc | Read this if... |
