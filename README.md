@@ -7,8 +7,7 @@ local GPU clusters instead of cloud APIs.
 
 ## New User Guide
 
-A progressive walkthrough of the RunAI cluster for researchers and lab
-admins onboarding to the pilot. Read in order if you're new; skip
+A progressive walkthrough of the RunAI cluster for users onboarding. Read in order if you're new; skip
 ahead if you already have your bearings.
 
 | # | Doc | Read this if... |
