@@ -3,18 +3,23 @@
 
 Usage
 -----
-# Compare two models on different ports:
+# Compare two models served on the RunAI cluster (VPN required):
 python scripts/throughput_bench.py \
-    --url1 http://localhost:8000/v1 --model1 "QuantTrio/Qwen3-VL-32B-Instruct-AWQ" \
-    --url2 http://localhost:8001/v1 --model2 "Qwen/Qwen3-VL-32B-Instruct" \
+    --url1 https://qwen3--vl--32b--instruct-awq-runai-shared-models.deepthought.doit.wisc.edu/v1 \
+    --url2 https://qwen3--vl--32b--instruct-fp8-runai-shared-models.deepthought.doit.wisc.edu/v1 \
     --max-tokens 256 --runs 3
 
 # Single model quick test:
 python scripts/throughput_bench.py \
-    --url1 http://localhost:8000/v1 \
+    --url1 https://qwen3--vl--32b--instruct-awq-runai-shared-models.deepthought.doit.wisc.edu/v1 \
     --max-tokens 256 --runs 3
 
-The script auto-detects model names from the /models endpoint if not provided.
+# Also works with localhost when running vLLM locally:
+python scripts/throughput_bench.py \
+    --url1 http://localhost:8000/v1 --max-tokens 256 --runs 3
+
+Model names are auto-detected from the /models endpoint. No API key required
+for RunAI Knative endpoints — any string works.
 """
 
 import argparse
@@ -40,6 +45,7 @@ def bench_one(client: OpenAI, model: str, prompt: str, max_tokens: int,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=max_tokens,
             temperature=0.0,
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         )
         elapsed = time.perf_counter() - t0
 
