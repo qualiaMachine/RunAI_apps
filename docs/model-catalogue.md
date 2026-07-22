@@ -102,12 +102,11 @@ shouldn't be standing. Blank cells (—) get filled during stand-up.
 
 | Endpoint | Model | GPU (frac) | Why it earns a slot | Quality benchmarks (published) | Gap-to-frontier | TTFT p95 | Tok/s @ N | Max conc. | Wh/1k tok | Req/wk | Last reviewed |
 |----------|-------|-----------|---------------------|-------------------------------|-----------------|----------|-----------|-----------|-----------|--------|---------------|
-| `general` | `Qwen/Qwen3.5-27B-FP8` (~28 GB) | 0 (0.80) | The workhorse: chat, RAG generation, code assistance, agent backends, **and all vision/OCR traffic** (natively multimodal — no separate VL endpoint needed). ~45 GB left for KV cache → long context, many concurrent users. | MMLU-Pro 86.1 · GPQA-D 85.5 · LiveCodeBench — · OCRBench — · DocVQA — | — | — | — | — | — | — | — |
+| `general` | `Qwen/Qwen3.5-27B-FP8` (~28 GB) | 0 (0.75) | The workhorse: chat, RAG generation, code assistance, agent backends, **and all vision/OCR traffic** (natively multimodal — no separate VL endpoint needed). ~44 GB left for KV cache → long context, many concurrent users. | MMLU-Pro 86.1 · GPQA-D 85.5 · LiveCodeBench — · OCRBench — · DocVQA — | — | — | — | — | — | — | — |
 | `embedding` | `Qwen/Qwen3-Embedding-4B` BF16 (~8 GB) *(alt: Jina V4, on PVC, proven in `rag_app`)* | 1 (0.15) | Every RAG project on campus needs vectors; smallest footprint, widest leverage. Swapping later forces every consumer to rebuild indexes — pick carefully once. | MTEB v2 retrieval NDCG@10 — | — | — | — | — | — | — | — |
 | `reranker` | `Qwen/Qwen3-Reranker-4B` BF16 (~8 GB) | 1 (0.10) | Cheapest retrieval-quality upgrade there is; completes the retrieval stack behind `embedding`; pattern proven in `rag_app`. | MTEB reranking — | — | — | — | — | — | — | — |
 | `small-fast` | `Qwen/Qwen3-8B-FP8` (~9 GB) | 1 (0.30) | Throughput tier: batch/classification sweeps, ML Marathon traffic (isolated from `general`), degraded-mode fallback when `general` restarts. Justified by tok/s and Wh/1k tok, not quality scores. | MMLU-Pro — | — | — | — | — | — | — | — |
 | *(open slot)* | — | 1 (0.45) | Freed by folding vision into `general`. Held for [demand trigger #3](#triggers-for-changing-the-catalogue) — Whisper/transcription, a code specialist, long-context — and the rollback slot if the OCR gate fails. | — | — | — | — | — | — | — | — |
-| *(headroom)* | — | 0 (0.20) | Burst scratch: ML Marathon experiments, benchmark runs, candidate models during [swaps](#swap-process). | — | — | — | — | — | — | — | — |
 
 Weights on GPU 1 total ~25 GB across three services, leaving generous
 KV cache plus the open slot — same fractional-GPU pattern `rag_app`
@@ -156,8 +155,8 @@ consumes the whole cluster. Offer these **on-request / scheduled**
 
 Marathon events are bursty: many students, small requests, short
 window. Plan: keep the catalogue up, point marathon traffic at
-`small-fast` and `general` with per-team rate limits, and repurpose
-GPU 0's 0.20 headroom for event scratch. If a marathon project needs a
+`small-fast` and `general` with per-team rate limits, and use GPU 0's
+unallocated 0.25 for event scratch. If a marathon project needs a
 model outside the catalogue, that's the on-request path above — not a
 permanent row.
 
@@ -184,7 +183,7 @@ after the [swap process](#swap-process) passes.
 2. Provision weights to the shared PVC
    ([managing-models.md](../rag_app/docs/managing-models.md) — check
    vLLM compatibility first).
-3. Stand up on GPU 0's headroom fraction (or off-hours) and measure
+3. Stand up on GPU 0's unallocated fraction (or off-hours) and measure
    the same columns as the incumbent: benchmarks, TTFT, tok/s,
    Wh/1k tokens.
 4. It wins on the numbers → announce with **2 weeks' notice**, swap
