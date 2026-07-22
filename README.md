@@ -25,6 +25,11 @@ ahead if you already have your bearings.
 | 05 | [Examples](docs/05-examples.md) | You're ready to deploy something — pointers to the OCR pipeline, the RAG/chatbot, and the patterns to copy when building your own |
 | 06 | [Expose a vLLM endpoint outside the cluster](docs/06-external-endpoint.md) | A non-RunAI client (Denodo, an institutional app, your laptop) needs to call a hosted model over `https://`, including the cross-VLAN firewall hand-off |
 
+There is also a draft plan for the standing shared endpoints the
+pilot should host — which models, how their benchmarks and measured
+performance get tracked, and what triggers a swap:
+[Shared Model Catalogue](docs/model-catalogue.md).
+
 The OCR-specific and RAG-specific deployment guides live in the app
 READMEs — [`ocr_app/README.md`](ocr_app/README.md) and
 [`rag_app/README.md`](rag_app/README.md) — with per-step details
