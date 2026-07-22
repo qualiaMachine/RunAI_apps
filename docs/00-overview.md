@@ -2,7 +2,10 @@
 
 > **Step 0** in the [New User Guide](../README.md#new-user-guide). Read this first to
 > decide whether the cluster is the right tool, and to learn the three
-> concepts the rest of the guide assumes.
+> concepts the rest of the guide assumes. The
+> [Usage Policy](usage-policy.md) covers what data is allowed and what
+> to expect from a pilot-stage service — read it before planning real
+> workloads.
 
 ## What the cluster is for
 
@@ -24,7 +27,8 @@ This hardware+RunAI may help fill the following niches:
 - **Long-running training or fine-tuning jobs.** These get expensive
   fast in the cloud. Sometimes doable in CHTC, but requires batching and smaller LLMs.
 - **Sensitive / PHI / Institutional data workflows.** Pending the relevant
-  cybersecurity reviews.
+  cybersecurity reviews — until those complete, the pilot is
+  **public data only** (see the [Usage Policy](usage-policy.md)).
 - **Sharing model endpoints across many users.** Large models live in one place; and many users can easily access them for their work. Graceful GPU scheduling and scaling means that GPUs can be used efficiently.
 
 
