@@ -14,6 +14,11 @@ doc covers the deltas: enable RunAI's public ingress, smoke-test from
 outside the workload's project, then coordinate the firewall rule that
 lets a specific external host through.
 
+> **Policy note:** externally reachable endpoints still fall under the
+> pilot [Usage Policy](usage-policy.md) — public data only, and don't
+> hand out endpoint URLs or keys to people who haven't been onboarded;
+> send them through the [access process](01-access.md) instead.
+
 By the end you'll have:
 - A vLLM Inference workload with **External (Public access)** enabled,
   exposing the same OpenAI-compatible API on an `https://` URL

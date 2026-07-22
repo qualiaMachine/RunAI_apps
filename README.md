@@ -5,6 +5,11 @@ RunAI with Dell PowerEdge infrastructure. Built for DoIT and the research
 community — production-ready patterns for running open-source AI models on
 local GPU clusters instead of cloud APIs.
 
+> **Before you use the pilot:** read the
+> [Usage Policy](docs/usage-policy.md) — public data only, no
+> availability guarantees, access by request. It sets expectations
+> while the service is still pre-review.
+
 ## New User Guide
 
 A progressive walkthrough of the RunAI cluster for new users. Read in order if you're new; skip

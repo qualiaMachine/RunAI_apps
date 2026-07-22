@@ -5,6 +5,10 @@
 
 ## How to get access
 
+Access is granted per-person for a named use case — see the
+[Usage Policy](usage-policy.md) for what the pilot can and can't be
+used for (in short: public data only, no availability guarantees).
+
 1. **Email Chris or Mike at DoIT** about the AI cluster pilot. Tell
    them roughly what you're looking to do (an app to deploy, a model
    to fine-tune, an interactive notebook with GPU, etc.) so they can
