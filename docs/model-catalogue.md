@@ -94,34 +94,29 @@ before `ocr_app` re-points to it.
 ### The catalogue table
 
 One table, one row per endpoint: identity, the case for standing it
-up, the quality benchmarks that justify the pick, and performance
-measured on our hardware. This is the **living record** — the
+up, and the published quality benchmarks that justify the pick. This
+is the **living record** — the
 [triggers](#triggers-for-changing-the-catalogue) watch these columns,
 and a row that can't fill its justification and benchmark cells
-shouldn't be standing. Blank cells (—) get filled during stand-up.
+shouldn't be standing.
 
-| Endpoint | Model | GPU (frac) | Why it earns a slot | Quality benchmarks (published) | Gap-to-frontier | TTFT p95 | Tok/s @ N | Max conc. | Wh/1k tok | Req/wk | Last reviewed |
-|----------|-------|-----------|---------------------|-------------------------------|-----------------|----------|-----------|-----------|-----------|--------|---------------|
-| `general` | `Qwen/Qwen3.5-27B-FP8` (~28 GB) | 0 (0.75) | The workhorse: chat, RAG generation, code assistance, agent backends, **and all vision/OCR traffic** (natively multimodal — no separate VL endpoint needed). ~44 GB left for KV cache → long context, many concurrent users. | MMLU-Pro 86.1 · GPQA-D 85.5 · LiveCodeBench — · OCRBench — · DocVQA — | — | — | — | — | — | — | — |
-| `embedding` | `Qwen/Qwen3-Embedding-4B` BF16 (~8 GB) *(alt: Jina V4, on PVC, proven in `rag_app`)* | 1 (0.15) | Every RAG project on campus needs vectors; smallest footprint, widest leverage. Swapping later forces every consumer to rebuild indexes — pick carefully once. | MTEB v2 retrieval NDCG@10 — | — | — | — | — | — | — | — |
-| `reranker` | `Qwen/Qwen3-Reranker-4B` BF16 (~8 GB) | 1 (0.10) | Cheapest retrieval-quality upgrade there is; completes the retrieval stack behind `embedding`; pattern proven in `rag_app`. | MTEB reranking — | — | — | — | — | — | — | — |
-| `small-fast` | `Qwen/Qwen3-8B-FP8` (~9 GB) | 1 (0.30) | Throughput tier: batch/classification sweeps, ML Marathon traffic (isolated from `general`), degraded-mode fallback when `general` restarts. Justified by tok/s and Wh/1k tok, not quality scores. | MMLU-Pro — | — | — | — | — | — | — | — |
-| *(open slot)* | — | 1 (0.45) | Freed by folding vision into `general`. Held for [demand trigger #3](#triggers-for-changing-the-catalogue) — Whisper/transcription, a code specialist, long-context — and the rollback slot if the OCR gate fails. | — | — | — | — | — | — | — | — |
+| Endpoint | Model | GPU fraction | Why it earns a slot | Quality benchmarks (published) | Last reviewed |
+|----------|-------|--------------|---------------------|-------------------------------|---------------|
+| `general` | `Qwen/Qwen3.5-27B-FP8` (~28 GB) | 0.75 | The workhorse: chat, RAG generation, code assistance, agent backends, **and all vision/OCR traffic** (natively multimodal — no separate VL endpoint needed). ~44 GB left for KV cache → long context, many concurrent users. | MMLU-Pro 86.1 · GPQA-Diamond 85.5 · LiveCodeBench 80.7. No 27B-specific published OCRBench/DocVQA yet — measure at the [OCR gate](#ocr-validation-gate) (Qwen3.5 flagship reports MMMU 85.0, OmniDocBench 90.8) | 2026-07 |
+| `embedding` | `Qwen/Qwen3-Embedding-4B` BF16 (~8 GB) *(alt: Jina V4, on PVC, proven in `rag_app`)* | 0.15 | Every RAG project on campus needs vectors; smallest footprint, widest leverage. Swapping later forces every consumer to rebuild indexes — pick carefully once. | MTEB multilingual 69.45 (8B flagship: 70.58, #1 at release) | 2026-07 |
+| `reranker` | `Qwen/Qwen3-Reranker-4B` BF16 (~8 GB) | 0.10 | Cheapest retrieval-quality upgrade there is; completes the retrieval stack behind `embedding`; pattern proven in `rag_app`. | MTEB-R 69.76 | 2026-07 |
+| `small-fast` | `Qwen/Qwen3-8B-FP8` (~9 GB) | 0.30 | Throughput tier: batch/classification sweeps, ML Marathon traffic (isolated from `general`), degraded-mode fallback when `general` restarts. Justified by tokens/s and energy per token, not quality scores. | MMLU-Pro 35.4 · GPQA 25.8 (base model, 5-shot CoT — quality is not this row's job) | 2026-07 |
+| *(open slot)* | — | 0.45 | Freed by folding vision into `general`. Held for [demand trigger #3](#triggers-for-changing-the-catalogue) — Whisper/transcription, a code specialist, long-context — and the rollback slot if the OCR gate fails. | — | 2026-07 |
+| **Σ VRAM** | **~53 GB weights** | GPU 0: 0.75 · GPU 1: 1.00 | Of 192 GB total: ~28 GB weights on GPU 0, ~25 GB on GPU 1. The remaining ~139 GB is the point — KV cache for concurrency, plus the open slot. | — | — |
 
-Weights on GPU 1 total ~25 GB across three services, leaving generous
-KV cache plus the open slot — same fractional-GPU pattern `rag_app`
-already runs in production.
-
-**What each column means:**
-
-| Column | Meaning |
-|--------|---------|
-| Why it earns a slot | The standing justification. If this cell goes stale (usage dies, capability absorbed elsewhere), the row is a demotion candidate regardless of benchmarks. |
-| Quality benchmarks | Role-specific published scores — generalist: MMLU-Pro, GPQA-Diamond, LiveCodeBench, OCRBench, DocVQA; embedding: MTEB v2 retrieval; reranker: MTEB reranking. Never compare across roles. |
-| Gap-to-frontier | Points behind the best vLLM-servable open model in the same VRAM class on the same benchmarks. The number [trigger #1](#triggers-for-changing-the-catalogue) watches. |
-| TTFT p95 / Tok/s @ N / Max conc. | Measured on-cluster at realistic concurrency (record N), via [`scripts/hardware_metrics.py`](../scripts/hardware_metrics.py) and the [latency notebook](../8bit-vs-4bit-latency_32B.ipynb) pattern — not vendor numbers. |
-| Wh/1k tok | Energy per 1k output tokens — the WattBot angle, and the first number peer campuses will ask for. |
-| Req/wk | Usage; drives the idle and saturation triggers. |
+**Measured columns come later.** Once endpoints stand up, extend the
+table with on-cluster numbers — TTFT p95, tokens/s at N concurrent,
+max concurrency, Wh/1k output tokens
+(via [`scripts/hardware_metrics.py`](../scripts/hardware_metrics.py)
+and the [latency notebook](../8bit-vs-4bit-latency_32B.ipynb) pattern),
+and requests/week. Those columns feed the saturation and idle
+triggers, and Wh/1k tokens is the first number peer campuses will ask
+for. They're omitted until there's real data to put in them.
 
 Keep the canonical copy of this table in this file; if/when other
 campuses want to consume it, export the same columns as CSV/JSON
@@ -174,7 +169,7 @@ after the [swap process](#swap-process) passes.
 | 3 | **Unmet demand** | **≥3 distinct groups** request a capability the catalogue lacks (long-context, audio, code-specialist, …) | Slot review — what gets evicted or shrunk to make room? |
 | 4 | **Idle** | An endpoint below ~20 req/wk for a full quarter | Demote to on-request; free the fraction |
 | 5 | **Upstream event** | Model deprecated, license change, vLLM drops support, security advisory in the serving stack | Immediate review |
-| 6 | **Cadence** | **Quarterly** review of every row, regardless — refresh Last reviewed, re-check gap-to-frontier | Keeps the table honest between events |
+| 6 | **Cadence** | **Quarterly** review of every row, regardless — refresh Last reviewed, re-check the benchmark column against the current frontier | Keeps the table honest between events |
 
 ### Swap process
 
