@@ -100,13 +100,13 @@ measured on our hardware. This is the **living record** — the
 and a row that can't fill its justification and benchmark cells
 shouldn't be standing. Blank cells (—) get filled during stand-up.
 
-| Endpoint | Model | GPU (frac) | Why it earns a slot | Quality benchmarks (published) | Gap-to-frontier | TTFT p95 | Tok/s @ N | Max conc. | Wh/1k tok | Req/wk | Last reviewed |
+| Endpoint | Model | GPU fraction | Why it earns a slot | Quality benchmarks (published) | Gap-to-frontier | TTFT p95 | Tok/s @ N | Max conc. | Wh/1k tok | Req/wk | Last reviewed |
 |----------|-------|-----------|---------------------|-------------------------------|-----------------|----------|-----------|-----------|-----------|--------|---------------|
-| `general` | `Qwen/Qwen3.5-27B-FP8` (~28 GB) | 0 (0.75) | The workhorse: chat, RAG generation, code assistance, agent backends, **and all vision/OCR traffic** (natively multimodal — no separate VL endpoint needed). ~44 GB left for KV cache → long context, many concurrent users. | MMLU-Pro 86.1 · GPQA-D 85.5 · LiveCodeBench — · OCRBench — · DocVQA — | — | — | — | — | — | — | — |
-| `embedding` | `Qwen/Qwen3-Embedding-4B` BF16 (~8 GB) *(alt: Jina V4, on PVC, proven in `rag_app`)* | 1 (0.15) | Every RAG project on campus needs vectors; smallest footprint, widest leverage. Swapping later forces every consumer to rebuild indexes — pick carefully once. | MTEB v2 retrieval NDCG@10 — | — | — | — | — | — | — | — |
-| `reranker` | `Qwen/Qwen3-Reranker-4B` BF16 (~8 GB) | 1 (0.10) | Cheapest retrieval-quality upgrade there is; completes the retrieval stack behind `embedding`; pattern proven in `rag_app`. | MTEB reranking — | — | — | — | — | — | — | — |
-| `small-fast` | `Qwen/Qwen3-8B-FP8` (~9 GB) | 1 (0.30) | Throughput tier: batch/classification sweeps, ML Marathon traffic (isolated from `general`), degraded-mode fallback when `general` restarts. Justified by tok/s and Wh/1k tok, not quality scores. | MMLU-Pro — | — | — | — | — | — | — | — |
-| *(open slot)* | — | 1 (0.45) | Freed by folding vision into `general`. Held for [demand trigger #3](#triggers-for-changing-the-catalogue) — Whisper/transcription, a code specialist, long-context — and the rollback slot if the OCR gate fails. | — | — | — | — | — | — | — | — |
+| `general` | `Qwen/Qwen3.5-27B-FP8` (~28 GB) | 0.75 | The workhorse: chat, RAG generation, code assistance, agent backends, **and all vision/OCR traffic** (natively multimodal — no separate VL endpoint needed). ~44 GB left for KV cache → long context, many concurrent users. | MMLU-Pro 86.1 · GPQA-D 85.5 · LiveCodeBench — · OCRBench — · DocVQA — | — | — | — | — | — | — | — |
+| `embedding` | `Qwen/Qwen3-Embedding-4B` BF16 (~8 GB) *(alt: Jina V4, on PVC, proven in `rag_app`)* | 0.15 | Every RAG project on campus needs vectors; smallest footprint, widest leverage. Swapping later forces every consumer to rebuild indexes — pick carefully once. | MTEB v2 retrieval NDCG@10 — | — | — | — | — | — | — | — |
+| `reranker` | `Qwen/Qwen3-Reranker-4B` BF16 (~8 GB) | 0.10 | Cheapest retrieval-quality upgrade there is; completes the retrieval stack behind `embedding`; pattern proven in `rag_app`. | MTEB reranking — | — | — | — | — | — | — | — |
+| `small-fast` | `Qwen/Qwen3-8B-FP8` (~9 GB) | 0.30 | Throughput tier: batch/classification sweeps, ML Marathon traffic (isolated from `general`), degraded-mode fallback when `general` restarts. Justified by tok/s and Wh/1k tok, not quality scores. | MMLU-Pro — | — | — | — | — | — | — | — |
+| *(open slot)* | — | 0.45 | Freed by folding vision into `general`. Held for [demand trigger #3](#triggers-for-changing-the-catalogue) — Whisper/transcription, a code specialist, long-context — and the rollback slot if the OCR gate fails. | — | — | — | — | — | — | — | — |
 
 Weights on GPU 1 total ~25 GB across three services, leaving generous
 KV cache plus the open slot — same fractional-GPU pattern `rag_app`
