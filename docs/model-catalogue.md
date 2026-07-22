@@ -72,19 +72,24 @@ Five standing endpoints covering the requested baseline (embedding,
 reranker, general-purpose LLM) plus the two capabilities this repo's
 apps already prove out (vision/OCR, small-fast).
 
-> **On "Qwen 27B":** there is no 27B Qwen; the 27B you're thinking of
-> is **Gemma 3 27B**. The closest Qwen is **Qwen3-32B** (dense). This
-> draft picks Qwen3-32B as the generalist — same VRAM class, stronger
-> benchmarks, first-class vLLM support, not license-gated, and it
-> keeps the whole catalogue in one model family the cluster already
-> caches. Gemma 3 27B is a fine alternate if a use case prefers its
-> style; note it's HF-gated (license click-through + token).
+> **On the generalist pick:** **Qwen3.5-27B** — the Qwen3.5
+> generation's dense model — leads its VRAM class across metrics
+> (reported MMLU-Pro 86.1, GPQA Diamond 85.5, vs. ~79/69 for
+> Qwen3-VL-32B), is **natively multimodal** (unified vision-language,
+> early-fusion), has 262k native context, Apache 2.0, an official FP8
+> release, and vLLM support. It clearly supersedes both Qwen3-32B and
+> Gemma 3 27B for this slot, and it keeps the catalogue in the model
+> family the cluster already caches. **Qwen3.6-27B** (April 2026, also
+> dense + multimodal, notably stronger on coding/agentic benchmarks —
+> SWE-bench Verified 77.2) is the immediate candidate under
+> [trigger #1](#triggers-for-changing-the-catalogue); benchmark both
+> during stand-up and let the table decide.
 
 ### GPU 0 — generalist card
 
 | Endpoint | Model | Quant | Weights | GPU fraction | Serves |
 |----------|-------|-------|---------|--------------|--------|
-| `general` | `Qwen/Qwen3-32B` | FP8 | ~33 GB | 0.80 (~77 GB) | Chat, RAG generation, code assistance, agent backends. ~40 GB KV cache → long context and many concurrent users |
+| `general` | `Qwen/Qwen3.5-27B-FP8` | FP8 | ~28 GB | 0.80 (~77 GB) | Chat, RAG generation, code assistance, agent backends — and image input (natively multimodal). ~45 GB KV cache → long context and many concurrent users |
 | *(headroom)* | — | — | — | 0.20 | Burst scratch: ML Marathon experiments, short-lived workspaces, benchmark runs |
 
 ### GPU 1 — retrieval + vision card
@@ -100,12 +105,15 @@ Totals on GPU 1: ~45 GB weights, ~50 GB left for KV caches across the
 four services — the same fractional-GPU pattern `rag_app` already runs
 (vLLM 0.80 / embedding 0.10 / reranker 0.10 on one card).
 
-**Consolidation option worth testing:** Qwen3-VL-32B's text-only
-quality is close to the dense 32B. If benchmarks confirm it's "good
-enough" as a generalist, one VL model could serve both `general` and
-`vision`, freeing an entire card for more variety (a long-context
-specialist, Whisper for transcription, or a code model). Run both for
-a review cycle and let the metrics table decide.
+**Consolidation option worth testing:** since Qwen3.5-27B is natively
+multimodal, `general` may be able to absorb the `vision` role
+entirely. The test that matters is `ocr_app`'s own workload: run the
+chunk-extract pipeline against both endpoints and compare OCRBench /
+DocVQA plus extraction quality on the app's sample documents. If the
+27B matches VL-32B-AWQ, retiring the separate `vision` endpoint frees
+0.45 of GPU 1 for more variety (a long-context specialist, Whisper
+for transcription, or a code model). Run both for a review cycle and
+let the metrics table decide.
 
 **Explicitly not a standing service:** 70B+ models tensor-parallel
 across both cards (Qwen2.5-72B, Qwen3-VL-72B, ~150B at 4-bit — all
@@ -149,7 +157,7 @@ Starter rows (fill measured columns during stand-up):
 
 | Endpoint | Model | Quant | GPU | Benchmark (score) | Gap-to-frontier | TTFT p95 | Tok/s @ N | Max conc. | Wh/1k tok | Req/wk | Last reviewed |
 |----------|-------|-------|-----|-------------------|-----------------|----------|-----------|-----------|-----------|--------|---------------|
-| `general` | Qwen3-32B | FP8 | 0 (0.80) | MMLU-Pro: — | — | — | — | — | — | — | — |
+| `general` | Qwen3.5-27B | FP8 | 0 (0.80) | MMLU-Pro: — | — | — | — | — | — | — | — |
 | `vision` | Qwen3-VL-32B-Instruct-AWQ | AWQ | 1 (0.45) | OCRBench: — | — | — | — | — | — | — | — |
 | `embedding` | Qwen3-Embedding-4B | BF16 | 1 (0.15) | MTEB ret.: — | — | — | — | — | — | — | — |
 | `reranker` | Qwen3-Reranker-4B | BF16 | 1 (0.10) | MTEB rerank: — | — | — | — | — | — | — | — |
@@ -222,7 +230,7 @@ exports + measurement methodology before exchanging any traffic.
 
 ## Stand-up checklist (v0)
 
-- [ ] Provision `Qwen/Qwen3-32B` (FP8), `Qwen/Qwen3-8B` (FP8),
+- [ ] Provision `Qwen/Qwen3.5-27B-FP8`, `Qwen/Qwen3-8B` (FP8),
       `Qwen/Qwen3-Embedding-4B`, `Qwen/Qwen3-Reranker-4B` to the
       shared PVC (`Qwen3-VL-32B-AWQ` and Jina V4 are already cached)
 - [ ] Deploy the five endpoints per [03 Share as endpoint](03-share-as-endpoint.md),
@@ -231,7 +239,10 @@ exports + measurement methodology before exchanging any traffic.
       measured columns
 - [ ] Decide Jina V4 vs. Qwen3-Embedding-4B on MTEB + measured latency
       (Jina wins ties: already proven in `rag_app` and multimodal)
-- [ ] Test the consolidation option (VL-32B as generalist) during one
-      review cycle
+- [ ] Benchmark `Qwen3.6-27B` head-to-head with `Qwen3.5-27B` during
+      stand-up (trigger #1 candidate — stronger coding/agentic scores)
+- [ ] Test the consolidation option (27B's native vision replacing
+      the VL-32B `vision` endpoint) against `ocr_app`'s sample docs
+      during one review cycle
 - [ ] Publish endpoint URLs + this catalogue to pilot users; set the
       first quarterly review date
