@@ -1,23 +1,14 @@
 # Shared Model Catalogue — Draft Plan
 
-> **Status: draft / not yet stood up.** This doc proposes which models
-> the pilot hosts as *standing shared endpoints* on the cluster's two
+> This doc proposes which models the pilot hosts as *standing shared endpoints* on the cluster's two
 > GPUs, how we track whether they're still the right models, and what
-> triggers a swap. It assumes the concepts from
-> [00 Overview](00-overview.md) (hardware, workload types) and the
-> serving patterns from [03 Share as endpoint](03-share-as-endpoint.md).
-> Constraints from the [Usage Policy](usage-policy.md) apply — public
-> data only during the pilot.
-
-## Purpose
-
-A small, curated set of always-on endpoints — OpenAI-compatible —
+> triggers a swap. A small, curated set of always-on endpoints — OpenAI-compatible —
 means researchers integrate against a stable API instead of learning
-RunAI and finding the best open source models on their own.
+RunAI or finding the best models on their own.
 
 ---
 
-## The core trade-off: variety vs. replicas
+## Trade-off: variety vs. replicas
 
 With 2× 96 GB in the pilot phase, we can either host **more
 distinct capabilities** or **more copies of fewer models**.
