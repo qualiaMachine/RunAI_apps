@@ -11,23 +11,15 @@
 
 ## Purpose
 
-Individual labs standing up their own copies of the same 7B model is
-the failure mode this cluster exists to avoid. A small, curated set of
-always-on endpoints — one URL per capability, OpenAI-compatible —
+A small, curated set of always-on endpoints — OpenAI-compatible —
 means researchers integrate against a stable API instead of learning
-RunAI, and the two GPUs serve many groups instead of two.
-
-The catalogue is also the unit of collaboration: if NRP or peer
-universities stand up their own "BadgerBrain-like" deployments, a
-published catalogue (models + endpoints + measured performance) is
-what makes federation possible later. See
-[Growth path](#growth-path-nrp-and-peer-campuses).
+RunAI and finding the best open source models on their own.
 
 ---
 
 ## The core trade-off: variety vs. replicas
 
-With 2× 96 GB and a campus-wide audience, we can either host **more
+With 2× 96 GB in the pilot phase, we can either host **more
 distinct capabilities** or **more copies of fewer models**.
 
 **Recommendation: optimize for variety. Do not budget standing
