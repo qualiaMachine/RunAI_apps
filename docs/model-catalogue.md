@@ -9,7 +9,7 @@
 > Constraints from the [Usage Policy](usage-policy.md) apply — public
 > data only during the pilot.
 
-## Why a catalogue at all
+## Purpose
 
 Individual labs standing up their own copies of the same 7B model is
 the failure mode this cluster exists to avoid. A small, curated set of
