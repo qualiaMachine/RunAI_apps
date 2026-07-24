@@ -24,8 +24,15 @@ What the two replicas buy:
 - **Availability.** Rolling restarts, zero-downtime model swaps, and
   node maintenance without taking the campus LLM down — the failure
   mode a single-replica catalogue simply accepts.
-- **Load isolation.** Token-heavy OCR/batch jobs can be routed to one
-  replica while interactive chat stays snappy on the other.
+
+What replicas do **not** buy: load isolation. Both replicas sit
+behind one URL and the load balancer spreads requests across them —
+no one picks a replica, so a token-heavy OCR batch spreads over both
+and can slow interactive chat everywhere. If measurements show batch
+traffic degrading chat, the fixes are per-client rate limits,
+off-peak scheduling, or splitting into two independently addressed
+single-replica workloads (`general` + `general-batch`, same model,
+same total VRAM) — trading pooled capacity for true isolation.
 
 Cheaper levers still come first when saturation hits: tighten
 quantization (the repo's
@@ -50,8 +57,9 @@ the dedicated Qwen3-VL line across visual-understanding benchmarks,
 so document extraction / OCR traffic rides on `general` too. The
 [OCR validation gate](#ocr-validation-gate) below is the safety check
 before `ocr_app` re-points to it. And there is **no small/fast
-model** — with two generalist replicas, high-volume jobs get routed
-to one replica under rate limits instead of a dedicated endpoint.
+model** — with two generalist replicas there's enough pooled
+capacity that high-volume jobs share the same endpoint under
+per-client rate limits instead of getting a dedicated one.
 
 > **On the generalist pick:** **Qwen3.5-27B** — the Qwen3.5
 > generation's dense model — leads its VRAM class across metrics
@@ -77,7 +85,7 @@ shouldn't be standing.
 
 | Endpoint | Model | GPU fraction | Why it earns a slot | Quality benchmarks (published) | Last reviewed |
 |----------|-------|--------------|---------------------|-------------------------------|---------------|
-| `general` ×2 replicas | `Qwen/Qwen3.5-27B-FP8` (~28 GB/replica) | 0.75 + 0.75 (one per GPU) | The workhorse: chat, RAG generation, code assistance, agent backends, **and all vision/OCR traffic** (natively multimodal — no separate VL endpoint needed). Two replicas → 2× throughput, rolling restarts, and OCR/batch traffic isolated from interactive chat. ~44 GB KV cache per replica. | [MMLU-Pro 86.1 · GPQA-Diamond 85.5](https://apxml.com/models/qwen35-27b) · [LiveCodeBench 80.7](https://llm-stats.com/models/qwen3.5-27b). No 27B-specific published OCRBench/DocVQA yet — measure at the [OCR gate](#ocr-validation-gate) ([Qwen3.5 flagship: MMMU 85.0, OmniDocBench 90.8](https://techie007.substack.com/p/qwen-35-the-complete-guide-benchmarks)) | 2026-07 |
+| `general` ×2 replicas | `Qwen/Qwen3.5-27B-FP8` (~28 GB/replica) | 0.75 + 0.75 (one per GPU) | The workhorse: chat, RAG generation, code assistance, agent backends, **and all vision/OCR traffic** (natively multimodal — no separate VL endpoint needed). Two replicas → 2× throughput and rolling restarts (one shared URL; the load balancer spreads requests — see trade-off section for what that does *not* isolate). ~44 GB KV cache per replica. | [MMLU-Pro 86.1 · GPQA-Diamond 85.5](https://apxml.com/models/qwen35-27b) · [LiveCodeBench 80.7](https://llm-stats.com/models/qwen3.5-27b). No 27B-specific published OCRBench/DocVQA yet — measure at the [OCR gate](#ocr-validation-gate) ([Qwen3.5 flagship: MMMU 85.0, OmniDocBench 90.8](https://techie007.substack.com/p/qwen-35-the-complete-guide-benchmarks)) | 2026-07 |
 | `embedding` | `jinaai/jina-embeddings-v5-text` (~0.7 B, ~2 GB) *(alternates below)* | 0.10 | Every RAG project on campus needs vectors; the 2026 frontier is sub-1B models, so this costs almost nothing. Swapping later forces every consumer to rebuild indexes — run a golden-set eval on real campus corpora before locking. | [MTEB v2 71.7 at 677M params](https://app.ailog.fr/en/blog/news/rag-benchmark-mteb-2026) — beats Qwen3-Embedding-8B ([70.6](https://github.com/QwenLM/Qwen3-Embedding)) at ~1/10 the size. Alternates: [Harrier-OSS-v1 (MIT, 74.3 multilingual MTEB v2)](https://app.ailog.fr/en/blog/news/rag-benchmark-mteb-2026) — verify size + vLLM support; [Qwen3-Embedding-4B, 69.45](https://github.com/QwenLM/Qwen3-Embedding) (Apache) if Jina's CC-BY-NC license is a problem | 2026-07 |
 | `reranker` | `jinaai/jina-reranker-v3` (~0.6 B, ~1.5 GB) | 0.05 | Cheapest retrieval-quality upgrade there is; completes the retrieval stack behind `embedding`. Listwise architecture — fast enough for interactive RAG. | [BEIR nDCG@10 61.94 at 0.6B](https://arxiv.org/pdf/2509.25085) ([model card](https://huggingface.co/jinaai/jina-reranker-v3)); [strongest sub-200 ms option in 2026 comparisons](https://aimultiple.com/rerankers). Alternate: [Qwen3-Reranker-0.6B](https://github.com/QwenLM/Qwen3-Embedding) (Apache) — but [autoregressive scoring makes it slower per query](https://aimultiple.com/rerankers) | 2026-07 |
 | *(open)* | — | 0.10 (GPU 0) + 0.25 (GPU 1) | The rest of the small-model budget. Held for [demand trigger #3](#triggers-for-changing-the-catalogue) — Whisper/transcription, a code specialist, long-context. | — | 2026-07 |
@@ -111,10 +119,12 @@ those weights stay on the PVC either way. Before the app re-points to
 2. If the 27B regresses on layout-heavy documents, drop the GPU 1
    `general` replica and stand `vision` (VL-32B-AWQ) back up on that
    card — the pre-replica layout, nothing lost.
-3. If it passes, route OCR/batch traffic to one replica and
-   interactive chat to the other, and schedule large batch runs
-   off-peak. If TTFT p95 still degrades on both replicas, that's
-   [trigger #2](#triggers-for-changing-the-catalogue).
+3. If it passes, watch for contention: OCR batches share the same
+   load-balanced endpoint as chat, so rate-limit batch clients and
+   schedule large runs off-peak. If chat TTFT p95 degrades anyway,
+   that's [trigger #2](#triggers-for-changing-the-catalogue) — and
+   the split-into-`general`+`general-batch` option in the trade-off
+   section is the escalation path.
 
 **Explicitly not a standing service:** 70B+ models tensor-parallel
 across both cards (Qwen2.5-72B, Qwen3-VL-72B, ~150B at 4-bit — all
@@ -125,11 +135,11 @@ consumes the whole cluster. Offer these **on-request / scheduled**
 ### ML Marathon mode
 
 Marathon events are bursty: many students, small requests, short
-window. Plan: keep the catalogue up, point marathon traffic at one
-`general` replica with per-team rate limits (interactive users keep
-the other), and use the open fractions for event scratch. If a
-marathon project needs a model outside the catalogue, that's the
-on-request path above — not a permanent row.
+window. Plan: keep the catalogue up, give marathon teams the shared
+`general` endpoint with per-team rate limits, and use the open
+fractions for event scratch. If a marathon project needs a model
+outside the catalogue, that's the on-request path above — not a
+permanent row.
 
 ---
 
