@@ -27,56 +27,58 @@ what makes federation possible later. See
 
 ## The core trade-off: variety vs. replicas
 
-With 2× 96 GB and a campus-wide audience, we can either host **more
-distinct capabilities** or **more copies of fewer models**.
+With 2× 96 GB and a campus-wide audience, the naive version of this
+choice is "more distinct capabilities" vs. "more copies of fewer
+models." Two consolidations dissolve most of the tension:
 
-**Recommendation: optimize for variety. Do not budget standing
-replicas at this scale.**
+1. **Vision folds into the generalist.** Qwen3.5-27B is natively
+   multimodal, so no separate VL endpoint is needed.
+2. **The retrieval stack got tiny.** The 2026 embedding/reranker
+   frontier is sub-1B models (see the catalogue rows below) — the
+   full embedding + reranker pair now costs ~0.15 GPU, not a card.
 
-Rationale:
+**Recommendation: replicate the generalist — one 0.75 replica per
+GPU — and keep the rest of the catalogue to lightweight retrieval
+models in the remaining 0.5.**
 
-1. **vLLM already multiplexes users.** Continuous batching means one
-   replica of a ~30B quantized model serves tens of concurrent
-   requests; the real ceiling is KV-cache memory, not replica count.
-   On a 96 GB card, a ~20–35 GB (AWQ/FP8) model leaves 40–60 GB of
-   KV cache — that *is* the multi-user capacity.
-2. **A replica costs a whole capability.** Duplicating the generalist
-   across both cards buys roughly 2× throughput but evicts the
-   embedding/reranker/small-fast stack — the things that make the
-   cluster useful for RAG pipelines and high-volume jobs, which is
-   where campus demand actually is.
-3. **There are cheaper levers than replicas** when an endpoint
-   saturates, in order: tighten quantization (the repo's
-   [8-bit vs 4-bit notebook](../8bit-vs-4bit-latency_32B.ipynb)
-   measured AWQ at ~1.7× the tokens/s of 8-bit for Qwen3-VL-32B),
-   lower `--max-model-len`, cap `max_tokens` per request, add rate
-   limits per project. Only after those are exhausted does a replica
-   enter the conversation — as a *measured* response to the
-   [saturation trigger](#triggers-for-changing-the-catalogue), not a
-   default.
-4. **Availability is the honest cost of no replicas.** A restart or
-   node drain means that endpoint is down. During the pilot that is
-   acceptable (and already what the Usage Policy promises); the
-   small-fast model on the other card doubles as a degraded-mode
-   fallback for the generalist.
+What the two replicas buy:
 
-Revisit this recommendation if the GPU count grows (NRP allocation,
-future purchase) — at 4+ cards, one replica of the highest-traffic
-endpoint becomes the right call.
+- **2× throughput** for the endpoint that will carry almost all
+  campus traffic (chat, RAG generation, code, agents, *and* OCR).
+  Each replica's vLLM instance continuously batches tens of
+  concurrent requests (~44 GB KV cache per replica); two replicas
+  double that ceiling.
+- **Availability.** Rolling restarts, zero-downtime model swaps, and
+  node maintenance without taking the campus LLM down — the failure
+  mode a single-replica catalogue simply accepts.
+- **Load isolation.** Token-heavy OCR/batch jobs can be routed to one
+  replica while interactive chat stays snappy on the other.
+
+Cheaper levers still come first when saturation hits: tighten
+quantization (the repo's
+[8-bit vs 4-bit notebook](../8bit-vs-4bit-latency_32B.ipynb) measured
+AWQ at ~1.7× the tokens/s of 8-bit), lower `--max-model-len`, cap
+`max_tokens`, rate-limit per project. What we give up is a standing
+mid-size utility model — high-volume cheap-token jobs share the
+generalist under rate limits instead of getting their own endpoint.
+If the GPU count grows (NRP allocation, future purchase), spend new
+cards on variety — audio, code-specialist, long-context — not on a
+third replica.
 
 ---
 
 ## Draft catalogue v0 — what to stand up
 
-Four standing endpoints: the baseline capabilities (general-purpose
-LLM, embedding, reranker) plus a small high-throughput model. There
-is **no separate vision endpoint** — the generalist is natively
+Three standing services: a **replicated multimodal generalist** (one
+0.75 replica per GPU) plus a lightweight embedding + reranker stack.
+There is **no separate vision endpoint** — the generalist is natively
 multimodal, and the Qwen team reports the 3.5 generation outperforms
 the dedicated Qwen3-VL line across visual-understanding benchmarks,
-so document extraction / OCR traffic rides on `general` too. That
-consolidation is the biggest capacity win in this plan; the
+so document extraction / OCR traffic rides on `general` too. The
 [OCR validation gate](#ocr-validation-gate) below is the safety check
-before `ocr_app` re-points to it.
+before `ocr_app` re-points to it. And there is **no small/fast
+model** — with two generalist replicas, high-volume jobs get routed
+to one replica under rate limits instead of a dedicated endpoint.
 
 > **On the generalist pick:** **Qwen3.5-27B** — the Qwen3.5
 > generation's dense model — leads its VRAM class across metrics
@@ -102,12 +104,11 @@ shouldn't be standing.
 
 | Endpoint | Model | GPU fraction | Why it earns a slot | Quality benchmarks (published) | Last reviewed |
 |----------|-------|--------------|---------------------|-------------------------------|---------------|
-| `general` | `Qwen/Qwen3.5-27B-FP8` (~28 GB) | 0.75 | The workhorse: chat, RAG generation, code assistance, agent backends, **and all vision/OCR traffic** (natively multimodal — no separate VL endpoint needed). ~44 GB left for KV cache → long context, many concurrent users. | MMLU-Pro 86.1 · GPQA-Diamond 85.5 · LiveCodeBench 80.7. No 27B-specific published OCRBench/DocVQA yet — measure at the [OCR gate](#ocr-validation-gate) (Qwen3.5 flagship reports MMMU 85.0, OmniDocBench 90.8) | 2026-07 |
-| `embedding` | `Qwen/Qwen3-Embedding-4B` BF16 (~8 GB) *(alt: Jina V4, on PVC, proven in `rag_app`)* | 0.15 | Every RAG project on campus needs vectors; smallest footprint, widest leverage. Swapping later forces every consumer to rebuild indexes — pick carefully once. | MTEB multilingual 69.45 (8B flagship: 70.58, #1 at release) | 2026-07 |
-| `reranker` | `Qwen/Qwen3-Reranker-4B` BF16 (~8 GB) | 0.10 | Cheapest retrieval-quality upgrade there is; completes the retrieval stack behind `embedding`; pattern proven in `rag_app`. | MTEB-R 69.76 | 2026-07 |
-| `small-fast` | `Qwen/Qwen3-8B-FP8` (~9 GB) | 0.30 | Throughput tier: batch/classification sweeps, ML Marathon traffic (isolated from `general`), degraded-mode fallback when `general` restarts. Justified by tokens/s and energy per token, not quality scores. | MMLU-Pro 35.4 · GPQA 25.8 (base model, 5-shot CoT — quality is not this row's job) | 2026-07 |
-| *(open slot)* | — | 0.45 | Freed by folding vision into `general`. Held for [demand trigger #3](#triggers-for-changing-the-catalogue) — Whisper/transcription, a code specialist, long-context — and the rollback slot if the OCR gate fails. | — | 2026-07 |
-| **Σ VRAM** | **~53 GB weights** | GPU 0: 0.75 · GPU 1: 1.00 | Of 192 GB total: ~28 GB weights on GPU 0, ~25 GB on GPU 1. The remaining ~139 GB is the point — KV cache for concurrency, plus the open slot. | — | — |
+| `general` ×2 replicas | `Qwen/Qwen3.5-27B-FP8` (~28 GB/replica) | 0.75 + 0.75 (one per GPU) | The workhorse: chat, RAG generation, code assistance, agent backends, **and all vision/OCR traffic** (natively multimodal — no separate VL endpoint needed). Two replicas → 2× throughput, rolling restarts, and OCR/batch traffic isolated from interactive chat. ~44 GB KV cache per replica. | [MMLU-Pro 86.1 · GPQA-Diamond 85.5](https://apxml.com/models/qwen35-27b) · [LiveCodeBench 80.7](https://llm-stats.com/models/qwen3.5-27b). No 27B-specific published OCRBench/DocVQA yet — measure at the [OCR gate](#ocr-validation-gate) ([Qwen3.5 flagship: MMMU 85.0, OmniDocBench 90.8](https://techie007.substack.com/p/qwen-35-the-complete-guide-benchmarks)) | 2026-07 |
+| `embedding` | `jinaai/jina-embeddings-v5-text` (~0.7 B, ~2 GB) *(alternates below)* | 0.10 | Every RAG project on campus needs vectors; the 2026 frontier is sub-1B models, so this costs almost nothing. Swapping later forces every consumer to rebuild indexes — run a golden-set eval on real campus corpora before locking. | [MTEB v2 71.7 at 677M params](https://app.ailog.fr/en/blog/news/rag-benchmark-mteb-2026) — beats Qwen3-Embedding-8B ([70.6](https://github.com/QwenLM/Qwen3-Embedding)) at ~1/10 the size. Alternates: [Harrier-OSS-v1 (MIT, 74.3 multilingual MTEB v2)](https://app.ailog.fr/en/blog/news/rag-benchmark-mteb-2026) — verify size + vLLM support; [Qwen3-Embedding-4B, 69.45](https://github.com/QwenLM/Qwen3-Embedding) (Apache) if Jina's CC-BY-NC license is a problem | 2026-07 |
+| `reranker` | `jinaai/jina-reranker-v3` (~0.6 B, ~1.5 GB) | 0.05 | Cheapest retrieval-quality upgrade there is; completes the retrieval stack behind `embedding`. Listwise architecture — fast enough for interactive RAG. | [BEIR nDCG@10 61.94 at 0.6B](https://arxiv.org/pdf/2509.25085) ([model card](https://huggingface.co/jinaai/jina-reranker-v3)); [strongest sub-200 ms option in 2026 comparisons](https://aimultiple.com/rerankers). Alternate: [Qwen3-Reranker-0.6B](https://github.com/QwenLM/Qwen3-Embedding) (Apache) — but [autoregressive scoring makes it slower per query](https://aimultiple.com/rerankers) | 2026-07 |
+| *(open)* | — | 0.10 (GPU 0) + 0.25 (GPU 1) | The rest of the small-model budget. Held for [demand trigger #3](#triggers-for-changing-the-catalogue) — Whisper/transcription, a code specialist, long-context. | — | 2026-07 |
+| **Σ VRAM** | **~60 GB weights** | GPU 0: 0.90 used · GPU 1: 0.75 used | Of 192 GB total: ~31 GB weights on GPU 0 (replica + retrieval stack), ~28 GB on GPU 1 (replica). The remaining ~130 GB is the point — KV cache for concurrency, plus the open fractions. | — | — |
 
 **Measured columns come later.** Once endpoints stand up, extend the
 table with on-cluster numbers — TTFT p95, tokens/s at N concurrent,
@@ -131,14 +132,13 @@ those weights stay on the PVC either way. Before the app re-points to
 1. Run the chunk-extract pipeline through `general` on the app's
    sample documents; compare extraction quality against the VL-32B
    baseline (plus OCRBench/DocVQA for the table).
-2. If the 27B regresses on layout-heavy documents, stand `vision`
-   back up in the open slot — the catalogue grows back to five rows
-   and nothing is lost.
-3. If it passes, watch for contention: OCR batches are token-heavy,
-   and they now share `general` with chat traffic. Schedule large
-   batch runs off-peak or rate-limit them per project; if `general`'s
-   TTFT p95 still degrades, that's [trigger #2](#triggers-for-changing-the-catalogue)
-   and a dedicated vision endpoint returns to the open slot.
+2. If the 27B regresses on layout-heavy documents, drop the GPU 1
+   `general` replica and stand `vision` (VL-32B-AWQ) back up on that
+   card — the pre-replica layout, nothing lost.
+3. If it passes, route OCR/batch traffic to one replica and
+   interactive chat to the other, and schedule large batch runs
+   off-peak. If TTFT p95 still degrades on both replicas, that's
+   [trigger #2](#triggers-for-changing-the-catalogue).
 
 **Explicitly not a standing service:** 70B+ models tensor-parallel
 across both cards (Qwen2.5-72B, Qwen3-VL-72B, ~150B at 4-bit — all
@@ -149,11 +149,11 @@ consumes the whole cluster. Offer these **on-request / scheduled**
 ### ML Marathon mode
 
 Marathon events are bursty: many students, small requests, short
-window. Plan: keep the catalogue up, point marathon traffic at
-`small-fast` and `general` with per-team rate limits, and use GPU 0's
-unallocated 0.25 for event scratch. If a marathon project needs a
-model outside the catalogue, that's the on-request path above — not a
-permanent row.
+window. Plan: keep the catalogue up, point marathon traffic at one
+`general` replica with per-team rate limits (interactive users keep
+the other), and use the open fractions for event scratch. If a
+marathon project needs a model outside the catalogue, that's the
+on-request path above — not a permanent row.
 
 ---
 
@@ -165,7 +165,7 @@ after the [swap process](#swap-process) passes.
 | # | Trigger | Threshold | Likely action |
 |---|---------|-----------|---------------|
 | 1 | **Frontier gap** | A vLLM-supported open model in the same VRAM class leads the hosted model by **≥5 points** on the role's tracked benchmark | Candidate swap |
-| 2 | **Saturation** | TTFT p95 > 10 s or sustained queueing during **2+ consecutive normal weeks** | Tighter quant → lower max context → rate limits → *then* discuss a replica |
+| 2 | **Saturation** | TTFT p95 > 10 s or sustained queueing during **2+ consecutive normal weeks**, across both `general` replicas | Tighter quant → lower max context → rate limits → *then* discuss reclaiming open fractions or new hardware |
 | 3 | **Unmet demand** | **≥3 distinct groups** request a capability the catalogue lacks (long-context, audio, code-specialist, …) | Slot review — what gets evicted or shrunk to make room? |
 | 4 | **Idle** | An endpoint below ~20 req/wk for a full quarter | Demote to on-request; free the fraction |
 | 5 | **Upstream event** | Model deprecated, license change, vLLM drops support, security advisory in the serving stack | Immediate review |
@@ -218,15 +218,20 @@ exports + measurement methodology before exchanging any traffic.
 
 ## Stand-up checklist (v0)
 
-- [ ] Provision `Qwen/Qwen3.5-27B-FP8`, `Qwen/Qwen3-8B` (FP8),
-      `Qwen/Qwen3-Embedding-4B`, `Qwen/Qwen3-Reranker-4B` to the
-      shared PVC (`Qwen3-VL-32B-AWQ` and Jina V4 are already cached)
-- [ ] Deploy the four endpoints per [03 Share as endpoint](03-share-as-endpoint.md),
-      fractions as tabled above
-- [ ] Run the benchmark + `hardware_metrics.py` pass; fill the
-      measured columns
-- [ ] Decide Jina V4 vs. Qwen3-Embedding-4B on MTEB + measured latency
-      (Jina wins ties: already proven in `rag_app` and multimodal)
+- [ ] Provision `Qwen/Qwen3.5-27B-FP8`, `jinaai/jina-embeddings-v5-text`,
+      and `jinaai/jina-reranker-v3` to the shared PVC
+      (`Qwen3-VL-32B-AWQ` and Jina V4 are already cached); confirm the
+      Jina models' CC-BY-NC licensing is acceptable for the pilot, else
+      fall back to the Apache `Qwen3-Embedding-4B` / `Qwen3-Reranker-0.6B`
+- [ ] Deploy `general` as a RunAI Inference workload with **2 replicas
+      at 0.75 GPU** (one lands on each card), plus the embedding and
+      reranker endpoints, per [03 Share as endpoint](03-share-as-endpoint.md)
+- [ ] Run the benchmark + `hardware_metrics.py` pass; add the
+      measured columns to the table
+- [ ] Before locking the embedding model, run a 100–500-query golden
+      set built from real campus corpora (embedding swaps force every
+      consumer to reindex — this is the highest-stakes pick); check
+      `Harrier-OSS-v1` size/vLLM support while at it
 - [ ] Benchmark `Qwen3.6-27B` head-to-head with `Qwen3.5-27B` during
       stand-up (trigger #1 candidate — stronger coding/agentic scores)
 - [ ] Run the [OCR validation gate](#ocr-validation-gate) — chunk-extract
