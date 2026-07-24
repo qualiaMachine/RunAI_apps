@@ -10,16 +10,6 @@
 
 ## Trade-off: variety vs. replicas
 
-With 2× 96 GB in the pilot phase, the naive version of this choice
-is hosting **more distinct capabilities** vs. **more copies of fewer
-models**. Two consolidations dissolve most of the tension:
-
-1. **Vision folds into the generalist.** Qwen3.5-27B is natively
-   multimodal, so no separate VL endpoint is needed.
-2. **The retrieval stack got tiny.** The 2026 embedding/reranker
-   frontier is sub-1B models (see the catalogue rows below) — the
-   full embedding + reranker pair now costs ~0.15 GPU, not a card.
-
 **Recommendation: replicate the generalist — one 0.75 replica per
 GPU — and keep the rest of the catalogue to lightweight retrieval
 models in the remaining 0.5.**
