@@ -111,7 +111,10 @@ shouldn't be standing.
 | **Σ VRAM** | **~60 GB weights** | GPU 0: 0.90 used · GPU 1: 0.75 used | Of 192 GB total: ~31 GB weights on GPU 0 (replica + retrieval stack), ~28 GB on GPU 1 (replica). The remaining ~130 GB is the point — KV cache for concurrency, plus the open fractions. | — | — |
 
 **Measured columns come later.** Once endpoints stand up, extend the
-table with on-cluster numbers — TTFT p95, tokens/s at N concurrent,
+table with on-cluster numbers — TTFT p95 (*time to first token*: how
+long a user waits before the response starts streaming; *p95* = the
+slowest 1-in-20 requests, which captures how bad it feels under load
+better than the average), tokens/s at N concurrent,
 max concurrency, Wh/1k output tokens
 (via [`scripts/hardware_metrics.py`](../scripts/hardware_metrics.py)
 and the [latency notebook](../8bit-vs-4bit-latency_32B.ipynb) pattern),
@@ -165,7 +168,7 @@ after the [swap process](#swap-process) passes.
 | # | Trigger | Threshold | Likely action |
 |---|---------|-----------|---------------|
 | 1 | **Frontier gap** | A vLLM-supported open model in the same VRAM class leads the hosted model by **≥5 points** on the role's tracked benchmark | Candidate swap |
-| 2 | **Saturation** | TTFT p95 > 10 s or sustained queueing during **2+ consecutive normal weeks**, across both `general` replicas | Tighter quant → lower max context → rate limits → *then* discuss reclaiming open fractions or new hardware |
+| 2 | **Saturation** | Time-to-first-token p95 > 10 s (the slowest 5% of users wait 10+ s before the response starts) or requests sitting in vLLM's queue, persisting **2+ consecutive normal weeks** across both `general` replicas | Cheapest fix first: tighter quant (frees VRAM for concurrency) → lower max context → rate limits → *then* discuss reclaiming open fractions or new hardware |
 | 3 | **Unmet demand** | **≥3 distinct groups** request a capability the catalogue lacks (long-context, audio, code-specialist, …) | Slot review — what gets evicted or shrunk to make room? |
 | 4 | **Idle** | An endpoint below ~20 req/wk for a full quarter | Demote to on-request; free the fraction |
 | 5 | **Upstream event** | Model deprecated, license change, vLLM drops support, security advisory in the serving stack | Immediate review |
