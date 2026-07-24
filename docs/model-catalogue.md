@@ -1,35 +1,18 @@
 # Shared Model Catalogue — Draft Plan
 
-> **Status: draft / not yet stood up.** This doc proposes which models
-> the pilot hosts as *standing shared endpoints* on the cluster's two
+> This doc proposes which models the pilot hosts as *standing shared endpoints* on the cluster's two
 > GPUs, how we track whether they're still the right models, and what
-> triggers a swap. It assumes the concepts from
-> [00 Overview](00-overview.md) (hardware, workload types) and the
-> serving patterns from [03 Share as endpoint](03-share-as-endpoint.md).
-> Constraints from the [Usage Policy](usage-policy.md) apply — public
-> data only during the pilot.
-
-## Why a catalogue at all
-
-Individual labs standing up their own copies of the same 7B model is
-the failure mode this cluster exists to avoid. A small, curated set of
-always-on endpoints — one URL per capability, OpenAI-compatible —
-means researchers integrate against a stable API instead of learning
-RunAI, and the two GPUs serve many groups instead of two.
-
-The catalogue is also the unit of collaboration: if NRP or peer
-universities stand up their own "BadgerBrain-like" deployments, a
-published catalogue (models + endpoints + measured performance) is
-what makes federation possible later. See
-[Growth path](#growth-path-nrp-and-peer-campuses).
+> triggers a swap. A small, curated set of always-on endpoints — OpenAI-compatible —
+> means researchers integrate against a stable API instead of learning
+> RunAI or finding the best models on their own.
 
 ---
 
-## The core trade-off: variety vs. replicas
+## Trade-off: variety vs. replicas
 
-With 2× 96 GB and a campus-wide audience, the naive version of this
-choice is "more distinct capabilities" vs. "more copies of fewer
-models." Two consolidations dissolve most of the tension:
+With 2× 96 GB in the pilot phase, the naive version of this choice
+is hosting **more distinct capabilities** vs. **more copies of fewer
+models**. Two consolidations dissolve most of the tension:
 
 1. **Vision folds into the generalist.** Qwen3.5-27B is natively
    multimodal, so no separate VL endpoint is needed.
