@@ -27,6 +27,7 @@ import os
 import shutil
 import sys
 import tarfile
+import tempfile
 import threading
 import time
 import urllib.request
@@ -36,7 +37,10 @@ MODEL_ID = os.environ.get("HIDREAM_MODEL_ID", "HiDream-ai/HiDream-O1-Image-Dev-2
 MODEL_TYPE = os.environ.get("HIDREAM_MODEL_TYPE", "dev")
 UPSTREAM_REF = os.environ.get("HIDREAM_REF", "3237a638a5c2c7be106b0175958f4c0db8c2dfbf")
 PORT = int(os.environ.get("PORT", "8000"))
-UPSTREAM_DIR = "/tmp/hidream-upstream"
+# tempfile honors $TMPDIR, so deployments with a read-only root filesystem
+# can redirect all writes to a mounted scratch volume.
+WORK_DIR = tempfile.gettempdir()
+UPSTREAM_DIR = os.path.join(WORK_DIR, "hidream-upstream")
 
 
 def fail(msg: str):
@@ -70,15 +74,15 @@ def fetch_upstream(ref: str) -> str:
     """Download HiDream's pipeline code at a pinned ref and patch it for
     machines without flash-attn (their README-documented fallback)."""
     url = f"https://github.com/HiDream-ai/HiDream-O1-Image/archive/{ref}.tar.gz"
-    tarball = "/tmp/hidream-upstream.tar.gz"
+    tarball = os.path.join(WORK_DIR, "hidream-upstream.tar.gz")
     print(f"Fetching HiDream pipeline code: {url}", flush=True)
     urllib.request.urlretrieve(url, tarball)
 
     shutil.rmtree(UPSTREAM_DIR, ignore_errors=True)
     with tarfile.open(tarball) as tf:
         top = tf.getnames()[0].split("/")[0]
-        tf.extractall("/tmp")
-    shutil.move(os.path.join("/tmp", top), UPSTREAM_DIR)
+        tf.extractall(WORK_DIR)
+    shutil.move(os.path.join(WORK_DIR, top), UPSTREAM_DIR)
 
     # No flash-attn in the stock image. Two-part fallback per upstream README:
     # FA_VERSION != 2/3 turns their hard `import flash_attn` into a soft one,
