@@ -22,6 +22,7 @@ Environment variables:
     PORT                bind port (default 8000)
 """
 
+import base64
 import io
 import os
 import shutil
@@ -188,6 +189,48 @@ def generate(req: GenerateRequest):
         media_type="image/png",
         headers={"X-Generation-Seconds": f"{elapsed:.1f}"},
     )
+
+
+class ImagesGenerationsRequest(BaseModel):
+    """OpenAI Images API request (subset), so gateways like LiteLLM can
+    route this server as an image_generation model."""
+    prompt: str
+    model: str | None = None  # accepted and ignored (single-model server)
+    n: int = Field(1, ge=1, le=4)
+    size: str = "1024x1024"
+    response_format: str = "b64_json"
+    seed: int | None = None  # extension beyond the OpenAI schema
+
+
+@app.post("/v1/images/generations")
+def images_generations(req: ImagesGenerationsRequest):
+    if req.response_format != "b64_json":
+        raise HTTPException(400, "Only response_format='b64_json' is supported")
+    try:
+        w_s, h_s = req.size.lower().split("x")
+        width, height = int(w_s), int(h_s)
+    except ValueError:
+        raise HTTPException(400, f"size must be '<width>x<height>', got {req.size!r}")
+    if not req.prompt.strip():
+        raise HTTPException(400, "Empty prompt")
+
+    data = []
+    for i in range(req.n):
+        seed = (req.seed + i) if req.seed is not None else int(time.time()) + i
+        with gpu_lock:
+            image = generate_image(
+                model=model,
+                processor=processor,
+                prompt=req.prompt,
+                height=height,
+                width=width,
+                seed=seed,
+                **GEN_KWARGS,
+            )
+        buf = io.BytesIO()
+        image.save(buf, format="PNG")
+        data.append({"b64_json": base64.b64encode(buf.getvalue()).decode("ascii")})
+    return {"created": int(time.time()), "data": data}
 
 
 if __name__ == "__main__":
