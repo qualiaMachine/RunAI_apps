@@ -58,20 +58,37 @@ In the RunAI UI: **Workloads** > **New Workload** > **Inference**
 | **GPU** | 1 device, fraction 75% (bump to 100% if OOM at 2048×2048) |
 | **CPU / Memory** | 8 cores / `32Gi` |
 | **Replicas** | Min 1 / Max 1 |
-| **Data & storage** | Data volume `shared-models` → `/models` |
+| **Data & storage** | Models PVC/data volume → `/models` **plus a writable scratch PVC** (e.g. a user-workspace claim) → `/scratch` — see below |
 
-**Arguments:**
+**Arguments** (single line; `/scratch` = your scratch mount's container
+path):
 
 ```
--c "pip install uv && curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && mv /tmp/RunAI_apps-main /tmp/RunAI_apps && cd /tmp/RunAI_apps && uv pip install --system fastapi uvicorn transformers==4.57.1 diffusers accelerate einops scipy numpy pillow tqdm && python3 image_app/scripts/hidream_server.py"
+-c "export TMPDIR=/scratch && pip install --target /scratch/boot uv && /scratch/boot/bin/uv pip install --target /scratch/deps fastapi uvicorn transformers==4.57.1 diffusers accelerate einops scipy numpy pillow tqdm torchvision && curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /scratch && cd /scratch/RunAI_apps-main && PYTHONPATH=/scratch/deps python3 image_app/scripts/hidream_server.py"
 ```
 
-Identical shape to the
-[embedding server](../rag_app/docs/deploy-embedding.md) deployment —
-no shell variable expansion, no inline patching; everything
-model-specific happens inside the server script with clear error
-messages. `transformers==4.57.1` is upstream's pin (a version with
-native qwen3_vl support); torch/torchvision/CUDA come with the image.
+Why this differs from the embedding server's simpler
+`uv pip install --system` pattern: **inference containers on this
+cluster reject writes outside mounted volumes** — a bare `pip install`
+dies in seconds with no visible log. So every write is redirected to
+the scratch mount: packages via `pip/uv --target` + `PYTHONPATH`, temp
+files via `TMPDIR` (which the server script honors for its upstream
+code fetch). Two consequences:
+
+- The isolated `--target` env can't see the image's torch, so uv
+  installs a fresh torch + CUDA stack (~2.5 GB download, **~8 GB on
+  the scratch volume** — size the claim accordingly). `torchvision`
+  must be in the install list: without it Python falls through to the
+  image's copy, which was built against a different torch and fails
+  with `operator torchvision::nms does not exist`.
+- `transformers==4.57.1` is upstream's pin (a version with native
+  qwen3_vl support).
+
+> **Debugging tip:** a failing startup crash-loops too fast for the
+> RunAI log viewer. Temporarily append `|| sleep 3600` inside the
+> quoted arguments — on failure the container stays up and the full
+> error is readable in the Logs tab. Remove it once the workload is
+> healthy so real failures restart cleanly.
 
 **Environment variables** (all optional — script defaults shown):
 
