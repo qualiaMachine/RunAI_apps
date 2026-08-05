@@ -45,7 +45,8 @@ them as starting templates and adapt to your needs.
 |------|------------|-------------------|
 | [`ocr_app/`](ocr_app/README.md) | Vision-language document extraction (Qwen3-VL-32B). Turns PDFs/scans into structured JSON. | Grant administration, archival corpora, library digitization, anything where layout matters |
 | [`rag_app/`](rag_app/README.md) | Retrieval-augmented chatbot over a curated corpus (Qwen 7B/14B/72B). | Q&A over institutional knowledge bases, research literature search, "ChatGPT for our docs" |
-| [`scripts/`](scripts) | Shared utilities used by both apps. | You usually don't touch this directly. |
+| [`image_app/`](image_app/README.md) | Text-to-image generation (Qwen-Image) with a browser UI. | Cartoon diagrams and illustrative graphics for presentations, posters with rendered text |
+| [`scripts/`](scripts) | Shared utilities used by the apps. | You usually don't touch this directly. |
 
 
 ### [Document Extraction (`ocr_app/`)](ocr_app/README.md)
