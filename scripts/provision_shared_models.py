@@ -124,6 +124,11 @@ def cmd_download(args):
     path = snapshot_download(**kwargs)
     print(f"Downloaded to: {path}")
 
+    # Sizing report so the GPU fraction / --max-model-len can be chosen
+    # right away, while you're looking at this terminal.
+    print()
+    print_vram_report(args.model)
+
 
 def _latest_snapshot(model_id):
     """Return (snapshot_dir, snapshot_name) for a cached model, or exit."""
@@ -139,7 +144,7 @@ def _latest_snapshot(model_id):
     return os.path.join(snap_dir, snapshots[-1]), snapshots[-1]
 
 
-def cmd_vram(args):
+def print_vram_report(model_id, gpu_vram=80.0):
     """Estimate serving VRAM: weights (exact, from file sizes) + KV-cache
     guidance for sizing --max-model-len and the GPU fraction.
 
@@ -150,7 +155,7 @@ def cmd_vram(args):
     import json
     import subprocess
 
-    snapshot, snap_name = _latest_snapshot(args.model)
+    snapshot, snap_name = _latest_snapshot(model_id)
 
     # ── Weights: sum of weight-file bytes (== VRAM to hold them) ──
     weight_bytes = 0
@@ -160,7 +165,7 @@ def cmd_vram(args):
                 weight_bytes += os.path.getsize(os.path.join(root, f))
     weights_gib = weight_bytes / 1024**3
 
-    print(f"Model:    {args.model}  (snapshot {snap_name})")
+    print(f"Model:    {model_id}  (snapshot {snap_name})")
     print(f"Weights:  {weights_gib:.1f} GiB on disk == VRAM to load them")
 
     # ── KV cache per token, from config.json ──
@@ -195,7 +200,7 @@ def cmd_vram(args):
         print("minus weights and ~1.5 GiB CUDA overhead). Total tokens bound")
         print("--max-model-len x concurrent sequences:")
         for frac in (0.10, 0.15, 0.25, 0.50, 0.75, 1.00):
-            budget = frac * args.gpu_vram * 0.90 - weights_gib - 1.5
+            budget = frac * gpu_vram * 0.90 - weights_gib - 1.5
             if budget <= 0:
                 print(f"  {frac:.2f} GPU: weights don't fit")
             else:
@@ -325,7 +330,7 @@ def main():
     elif args.command == "verify":
         cmd_verify(args)
     elif args.command == "vram":
-        cmd_vram(args)
+        print_vram_report(args.model, gpu_vram=args.gpu_vram)
 
 
 if __name__ == "__main__":
