@@ -119,7 +119,7 @@ Anatomy, piece by piece:
 | Chunk | Why |
 |-------|-----|
 | positional name (`qwen3-embedding-8b`) | Workload name — also becomes the endpoint URL: `https://<name>-runai-<project>.deepthought.doit.wisc.edu` |
-| `--gpu-request-type portion --gpu-portion-request N` | Fractional GPU. Size to model weights + headroom (0.10 ≈ 8 GB of an 80 GB card) |
+| `--gpu-request-type portion --gpu-portion-request N` | Fractional GPU. Size to model weights + headroom (0.10 ≈ 9.6 GB of a 96 GB RTX Pro 6000; `provision_shared_models.py vram <model>` prints the sizing table) |
 | `--existing-pvc=claimname=…,path=/models` | Shared model weights. Claim name is per-project — this is `shared-models`'s claim |
 | `--serving-port=container=8000,protocol=http` | Must match the port the server listens on (vLLM default 8000) |
 | `-- <model> --task …` | Everything after `--` goes to the image's `vllm serve` entrypoint |
