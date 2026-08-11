@@ -24,6 +24,7 @@ ahead if you already have your bearings.
 | 04 | [Storage](docs/04-storage.md) | You need to know where data lives — short-term scratch through cluster-wide shared datasets — and how to get it from "a drive in my lab" to "mountable in a workload" |
 | 05 | [Examples](docs/05-examples.md) | You're ready to deploy something — pointers to the OCR pipeline, the RAG/chatbot, and the patterns to copy when building your own |
 | 06 | [Expose a vLLM endpoint outside the cluster](docs/06-external-endpoint.md) | A non-RunAI client (Denodo, an institutional app, your laptop) needs to call a hosted model over `https://`, including the cross-VLAN firewall hand-off |
+| 07 | [Submit workloads via the RunAI CLI](docs/07-cli-submission.md) | You want scriptable, repeatable submissions from your own machine instead of the web UI — install/config on Windows, verified submit commands, and the gotchas |
 
 There is also a draft plan for the standing shared endpoints the
 pilot should host — which models, how their benchmarks and measured
@@ -116,7 +117,7 @@ All apps use the same approach:
 | Script | Purpose |
 |--------|---------|
 | `hardware_metrics.py` | GPU/energy profiling — VRAM, power draw, energy per request |
-| `provision_shared_models.py` | Download HuggingFace models to the shared PVC |
+| `provision_shared_models.py` | Download HuggingFace models to the shared PVC; `vram` subcommand estimates serving VRAM (weights + KV-cache/`--max-model-len` guidance) before you commit GPU quota |
 
 
 

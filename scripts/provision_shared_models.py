@@ -125,6 +125,100 @@ def cmd_download(args):
     print(f"Downloaded to: {path}")
 
 
+def _latest_snapshot(model_id):
+    """Return (snapshot_dir, snapshot_name) for a cached model, or exit."""
+    model_dir = os.path.join(PVC_CACHE, f"models--{model_id.replace('/', '--')}")
+    snap_dir = os.path.join(model_dir, "snapshots")
+    if not os.path.isdir(snap_dir):
+        print(f"ERROR: {model_id} not found at {model_dir}")
+        sys.exit(1)
+    snapshots = sorted(os.listdir(snap_dir))
+    if not snapshots:
+        print(f"ERROR: No snapshots found in {snap_dir}")
+        sys.exit(1)
+    return os.path.join(snap_dir, snapshots[-1]), snapshots[-1]
+
+
+def cmd_vram(args):
+    """Estimate serving VRAM: weights (exact, from file sizes) + KV-cache
+    guidance for sizing --max-model-len and the GPU fraction.
+
+    Works without a GPU (e.g. in the provisioning workspace): weights VRAM
+    equals the weight-file bytes on disk, and KV cost per token comes from
+    config.json. If nvidia-smi is available, live GPU usage is shown too.
+    """
+    import json
+    import subprocess
+
+    snapshot, snap_name = _latest_snapshot(args.model)
+
+    # ── Weights: sum of weight-file bytes (== VRAM to hold them) ──
+    weight_bytes = 0
+    for root, _dirs, files in os.walk(snapshot):
+        for f in files:
+            if f.endswith((".safetensors", ".bin")):
+                weight_bytes += os.path.getsize(os.path.join(root, f))
+    weights_gib = weight_bytes / 1024**3
+
+    print(f"Model:    {args.model}  (snapshot {snap_name})")
+    print(f"Weights:  {weights_gib:.1f} GiB on disk == VRAM to load them")
+
+    # ── KV cache per token, from config.json ──
+    cfg_path = os.path.join(snapshot, "config.json")
+    kv_per_token = None
+    if os.path.isfile(cfg_path):
+        with open(cfg_path) as f:
+            cfg = json.load(f)
+        # VL models nest the LM config under text_config
+        cfg = cfg.get("text_config", cfg)
+        try:
+            layers = cfg["num_hidden_layers"]
+            n_heads = cfg["num_attention_heads"]
+            kv_heads = cfg.get("num_key_value_heads", n_heads)
+            head_dim = cfg.get("head_dim") or cfg["hidden_size"] // n_heads
+            # K + V, bf16/fp16 (2 bytes). --kv-cache-dtype fp8 halves this.
+            kv_per_token = 2 * layers * kv_heads * head_dim * 2
+        except KeyError:
+            pass
+        quant = cfg.get("quantization_config", {}).get("quant_method")
+        if quant:
+            print(f"Note:     pre-quantized ({quant}) — disk size already reflects it")
+
+    if kv_per_token is None:
+        print("KV cache: config.json missing attention fields — no estimate")
+        print("          (embedding/reranker-style models have no meaningful KV cache)")
+    else:
+        print(f"KV cache: {kv_per_token / 1024:.1f} KiB per token "
+              f"({kv_per_token * 10_000 / 1024**3:.2f} GiB per 10k tokens, bf16)")
+        print()
+        print("Token budget by GPU fraction (80 GiB card, ~90% usable by vLLM,")
+        print("minus weights and ~1.5 GiB CUDA overhead). Total tokens bound")
+        print("--max-model-len x concurrent sequences:")
+        for frac in (0.10, 0.15, 0.25, 0.50, 0.75, 1.00):
+            budget = frac * args.gpu_vram * 0.90 - weights_gib - 1.5
+            if budget <= 0:
+                print(f"  {frac:.2f} GPU: weights don't fit")
+            else:
+                tokens = int(budget * 1024**3 / kv_per_token)
+                print(f"  {frac:.2f} GPU: ~{budget:.1f} GiB free -> ~{tokens:,} tokens")
+        print()
+        print("Rules of thumb: if vLLM dies with 'KV cache ... is too small',")
+        print("lower --max-model-len or raise the fraction; --kv-cache-dtype")
+        print("fp8_e4m3 roughly doubles the token budget.")
+
+    # ── Live reading, when a GPU exists (not in the provisioning workspace) ──
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used,memory.total",
+             "--format=csv,noheader"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            print(f"\nnvidia-smi (this container): {out.stdout.strip()}")
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        print("\n(no GPU in this container — figures above are computed from files)")
+
+
 def cmd_verify(args):
     """Verify a model has all expected files on the PVC."""
     model_dir_name = f"models--{args.model.replace('/', '--')}"
@@ -217,6 +311,11 @@ def main():
     vf = sub.add_parser("verify", help="Verify a model has all required files")
     vf.add_argument("model", help="HuggingFace model ID")
 
+    vr = sub.add_parser("vram", help="Estimate serving VRAM (weights + KV-cache guidance)")
+    vr.add_argument("model", help="HuggingFace model ID")
+    vr.add_argument("--gpu-vram", type=float, default=80.0,
+                    help="GPU VRAM in GiB for the fraction table (default: 80)")
+
     args = parser.parse_args()
 
     if args.command == "list":
@@ -225,6 +324,8 @@ def main():
         cmd_download(args)
     elif args.command == "verify":
         cmd_verify(args)
+    elif args.command == "vram":
+        cmd_vram(args)
 
 
 if __name__ == "__main__":
