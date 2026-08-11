@@ -144,7 +144,7 @@ def _latest_snapshot(model_id):
     return os.path.join(snap_dir, snapshots[-1]), snapshots[-1]
 
 
-def print_vram_report(model_id, gpu_vram=80.0):
+def print_vram_report(model_id, gpu_vram=96.0):
     """Estimate serving VRAM: weights (exact, from file sizes) + KV-cache
     guidance for sizing --max-model-len and the GPU fraction.
 
@@ -196,9 +196,10 @@ def print_vram_report(model_id, gpu_vram=80.0):
         print(f"KV cache: {kv_per_token / 1024:.1f} KiB per token "
               f"({kv_per_token * 10_000 / 1024**3:.2f} GiB per 10k tokens, bf16)")
         print()
-        print("Token budget by GPU fraction (80 GiB card, ~90% usable by vLLM,")
-        print("minus weights and ~1.5 GiB CUDA overhead). Total tokens bound")
-        print("--max-model-len x concurrent sequences:")
+        print(f"Token budget by GPU fraction ({gpu_vram:.0f} GiB card, ~90% usable by")
+        print("vLLM, minus weights and ~1.5 GiB CUDA overhead). Total tokens bound")
+        print("--max-model-len x concurrent sequences. NOTE: inside a fractional")
+        print("container, nvidia-smi reports the fraction as the device total.")
         for frac in (0.10, 0.15, 0.25, 0.50, 0.75, 1.00):
             budget = frac * gpu_vram * 0.90 - weights_gib - 1.5
             if budget <= 0:
@@ -318,8 +319,9 @@ def main():
 
     vr = sub.add_parser("vram", help="Estimate serving VRAM (weights + KV-cache guidance)")
     vr.add_argument("model", help="HuggingFace model ID")
-    vr.add_argument("--gpu-vram", type=float, default=80.0,
-                    help="GPU VRAM in GiB for the fraction table (default: 80)")
+    vr.add_argument("--gpu-vram", type=float, default=96.0,
+                    help="GPU VRAM in GiB for the fraction table "
+                         "(default: 96, RTX Pro 6000)")
 
     args = parser.parse_args()
 
