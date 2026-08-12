@@ -181,11 +181,22 @@ JSON-in/text-out endpoint. TrOCR is **line-level** — send single
 segmented text lines (e.g. Kraken output), not full pages; use
 `/ocr_batch` to score one page's lines in a single batched call.
 
-Runs on the stock `vllm/vllm-openai` image; the only missing dependency
-is `sentencepiece` (the model ships a slow tokenizer), installed to
-`/tmp` at startup — the system site-packages are read-only in inference
-containers, but `/tmp` is writable. Deploy (RunAI CLI shown; UI works
-the same way — see `docs/07-cli-submission.md` at the repo root):
+Runs on the stock `vllm/vllm-openai` image, with three packages
+installed to `/tmp/deps` at startup and put ahead of the image's own via
+`PYTHONPATH` (system site-packages are read-only in inference
+containers; `/tmp` is writable):
+
+- **`transformers>=4.42,<5`** — load-bearing. TrOCR checkpoints ship
+  slow (sentencepiece/BPE) tokenizers, and transformers 5.x — which the
+  vLLM image now carries — removed slow-tokenizer support entirely. The
+  5.x failure is a confusing `Couldn't instantiate the backend
+  tokenizer ... need sentencepiece` error that installing sentencepiece
+  does *not* fix. Same pin the RAG embedding server uses.
+- **`sentencepiece`**, **`protobuf`** — needed to read the slow
+  tokenizer itself.
+
+Deploy (RunAI CLI shown; UI works the same way — see
+`docs/07-cli-submission.md` at the repo root):
 
 ```bash
 MSYS_NO_PATHCONV=1 ./runai-cli-amd64.exe inference submit trocr-kurrent \
@@ -194,7 +205,7 @@ MSYS_NO_PATHCONV=1 ./runai-cli-amd64.exe inference submit trocr-kurrent \
   --cpu-core-request 4 --cpu-memory-request 8G \
   --existing-pvc=claimname=shared-model-repository-project-3w4iu,path=/models \
   --serving-port=container=8000,protocol=http \
-  -c -- bash -c 'curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && pip install --no-cache-dir --target /tmp/deps sentencepiece && PYTHONPATH=/tmp/deps python3 /tmp/RunAI_apps-main/ocr_app/scripts/trocr_server.py'
+  -c -- bash -c 'curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && pip install --no-cache-dir --target /tmp/deps "transformers>=4.42,<5" sentencepiece protobuf && PYTHONPATH=/tmp/deps python3 /tmp/RunAI_apps-main/ocr_app/scripts/trocr_server.py'
 ```
 
 Model must be on the shared PVC first

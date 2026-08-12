@@ -63,12 +63,26 @@ def resolve_snapshot(model_id):
 
 
 import torch  # noqa: E402
+import transformers  # noqa: E402
 from PIL import Image  # noqa: E402
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel  # noqa: E402
 
+# TrOCR checkpoints ship slow (sentencepiece/BPE) tokenizers. transformers
+# 5.x removed slow-tokenizer support, so this server needs a 4.x shadowing
+# whatever the base image provides — same pin as the RAG embedding server.
+print(f"transformers {transformers.__version__} from {transformers.__file__}", flush=True)
+if transformers.__version__.split(".")[0] not in ("4",):
+    print("WARNING: transformers 5.x drops slow tokenizers; TrOCR needs >=4.42,<5",
+          flush=True)
+
 snapshot = resolve_snapshot(MODEL_ID)
 print(f"Loading {MODEL_ID} from {snapshot} ...", flush=True)
-processor = TrOCRProcessor.from_pretrained(snapshot)
+try:
+    processor = TrOCRProcessor.from_pretrained(snapshot)
+except ValueError as e:
+    # No tokenizer.json in the repo: skip fast-tokenizer conversion entirely.
+    print(f"Fast tokenizer unavailable ({e}); retrying with use_fast=False", flush=True)
+    processor = TrOCRProcessor.from_pretrained(snapshot, use_fast=False)
 model = VisionEncoderDecoderModel.from_pretrained(snapshot)
 device = "cuda" if torch.cuda.is_available() else "cpu"
 if device == "cuda":
