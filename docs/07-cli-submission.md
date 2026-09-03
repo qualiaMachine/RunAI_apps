@@ -94,7 +94,6 @@ first (see `rag_app/docs/managing-models.md`).
 ./runai-cli-amd64.exe inference submit qwen3-embedding-8b \
   -i vllm/vllm-openai:latest --image-pull-policy IfNotPresent \
   --gpu-devices-request 1 --gpu-request-type portion --gpu-portion-request 0.25 \
-  --cpu-core-request 4 --cpu-memory-request 32G \
   --existing-pvc=claimname=shared-model-repository-project-3w4iu,path=/models \
   --serving-port=container=8000,protocol=http \
   -e HF_HOME=/models/.cache/huggingface -e HF_HUB_CACHE=/models/.cache/huggingface -e HF_HUB_OFFLINE=1 \
@@ -107,7 +106,6 @@ first (see `rag_app/docs/managing-models.md`).
 ./runai-cli-amd64.exe inference submit bge-reranker-v2-m3 \
   -i vllm/vllm-openai:latest --image-pull-policy IfNotPresent \
   --gpu-devices-request 1 --gpu-request-type portion --gpu-portion-request 0.10 \
-  --cpu-core-request 4 --cpu-memory-request 8G \
   --existing-pvc=claimname=shared-model-repository-project-3w4iu,path=/models \
   --serving-port=container=8000,protocol=http \
   -e HF_HOME=/models/.cache/huggingface -e HF_HUB_CACHE=/models/.cache/huggingface -e HF_HUB_OFFLINE=1 \
@@ -141,6 +139,12 @@ curl -s https://bge-reranker-v2-m3-runai-shared-models.deepthought.doit.wisc.edu
 
 ## Gotchas learned the hard way
 
+- **Don't request CPU or memory.** `--cpu-core-request` /
+  `--cpu-memory-request` were accepted in Aug 2026 and are now rejected
+  at admission: the Knative revision fails in ~5 seconds, no pod is
+  ever scheduled, and there is nothing in the logs to explain it. Omit
+  both and let cluster defaults apply. Worth checking first whenever a
+  submit dies suspiciously fast.
 - **Flag drift:** these commands are validated against the CLI version
   current as of Aug 2026. Run `inference submit --help` after any CLI
   update and re-check.

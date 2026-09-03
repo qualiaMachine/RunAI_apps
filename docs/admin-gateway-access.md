@@ -206,22 +206,183 @@ Knative.
 
 ## Load and autoscaling measurement (Run:ai)
 
-If the point of increased traffic is to measure Knative autoscaling,
-two things need to be true and currently aren't:
+Inference workloads default to `min_replicas=1, max_replicas=1` — no
+autoscaling at all. Scaling has to be requested at submit time, and
+quota has to allow the replica count: the `shared-models` project has
+**2.00 GPUs**, so a 1.00-GPU model reaches exactly two replicas with
+nothing else running. Small models are what produce a legible curve.
 
-1. **The workload has to be allowed to scale.** Inference workloads
-   default to `min_replicas=1, max_replicas=1` — no autoscaling at all.
-   Set max replicas and an autoscaling metric at submit time
-   (`--min-replicas 1 --max-replicas N --metric concurrency
-   --metric-threshold X`, or the Replica autoscaling fields in the UI).
-2. **Quota has to allow N replicas.** The `shared-models` project has
-   **2.00 GPUs**. A 1.00-GPU model can reach exactly two replicas with
-   nothing else running. For a meaningful scaling curve either raise
-   department quota or pick a small model — the 8B embedder at 0.25
-   scales to 4–6 replicas within current quota.
+### Working submit commands
 
-Replica counts and GPU utilization come from Run:ai, not LiteLLM;
-that's the authoritative source for what the scaler actually did.
+Verified on this cluster, Sept 2026. Run from Git Bash; the
+`MSYS_NO_PATHCONV=1` prefix stops Windows from rewriting `/models` into
+a `C:\...` path (see [07 CLI submission](07-cli-submission.md)).
+
+**Embedder — scale-to-zero, up to 4 replicas:**
+
+```bash
+./runai-cli-amd64.exe inference delete qwen3-vl-embedding-8b
+sleep 20
+MSYS_NO_PATHCONV=1 ./runai-cli-amd64.exe inference submit qwen3-vl-embedding-8b \
+  -i vllm/vllm-openai:latest \
+  --gpu-devices-request 1 --gpu-request-type portion --gpu-portion-request 0.25 \
+  --existing-pvc=claimname=shared-model-repository-project-3w4iu,path=/models \
+  --serving-port=container=8000,protocol=http \
+  --min-replicas 0 --max-replicas 4 \
+  --metric concurrency --metric-threshold 16 \
+  --scale-to-zero-retention-seconds 300 \
+  -e HF_HOME=/models/.cache/huggingface -e HF_HUB_CACHE=/models/.cache/huggingface -e HF_HUB_OFFLINE=1 \
+  -- Qwen/Qwen3-VL-Embedding-8B --runner pooling --max-model-len 8192
+```
+
+**CHURRO-3B — same shape:**
+
+```bash
+./runai-cli-amd64.exe inference delete churro-3b
+sleep 20
+MSYS_NO_PATHCONV=1 ./runai-cli-amd64.exe inference submit churro-3b \
+  -i vllm/vllm-openai:latest \
+  --gpu-devices-request 1 --gpu-request-type portion --gpu-portion-request 0.20 \
+  --existing-pvc=claimname=shared-model-repository-project-3w4iu,path=/models \
+  --serving-port=container=8000,protocol=http \
+  --min-replicas 0 --max-replicas 3 \
+  --metric concurrency --metric-threshold 16 \
+  --scale-to-zero-retention-seconds 300 \
+  -e HF_HOME=/models/.cache/huggingface -e HF_HUB_CACHE=/models/.cache/huggingface -e HF_HUB_OFFLINE=1 \
+  -- stanford-oval/churro-3B --max-model-len 16384
+```
+
+**TrOCR-Kurrent — custom server, not a vLLM args-only submit:**
+
+This one runs `ocr_app/scripts/trocr_server.py` on the stock vLLM image,
+so the whole startup is a `bash -c` string: pull the repo tarball,
+install the transformers 4.x shim to `/tmp/deps`, run the server. That
+makes cold start longer than the others, hence
+`--initialization-timeout-seconds 1800`. Note there is **no `|| sleep
+3600`** — that trap is for debugging a crash-loop and must come off
+before the workload goes into service, or a dead server sits there
+looking healthy for an hour.
+
+```bash
+./runai-cli-amd64.exe inference delete trocr-kurrent
+sleep 20
+MSYS_NO_PATHCONV=1 ./runai-cli-amd64.exe inference submit trocr-kurrent \
+  -i vllm/vllm-openai:latest --image-pull-policy IfNotPresent \
+  --gpu-devices-request 1 --gpu-request-type portion --gpu-portion-request 0.15 \
+  --existing-pvc=claimname=shared-model-repository-project-3w4iu,path=/models \
+  --serving-port=container=8000,protocol=http \
+  --min-replicas 0 --max-replicas 3 \
+  --metric concurrency --metric-threshold 16 \
+  --scale-to-zero-retention-seconds 300 \
+  --initialization-timeout-seconds 1800 \
+  -c -- bash -c 'curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && pip install --no-cache-dir --target /tmp/deps "transformers>=4.42,<5" sentencepiece protobuf && PYTHONPATH=/tmp/deps python3 /tmp/RunAI_apps-main/ocr_app/scripts/trocr_server.py'
+```
+
+### Four things that cost an hour to learn
+
+- **Do not pass `--cpu-core-request` / `--cpu-memory-request`.** They
+  were accepted in August and are now rejected at admission — the
+  workload fails in ~5 seconds with a Knative revision that never
+  schedules a pod and no useful error message. Omit them and cluster
+  defaults apply. **Nick's `qwen38-27b-vllm` still carries
+  `--cpu-memory-request 64G`; it survives only because it was admitted
+  in August and will fail this way if it is ever redeployed.**
+- **Size the GPU fraction against weights + KV + encoder cache, not
+  weights alone.** vLLM ≥0.28 profiles CUDA-graph memory, which shrank
+  the usable budget: the embedder failed at 0.25→0.20 with
+  `Available KV cache memory: -0.06 GiB` even though its weights are
+  only 15.5 GiB. Get the weights figure from
+  `provision_shared_models.py vram <model>` and leave several GiB of
+  headroom.
+- **`min-replicas 0` still starts one replica immediately.**
+  `--initial-replicas` defaults to 1 when min is 0; it idles down after
+  the retention window plus Knative's stabilization period (~5–8 min).
+- **Which models get `min 0`.** Occasional/benchmark models
+  (`churro-3b`, `trocr-kurrent`, `hidream-image-app`) — cold start is
+  ~90 s, which is fine when someone is deliberately invoking them.
+  Anything on a user's critical path stays at `min 1`: the chat model
+  behind the gateway, and the embedder **once the marathon starts**,
+  since a RAG pipeline calls it inline.
+
+### What scale-to-zero feels like to a caller
+
+Scaling to zero does **not** take the endpoint down. The Knative route
+stays live and points at the activator, which holds an incoming request
+open, triggers the scale-up, and forwards it once the pod is ready. No
+connection refused, no dropped request — the first caller after an idle
+period just waits out the cold start.
+
+Two timeouts can still spoil that first request:
+
+- **The client's own timeout.** Cold start is ~90 s for the vLLM
+  args-only models and longer for `trocr-kurrent`, which pip-installs
+  before it loads. A client with a 30 s or 60 s timeout gives up
+  mid-wait. Anything calling a `min 0` endpoint needs a generous
+  timeout — the load-test script below uses 300 s for exactly this
+  reason — and that includes LiteLLM's upstream timeout when the call
+  arrives through the gateway.
+- **The revision request timeout.** The activator will not hold a
+  request indefinitely. If cold start runs past it the caller gets a
+  504 while the pod comes up fine, and the *next* caller — now hitting
+  a warm replica — succeeds. That produces the confusing signature of
+  intermittent 504s that appear to fix themselves; check whether the
+  workload was scaled to zero before chasing it as a bug.
+
+So a `min 0` endpoint is always reachable, but only usable by a caller
+willing to wait. That is the trade being made when a model is put at
+`min 0`, and it is why anything on a user's critical path stays at
+`min 1`.
+
+### Generating load
+
+```python
+# uv run --with httpx loadtest.py
+import asyncio, httpx, time
+
+URL = "https://qwen3-vl-embedding-8b-runai-shared-models.deepthought.doit.wisc.edu/v1/embeddings"
+PAYLOAD = {"model": "Qwen/Qwen3-VL-Embedding-8B",
+           "input": "the quick brown fox jumps over the lazy dog " * 20}
+STEPS, SECONDS, COOLDOWN = [5, 15, 30, 60], 120, 20
+
+async def worker(c, stop_at, lat, err):
+    while time.time() < stop_at:
+        t0 = time.perf_counter()
+        try:
+            (await c.post(URL, json=PAYLOAD)).raise_for_status()
+            lat.append(time.perf_counter() - t0)
+        except Exception as e:
+            err.append(repr(e))
+
+async def step(conc, secs):
+    lat, err = [], []
+    stop_at = time.time() + secs
+    async with httpx.AsyncClient(timeout=300) as c:   # 300s: first call waits for cold start
+        await asyncio.gather(*(worker(c, stop_at, lat, err) for _ in range(conc)))
+    if lat:
+        s = sorted(lat); n = len(s)
+        print(f"conc={conc:3d} n={n:5d} rps={n/secs:6.1f} "
+              f"p50={s[n//2]*1000:7.0f}ms p95={s[int(n*.95)-1]*1000:7.0f}ms err={len(err)}", flush=True)
+
+async def main():
+    for c in STEPS:
+        await step(c, SECONDS); await asyncio.sleep(COOLDOWN)
+
+asyncio.run(main())
+```
+
+Watch replicas in a second terminal — Run:ai is authoritative for what
+the scaler actually did, not LiteLLM:
+
+```bash
+while true; do date +%H:%M:%S; ./runai-cli-amd64.exe inference list | grep <workload>; sleep 15; done
+```
+
+Concurrency threshold 16 at Knative's default 70% means a replica is
+added at ~11 in-flight requests, so the ramp above should walk 1 → 2 →
+3 → cap. Expect a **p95 spike right after each scale-up** while the new
+replica loads weights and compiles (~90 s), and treat the first step's
+latency as the scale-from-zero cost — that number is what decides
+whether `min 0` is acceptable for a given model.
 
 ## Known limitations
 
