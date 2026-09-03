@@ -31,6 +31,11 @@ pilot should host — which models, how their benchmarks and measured
 performance get tracked, and what triggers a swap:
 [Shared Model Catalogue](docs/model-catalogue.md).
 
+Admin-side (not part of the user guide): handing out gateway keys to a
+cohort — teams, per-user keys, rate limits, and what the LiteLLM
+numbers do and don't capture — is in
+[Handing Out Model Access](docs/admin-gateway-access.md).
+
 The OCR-specific and RAG-specific deployment guides live in the app
 READMEs — [`ocr_app/README.md`](ocr_app/README.md) and
 [`rag_app/README.md`](rag_app/README.md) — with per-step details
