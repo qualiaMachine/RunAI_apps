@@ -3,7 +3,7 @@
 > **Admin doc, not part of the [New User Guide](../README.md#new-user-guide).**
 > Everything here assumes gateway admin access and cluster-admin
 > contacts. Participants don't need to read it — what they get is the
-> two lines of config in [Step 4](#step-4--what-participants-get).
+> two lines of config in [Step 3](#step-3--what-participants-get-hand-off).
 
 How to give a cohort access to the shared models without giving
 everyone a Run:ai account. Written for the ML Marathon, but the setup is
@@ -32,10 +32,10 @@ there is nothing to switch off.
 
 - **Gateway dashboard admin** — `https://llm-gw01.doit.wisc.edu`, log in
   with the master key (`LITELLM_MASTER_KEY`)
-- **Maintainer on the `se-litellm` GitLab repo** — needed for the model
-  and access-group MRs, and for CI/CD variables if a model brings a new
-  backend endpoint. Developer access can commit but can't manage
-  variables.
+- **Maintainer on the `se-litellm` GitLab repo** — *only* if you're
+  adding a model to the catalog for the event. Cohort setup itself needs
+  no git access. Note Developer can commit but can't manage CI/CD
+  variables, which a new backend endpoint requires.
 - **Run:ai access to `shared-models`** — only if you're also changing
   autoscaling or asking for quota.
 - Participants must be on GlobalProtect (campus VPN) to reach the
@@ -57,44 +57,66 @@ If registration is walk-up and you don't have a roster in advance, fall
 back to one key per team. A shared key ends up pasted in the team's repo
 regardless; better to plan for it than to pretend otherwise.
 
+**Attribution is independent of model scoping.** Every request is
+recorded against its key, user, team, *and* model regardless of what a
+key is permitted to call — so granting everyone the whole catalog (as
+below) costs nothing in tracking. The layers do different jobs:
+
+| Layer | Answers | Where |
+|-------|---------|-------|
+| Organization | Which department/program | Dashboard |
+| **Team** | Which hackathon team, lab, or course — and its budget and rate limits | Dashboard |
+| Internal User | Which person, across all their keys | Dashboard |
+| Key | Which credential, with its own alias and limits | Dashboard |
+| Access group | Which models a key may call — **not used here** | GitLab |
+
 ## Where each step happens
 
 | Task | Surface | Effect |
 |------|---------|--------|
-| Add a model, set pricing or access groups | **GitLab** MR on `config/litellm_config.yaml` | After pipeline deploy |
 | Create teams, mint/revoke keys, set budgets and rate limits | **LiteLLM dashboard** (or its API) | Instant |
+| Add a model to the catalog, set its pricing | **GitLab** MR on `config/litellm_config.yaml` | After pipeline deploy |
 | Autoscaling replicas, GPU quota | **Run:ai** | On redeploy / admin action |
 
 The proxy runs `store_model_in_db: false`, so anything describing a
 *model* is git-managed and anything describing a *person* is
-database-managed. That's why key work never waits on a pipeline.
+database-managed. **Cohort setup is entirely the second kind** — no MR,
+no pipeline, nothing that can be blocked by campus git being flaky on
+the morning of an event.
 
-## Step 1 — Create an access group (GitLab)
+## Model scoping — not used
 
-Access groups are a model attribute, so for config-defined models this
-is an MR, not a UI click. Add to each model participants may call:
+Everyone with a key gets the whole catalog. Keys are created without a
+model restriction, so there are **no access groups to define and no
+GitLab MR in this runbook** — the entire setup below is dashboard work.
 
-```yaml
-    model_info:
-      access_groups: ["marathon-models"]
-```
+Two consequences to keep in mind:
 
-Scope keys to the *group* rather than listing models individually — then
-adding a model mid-event is one MR instead of re-issuing every key.
-Merge this days ahead; it's the only part of the setup that needs a
-deploy.
+- **A model added to the catalog is immediately available to every
+  existing key.** Fine while the catalog is a handful of models we own;
+  revisit if BYO-M endpoints start registering, or if a model arrives
+  that shouldn't be a default (a second image model, anything with
+  licensing constraints).
+- **That includes the image model**, so every key holder can generate
+  images. Acceptable under the [usage policy](usage-policy.md) for a
+  campus pilot; see the content note in
+  [`image_app/README.md`](../image_app/README.md).
 
-## Step 2 — Create the teams (dashboard)
+If that changes, scoping is one `access_groups:` line per model in
+`config/litellm_config.yaml` (a GitLab MR), referenced by name when
+minting keys.
+
+## Step 1 — Create the teams (dashboard)
 
 **Teams → + Create Team**, one per hackathon team. Set:
 
 | Field | Value |
 |-------|-------|
 | Team name | e.g. `marathon-team-07` |
-| Models | `marathon-models` (the access group) |
-| Max budget / TPM / RPM | see [Guardrails](#guardrails) below |
+| Models | leave unrestricted (whole catalog) |
+| Max budget / TPM / RPM | see [Guardrails](#guardrails-dashboard) below |
 
-## Step 3 — Mint the keys (dashboard or API)
+## Step 2 — Mint the keys (dashboard or API)
 
 **UI:** Virtual Keys → + Create New Key → assign the team, alias it with
 the participant's NetID, and let it inherit the team's model access.
@@ -119,7 +141,7 @@ done < roster.csv > keys.txt
 `keys.txt` is then your distribution list. It contains live credentials —
 treat it accordingly and delete it after the event.
 
-## Step 4 — What participants get (hand-off)
+## Step 3 — What participants get (hand-off)
 
 Two lines of config and a snippet:
 
