@@ -53,12 +53,32 @@ If registration is walk-up and you don't have a roster in advance, fall
 back to one key per team. A shared key ends up pasted in the team's repo
 regardless; better to plan for it than to pretend otherwise.
 
-## Step 1 — Create an access group
+## Where each step happens
 
-**Models + Endpoints → Model Access Group**: create `marathon-models`
-and tag the models participants may call. Scope keys to the *group*
-rather than listing models individually, so adding a model mid-event is
-one edit instead of re-issuing every key.
+| Task | Surface | Effect |
+|------|---------|--------|
+| Add a model, set pricing or access groups | **GitLab** MR on `config/litellm_config.yaml` | After pipeline deploy |
+| Create teams, mint/revoke keys, set budgets and rate limits | **LiteLLM dashboard** (or its API) | Instant |
+| Autoscaling replicas, GPU quota | **Run:ai** | On redeploy / admin action |
+
+The proxy runs `store_model_in_db: false`, so anything describing a
+*model* is git-managed and anything describing a *person* is
+database-managed. That's why key work never waits on a pipeline.
+
+## Step 1 — Create an access group (GitLab)
+
+Access groups are a model attribute, so for config-defined models this
+is an MR, not a UI click. Add to each model participants may call:
+
+```yaml
+    model_info:
+      access_groups: ["marathon-models"]
+```
+
+Scope keys to the *group* rather than listing models individually — then
+adding a model mid-event is one MR instead of re-issuing every key.
+Merge this days ahead; it's the only part of the setup that needs a
+deploy.
 
 ## Step 2 — Create the teams
 
