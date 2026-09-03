@@ -30,15 +30,19 @@ there is nothing to switch off.
 
 ## Prerequisites
 
-- Gateway admin access: `https://llm-gw01.doit.wisc.edu` — log in with
-  the master key (`LITELLM_MASTER_KEY`)
-- The models participants need are already in the catalog. **Adding a
-  model is a GitLab MR** against `config/litellm_config.yaml` in the
-  `se-litellm` repo (the proxy runs `store_model_in_db: false`), so do
-  it days ahead, not the morning of. **Adding keys and teams is a UI/API
-  operation** — instant, no deploy.
+- **Gateway dashboard admin** — `https://llm-gw01.doit.wisc.edu`, log in
+  with the master key (`LITELLM_MASTER_KEY`)
+- **Maintainer on the `se-litellm` GitLab repo** — needed for the model
+  and access-group MRs, and for CI/CD variables if a model brings a new
+  backend endpoint. Developer access can commit but can't manage
+  variables.
+- **Run:ai access to `shared-models`** — only if you're also changing
+  autoscaling or asking for quota.
 - Participants must be on GlobalProtect (campus VPN) to reach the
   gateway.
+- The models participants need should be in the catalog **days ahead**.
+  That's the only part of this that needs a pipeline deploy; everything
+  else is instant.
 
 ## Design: teams as the unit, per-user keys inside them
 
@@ -53,14 +57,34 @@ If registration is walk-up and you don't have a roster in advance, fall
 back to one key per team. A shared key ends up pasted in the team's repo
 regardless; better to plan for it than to pretend otherwise.
 
-## Step 1 — Create an access group
+## Where each step happens
 
-**Models + Endpoints → Model Access Group**: create `marathon-models`
-and tag the models participants may call. Scope keys to the *group*
-rather than listing models individually, so adding a model mid-event is
-one edit instead of re-issuing every key.
+| Task | Surface | Effect |
+|------|---------|--------|
+| Add a model, set pricing or access groups | **GitLab** MR on `config/litellm_config.yaml` | After pipeline deploy |
+| Create teams, mint/revoke keys, set budgets and rate limits | **LiteLLM dashboard** (or its API) | Instant |
+| Autoscaling replicas, GPU quota | **Run:ai** | On redeploy / admin action |
 
-## Step 2 — Create the teams
+The proxy runs `store_model_in_db: false`, so anything describing a
+*model* is git-managed and anything describing a *person* is
+database-managed. That's why key work never waits on a pipeline.
+
+## Step 1 — Create an access group (GitLab)
+
+Access groups are a model attribute, so for config-defined models this
+is an MR, not a UI click. Add to each model participants may call:
+
+```yaml
+    model_info:
+      access_groups: ["marathon-models"]
+```
+
+Scope keys to the *group* rather than listing models individually — then
+adding a model mid-event is one MR instead of re-issuing every key.
+Merge this days ahead; it's the only part of the setup that needs a
+deploy.
+
+## Step 2 — Create the teams (dashboard)
 
 **Teams → + Create Team**, one per hackathon team. Set:
 
@@ -70,7 +94,7 @@ one edit instead of re-issuing every key.
 | Models | `marathon-models` (the access group) |
 | Max budget / TPM / RPM | see [Guardrails](#guardrails) below |
 
-## Step 3 — Mint the keys
+## Step 3 — Mint the keys (dashboard or API)
 
 **UI:** Virtual Keys → + Create New Key → assign the team, alias it with
 the participant's NetID, and let it inherit the team's model access.
@@ -95,7 +119,7 @@ done < roster.csv > keys.txt
 `keys.txt` is then your distribution list. It contains live credentials —
 treat it accordingly and delete it after the event.
 
-## Step 4 — What participants get
+## Step 4 — What participants get (hand-off)
 
 Two lines of config and a snippet:
 
@@ -124,7 +148,7 @@ curl -s https://llm-gw01.doit.wisc.edu/key/info \
   -H "Authorization: Bearer sk-<their-key>"
 ```
 
-## Guardrails
+## Guardrails (dashboard)
 
 **Use rate limits, not budgets, as the enforcement mechanism.**
 `rpm_limit` and `tpm_limit` work regardless of model pricing.
@@ -146,7 +170,7 @@ for the teams generating load — otherwise the gateway throttles the
 traffic before it reaches the endpoint and you measure LiteLLM, not
 Knative.
 
-## Monitoring usage
+## Monitoring usage (dashboard + Grafana)
 
 - **Usage** page — spend and token counts broken down by key, team,
   user, and model. Token and request counts are tracked independently
@@ -158,7 +182,7 @@ Knative.
   (`service=litellm|nginx|postgres`), which is where request-rate over
   time is easiest to plot.
 
-## Load and autoscaling measurement
+## Load and autoscaling measurement (Run:ai)
 
 If the point of increased traffic is to measure Knative autoscaling,
 two things need to be true and currently aren't:
