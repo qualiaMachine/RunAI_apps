@@ -12,10 +12,16 @@ of object -- rows in the proxy's Postgres -- so they are created through
 the running proxy's API, which is what this script does. There is nothing
 here to commit.
 
-If op reports "account is not signed in" here but works when you type it,
-approve the 1Password popup asking to authorize a new application -- it
-appears once and can open behind the terminal window. --no-1password
-skips op entirely if it still will not cooperate.
+By default this only talks to the gateway: master key from
+$LITELLM_MASTER_KEY, minted keys written to a CSV. File them in 1Password
+and share them from the app -- seconds per person, and the only thing that
+works with a normal 1Password account.
+
+--use-op automates that side too, but needs OP_SERVICE_ACCOUNT_TOKEN. The
+desktop-app integration authorizes by calling application: a terminal you
+typed into is trusted, python.exe is not, so `op whoami` succeeds when
+typed and fails from any script. This is 1Password behaving as designed
+and no shell or subprocess trick gets around it.
 
 Usage:
 
@@ -32,7 +38,7 @@ Re-running is safe: anyone who already has a key item in the vault is
 skipped, so you can add rows to the roster and re-run to onboard only the
 new people.
 
-Requires: python 3.9+, the 1Password CLI (`op`) signed in. No pip installs.
+Requires: python 3.9+. No pip installs.
 """
 
 import argparse
@@ -285,16 +291,15 @@ def main():
                    help="op:// reference to the gateway master key")
     p.add_argument("--expires-in", default="14d",
                    help="share-link lifetime (default 14d)")
-    p.add_argument("--out", default="share-links.csv",
-                   help="where to write netid,share_link (default share-links.csv)")
+    p.add_argument("--out", default="keys.csv",
+                   help="where to write results (default keys.csv)")
     p.add_argument("--example", action="store_true",
                    help="print an example roster CSV and exit")
-    p.add_argument("--no-1password", action="store_true",
-                   help="bypass 1Password: read the master key from "
-                        "$LITELLM_MASTER_KEY and write minted keys to --out "
-                        "as plaintext. Escape hatch for when `op` won't "
-                        "authenticate; you then own distributing and deleting "
-                        "that file.")
+    p.add_argument("--use-op", action="store_true",
+                   help="also drive the 1Password CLI: read the master key "
+                        "via --master-key-ref, file each key in --vault, and "
+                        "emit share links instead of keys. Requires "
+                        "OP_SERVICE_ACCOUNT_TOKEN (see module docstring).")
     args = p.parse_args()
 
     if args.example:
@@ -314,14 +319,15 @@ def main():
 
     rows = read_roster(args.roster)
 
-    if args.no_1password:
+    if not args.use_op:
         master_key = os.environ.get("LITELLM_MASTER_KEY", "").strip()
         if not master_key:
             raise Fatal(
-                "--no-1password needs the master key in the environment:\n"
-                "  export LITELLM_MASTER_KEY=sk-...\n"
-                "(Read it from the se-litellm GitLab CI/CD variables, or from\n"
-                "1Password's GUI if the CLI is the only thing misbehaving.)"
+                "Set the gateway master key first:\n"
+                "  PowerShell:  $env:LITELLM_MASTER_KEY = 'sk-...'\n"
+                "  bash:        export LITELLM_MASTER_KEY=sk-...\n\n"
+                "Copy it out of 1Password, or from the se-litellm GitLab\n"
+                "CI/CD variables."
             )
     else:
         op_check_signin()
@@ -335,7 +341,7 @@ def main():
 
     # ---- plan ----
     print(f"Gateway : {args.gateway}")
-    print(f"Vault   : {args.vault if not args.no_1password else '(bypassed)'}")
+    print(f"Vault   : {args.vault if args.use_op else '(not used)'}")
     print(f"Roster  : {args.roster} ({len(rows)} people, {len(wanted)} teams)")
     print()
 
@@ -347,7 +353,7 @@ def main():
         print("Teams: all exist already.")
 
     todo, skipped = [], []
-    if args.no_1password:
+    if not args.use_op:
         # No vault to check against, so fall back to the gateway's own key
         # aliases. Best effort: if the endpoint shape differs, say so rather
         # than silently minting duplicates.
@@ -370,7 +376,7 @@ def main():
         print(f"  + {r['netid']:<12} team={r['team']:<20} rpm={r.get('rpm_limit') or 'default'}"
               f" duration={r.get('duration') or 'none'}")
     if skipped:
-        where = "the gateway" if args.no_1password else args.vault
+        where = args.vault if args.use_op else "the gateway"
         print(f"\nAlready have a key in {where} (skipping): "
               + ", ".join(r["netid"] for r in skipped))
 
@@ -395,7 +401,7 @@ def main():
             args.gateway, master_key, netid, teams[team],
             (r.get("rpm_limit") or "").strip(), (r.get("duration") or "").strip(), team,
         )
-        if args.no_1password:
+        if not args.use_op:
             links.append((netid, r["email"].strip(), key))
             print(f"minted: {netid}")
         else:
@@ -410,10 +416,10 @@ def main():
     with open(args.out, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["netid", "email",
-                    "api_key" if args.no_1password else "share_link"])
+                    "share_link" if args.use_op else "api_key"])
         w.writerows(links)
 
-    if args.no_1password:
+    if not args.use_op:
         print(f"\n{len(links)} key(s) issued -> {args.out}")
         print("!! That file contains LIVE CREDENTIALS in plaintext. Distribute")
         print("!! them over a secure channel and delete it when you are done.")

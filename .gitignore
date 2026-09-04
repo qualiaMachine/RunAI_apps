@@ -86,3 +86,4 @@ logs/
 # The committed template is scripts/roster.example.csv.
 roster.csv
 share-links.csv
+keys.csv

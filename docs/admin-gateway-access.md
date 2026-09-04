@@ -46,10 +46,9 @@ there is nothing to switch off.
 
 - **Gateway dashboard admin** — `https://llm-gw01.doit.wisc.edu`, log in
   with the master key (`LITELLM_MASTER_KEY`)
-- **1Password**, with the CLI signed in (`op whoami`). Every key in this
-  runbook — the master key you authenticate with and the virtual keys you
-  hand out — lives in 1Password and is never typed, pasted, or written to
-  a file. Install: `brew install 1password-cli`, or the MSI on Windows.
+- **1Password** — where the master key lives and where the virtual keys
+  you mint should end up. The desktop app is enough; the `op` CLI is
+  optional and only helps if you have a service account (see below).
 - **Maintainer on the `se-litellm` GitLab repo** — *only* if you're
   adding a model to the catalog for the event. Cohort setup itself needs
   no git access. Note Developer can commit but can't manage CI/CD
@@ -142,9 +141,10 @@ minting keys.
 > (`se-litellm`'s own README says the same under *Managing access*.)
 
 Everything up to hand-off is one command. `scripts/provision_gateway_keys.py`
-creates any teams that don't exist, mints one key per person, files each
-key in 1Password, and emits a share link per person. Nothing is clicked in
-the dashboard, and no plaintext key touches disk.
+creates any teams that don't exist and mints one key per person, writing
+them to `keys.csv`. Nothing is clicked in the dashboard. With a 1Password
+service account you can add `--use-op` and it files each key and emits
+share links too; without one, that part is a minute in the 1Password app.
 
 **Write the roster.** One row per person. Start from the committed
 template — [`scripts/roster.example.csv`](../scripts/roster.example.csv),
@@ -155,8 +155,8 @@ python scripts/provision_gateway_keys.py --example > roster.csv
 # edit roster.csv: replace the sample rows with your people
 ```
 
-`roster.csv` and `share-links.csv` are gitignored. Neither holds a key,
-but a list of real people doesn't belong in the repo.
+`roster.csv`, `keys.csv` and `share-links.csv` are all gitignored —
+`keys.csv` holds live credentials, and the other two list real people.
 
 ```
 netid,team,email,rpm_limit,duration
@@ -172,19 +172,26 @@ astudent,marathon-team-07,astudent@wisc.edu,60,7d
 | `rpm_limit` | **Leave blank** — see [Guardrails](#guardrails-dashboard). Fill in only to cap a key you have a specific reason to distrust |
 | `duration` | Blank for no expiry. Set it (`7d`) for anything event-shaped so cleanup is automatic; **leave blank for standing users** or you break a pipeline mid-project |
 
-> **If `op` reports "account is not signed in" from the script but works
-> when you type it,** the app is fine — it's about how `op` gets invoked.
-> Capturing both of its output streams makes it non-interactive and the
-> desktop integration then declines to authorize; the script retries with
-> the terminal attached, so watch for a **1Password popup asking to
-> authorize a new application** (it appears once and can open *behind*
-> your terminal window). Approve it and subsequent runs are silent.
+**Set the master key**, then dry-run and apply:
+
+```powershell
+$env:LITELLM_MASTER_KEY = "sk-..."     # bash: export LITELLM_MASTER_KEY=sk-...
+```
+
+> **The 1Password CLI cannot be driven from this script**, and that is
+> 1Password working as designed: the desktop-app integration authorizes by
+> *calling application*. A terminal you typed into is trusted; `python.exe`
+> is not, so `op whoami` succeeds when you type it and fails identically
+> from a bare `python -c` one-liner. No shell, subprocess or output-capture
+> trick gets around it — the only bypass is a **service account token**
+> (`OP_SERVICE_ACCOUNT_TOKEN`), which is worth setting up if this ever runs
+> unattended. With one, add `--use-op` and the script files each key and
+> emits share links itself.
 >
-> PowerShell is more reliable than Git Bash here. If it still won't
-> authenticate, `--no-1password` reads the master key from
-> `$LITELLM_MASTER_KEY` and writes minted keys to the output file **in
-> plaintext** — you then own filing them in 1Password and deleting the
-> file.
+> Without it the script writes `keys.csv` and you file the keys in the
+> 1Password app and share them from there. For a lab or a single
+> researcher that is under a minute of clicking; the automation only earns
+> its keep at cohort scale.
 
 **Dry run, then apply:**
 
@@ -205,9 +212,9 @@ skipped, so adding rows and re-running onboards only the new people. That
 also makes the vault — not a spreadsheet — the record of who has been
 issued a key.
 
-The script writes `share-links.csv`: **links, not keys.** Each is locked
-to one `@wisc.edu` address, single-view, and expiring. That file is safe
-to email or paste into Teams, which a file of `sk-…` values never was.
+The script writes `keys.csv` — **live credentials in plaintext.** File
+them in 1Password, share from there (next step), and delete the file.
+With `--use-op` it writes share links instead, which are safe to email.
 
 ## Step 4 — What participants get (hand-off)
 
@@ -535,8 +542,7 @@ whether `min 0` is acceptable for a given model.
   minted with `duration` expire on their own, so this is a sweep for
   anything issued without one.
 - Archive or delete the event's 1Password vault once keys are revoked,
-  and delete `share-links.csv` — the links are expired and
-  single-view by then, but there's no reason to keep the roster
-  lying around.
+  and delete `keys.csv` / `share-links.csv` and the roster. Anything
+  left holding live credentials is the thing that outlives the event.
 - Export the Usage dashboard first if the numbers feed a writeup —
   deleted keys drop out of the default view.
