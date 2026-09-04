@@ -181,6 +181,23 @@ def create_team(gateway, master_key, alias):
     return team_id
 
 
+def existing_key_aliases(gateway, master_key):
+    """Set of key aliases already on the gateway, or None if unavailable."""
+    try:
+        raw = api(gateway, master_key, "/key/list?return_full_object=true")
+    except Fatal:
+        return None
+    keys = raw.get("keys", raw) if isinstance(raw, dict) else raw
+    if not isinstance(keys, list):
+        return None
+    out = set()
+    for k in keys:
+        alias = k.get("key_alias") if isinstance(k, dict) else None
+        if alias:
+            out.add(alias)
+    return out
+
+
 def generate_key(gateway, master_key, netid, team_id, rpm, duration, team):
     payload = {
         "key_alias": f"{team}-{netid}",
@@ -245,6 +262,12 @@ def main():
                    help="where to write netid,share_link (default share-links.csv)")
     p.add_argument("--example", action="store_true",
                    help="print an example roster CSV and exit")
+    p.add_argument("--no-1password", action="store_true",
+                   help="bypass 1Password: read the master key from "
+                        "$LITELLM_MASTER_KEY and write minted keys to --out "
+                        "as plaintext. Escape hatch for when `op` won't "
+                        "authenticate; you then own distributing and deleting "
+                        "that file.")
     args = p.parse_args()
 
     if args.example:
@@ -263,11 +286,21 @@ def main():
         p.error("roster CSV required (or --example)")
 
     rows = read_roster(args.roster)
-    op_check_signin()
 
-    master_key = op("read", args.master_key_ref)[0]
-    if not master_key:
-        raise Fatal(f"No value at {args.master_key_ref}")
+    if args.no_1password:
+        master_key = os.environ.get("LITELLM_MASTER_KEY", "").strip()
+        if not master_key:
+            raise Fatal(
+                "--no-1password needs the master key in the environment:\n"
+                "  export LITELLM_MASTER_KEY=sk-...\n"
+                "(Read it from the se-litellm GitLab CI/CD variables, or from\n"
+                "1Password's GUI if the CLI is the only thing misbehaving.)"
+            )
+    else:
+        op_check_signin()
+        master_key = op("read", args.master_key_ref)[0]
+        if not master_key:
+            raise Fatal(f"No value at {args.master_key_ref}")
 
     teams = list_teams(args.gateway, master_key)
     wanted = sorted({r["team"].strip() for r in rows})
@@ -275,7 +308,7 @@ def main():
 
     # ---- plan ----
     print(f"Gateway : {args.gateway}")
-    print(f"Vault   : {args.vault}")
+    print(f"Vault   : {args.vault if not args.no_1password else '(bypassed)'}")
     print(f"Roster  : {args.roster} ({len(rows)} people, {len(wanted)} teams)")
     print()
 
@@ -287,16 +320,31 @@ def main():
         print("Teams: all exist already.")
 
     todo, skipped = [], []
-    for r in rows:
-        title = f"LiteLLM — {r['netid'].strip()}"
-        (skipped if op_item_exists(title, args.vault) else todo).append(r)
+    if args.no_1password:
+        # No vault to check against, so fall back to the gateway's own key
+        # aliases. Best effort: if the endpoint shape differs, say so rather
+        # than silently minting duplicates.
+        existing = existing_key_aliases(args.gateway, master_key)
+        if existing is None:
+            print("NOTE: could not list existing keys, so re-running this "
+                  "roster would mint duplicates. Check the roster first.")
+            todo = list(rows)
+        else:
+            for r in rows:
+                alias = f"{r['team'].strip()}-{r['netid'].strip()}"
+                (skipped if alias in existing else todo).append(r)
+    else:
+        for r in rows:
+            title = f"LiteLLM — {r['netid'].strip()}"
+            (skipped if op_item_exists(title, args.vault) else todo).append(r)
 
     print(f"\nKeys to mint: {len(todo)}")
     for r in todo:
         print(f"  + {r['netid']:<12} team={r['team']:<20} rpm={r.get('rpm_limit') or 'default'}"
               f" duration={r.get('duration') or 'none'}")
     if skipped:
-        print(f"\nAlready have a key item in {args.vault} (skipping): "
+        where = "the gateway" if args.no_1password else args.vault
+        print(f"\nAlready have a key in {where} (skipping): "
               + ", ".join(r["netid"] for r in skipped))
 
     if not args.apply:
@@ -320,21 +368,33 @@ def main():
             args.gateway, master_key, netid, teams[team],
             (r.get("rpm_limit") or "").strip(), (r.get("duration") or "").strip(), team,
         )
-        op_item_create(title, args.vault, key, netid, args.gateway,
-                       ["litellm", team])
-        del key  # the value stays in 1Password, not in this process
-        link = op_item_share(title, args.vault, r["email"].strip(), args.expires_in)
-        links.append((netid, r["email"].strip(), link))
-        print(f"minted + filed + shared: {netid}")
+        if args.no_1password:
+            links.append((netid, r["email"].strip(), key))
+            print(f"minted: {netid}")
+        else:
+            op_item_create(title, args.vault, key, netid, args.gateway,
+                           ["litellm", team])
+            del key  # the value stays in 1Password, not in this process
+            link = op_item_share(title, args.vault, r["email"].strip(),
+                                 args.expires_in)
+            links.append((netid, r["email"].strip(), link))
+            print(f"minted + filed + shared: {netid}")
 
     with open(args.out, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["netid", "email", "share_link"])
+        w.writerow(["netid", "email",
+                    "api_key" if args.no_1password else "share_link"])
         w.writerows(links)
 
-    print(f"\n{len(links)} key(s) issued. Share links -> {args.out}")
-    print("That file holds links, not keys: each is restricted to one address,")
-    print(f"single-view, and expires in {args.expires_in}. Safe to email.")
+    if args.no_1password:
+        print(f"\n{len(links)} key(s) issued -> {args.out}")
+        print("!! That file contains LIVE CREDENTIALS in plaintext. Distribute")
+        print("!! them over a secure channel and delete it when you are done.")
+    else:
+        print(f"\n{len(links)} key(s) issued. Share links -> {args.out}")
+        print("That file holds links, not keys: each is restricted to one "
+              "address,")
+        print(f"single-view, and expires in {args.expires_in}. Safe to email.")
     return 0
 
 
