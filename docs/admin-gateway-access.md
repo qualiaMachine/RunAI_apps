@@ -139,6 +139,13 @@ minting keys.
 
 ## Step 2 — Mint the keys (dashboard or API)
 
+> **Nothing here touches GitLab.** Keys, teams and users are rows in the
+> proxy's database, not config — so this is dashboard or API only, it
+> takes effect immediately, and it needs no MR, no pipeline run, and no
+> Maintainer access on `se-litellm`. GitLab is only where you *read*
+> `LITELLM_MASTER_KEY` from (a masked CI/CD variable) before running the
+> curl. See [Where each step happens](#where-each-step-happens).
+
 **UI:** Virtual Keys → + Create New Key → assign the team, alias it with
 the person's NetID, and let it inherit the team's model access.
 
