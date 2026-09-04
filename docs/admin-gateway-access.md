@@ -5,9 +5,23 @@
 > contacts. Participants don't need to read it — what they get is the
 > two lines of config in [Step 3](#step-3--what-participants-get-hand-off).
 
-How to give a cohort access to the shared models without giving
-everyone a Run:ai account. Written for the ML Marathon, but the setup is
-the general pattern for any cohort — a class, a lab, a pilot group.
+How to give people access to the shared models without giving everyone a
+Run:ai account. Written for the ML Marathon, but it is the same three
+steps for anyone: **a Team, and a key per person inside it.**
+
+"Team" is just the grouping label — whatever you'd want a usage line
+item for:
+
+| Real-world group | Team name |
+|------------------|-----------|
+| A hackathon team | `marathon-team-07` |
+| A lab or department | `wams` |
+| A course section | `stat479-fa26` |
+| One researcher with no group | `wams` — put them in their unit's team |
+
+A team of one is fine and is the right call for a lone researcher: when
+the second person from that unit shows up, they're one more key rather
+than a restructure. Don't create a team per person.
 
 ## Two tiers of access
 
@@ -46,8 +60,8 @@ there is nothing to switch off.
 
 ## Design: teams as the unit, per-user keys inside them
 
-Create a LiteLLM **Team** per hackathon team, then mint a key per
-participant *within* that team. This gives you:
+Create a LiteLLM **Team** per group, then mint a key per person *within*
+that team. This gives you:
 
 - **Team-level** budgets and rate limits — the fairness unit
 - **Per-user** rows in the Usage dashboard — the attribution unit
@@ -57,6 +71,13 @@ If registration is walk-up and you don't have a roster in advance, fall
 back to one key per team. A shared key ends up pasted in the team's repo
 regardless; better to plan for it than to pretend otherwise.
 
+**Organizations exist in LiteLLM as a tier above Team — ignore them.**
+Teams already carry the budgets, the rate limits, and the usage
+breakdown. An org layer only earns its keep if you need one budget
+spanning several teams, or want to delegate key-minting to a unit's own
+admin (that delegation may require Enterprise — verify before planning
+around it). Neither applies at pilot scale.
+
 **Attribution is independent of model scoping.** Every request is
 recorded against its key, user, team, *and* model regardless of what a
 key is permitted to call — so granting everyone the whole catalog (as
@@ -64,8 +85,8 @@ below) costs nothing in tracking. The layers do different jobs:
 
 | Layer | Answers | Where |
 |-------|---------|-------|
-| Organization | Which department/program | Dashboard |
-| **Team** | Which hackathon team, lab, or course — and its budget and rate limits | Dashboard |
+| Organization | A tier above Team — **not used here** | Dashboard |
+| **Team** | Which group — hackathon team, lab, department, course — and its budget and rate limits | Dashboard |
 | Internal User | Which person, across all their keys | Dashboard |
 | Key | Which credential, with its own alias and limits | Dashboard |
 | Access group | Which models a key may call — **not used here** | GitLab |
@@ -106,33 +127,49 @@ If that changes, scoping is one `access_groups:` line per model in
 `config/litellm_config.yaml` (a GitLab MR), referenced by name when
 minting keys.
 
-## Step 1 — Create the teams (dashboard)
+## Step 1 — Create the team (dashboard)
 
-**Teams → + Create Team**, one per hackathon team. Set:
+**Teams → + Create Team**, one per group. Set:
 
 | Field | Value |
 |-------|-------|
-| Team name | e.g. `marathon-team-07` |
+| Team name | `marathon-team-07`, `wams`, `stat479-fa26` — see the table up top |
 | Models | leave unrestricted (whole catalog) |
 | Max budget / TPM / RPM | see [Guardrails](#guardrails-dashboard) below |
 
 ## Step 2 — Mint the keys (dashboard or API)
 
 **UI:** Virtual Keys → + Create New Key → assign the team, alias it with
-the participant's NetID, and let it inherit the team's model access.
+the person's NetID, and let it inherit the team's model access.
+
+**One key** (adding a person to an existing team — the common case
+outside events):
+
+```bash
+export LITELLM_MASTER_KEY=sk-...       # do not paste into shared terminals
+curl -s https://llm-gw01.doit.wisc.edu/key/generate \
+  -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"key_alias":"wams-bbadger",
+       "team_id":"<team id from the dashboard>",
+       "user_id":"bbadger",
+       "rpm_limit":120,
+       "metadata":{"team":"wams","contact":"bbadger@wisc.edu"}}'
+```
 
 **Scripted**, from a roster (one `netid,team_id` per line):
 
 ```bash
-export LITELLM_MASTER_KEY=sk-...       # do not paste into shared terminals
+export LITELLM_MASTER_KEY=sk-...
 while IFS=, read -r netid team_id; do
   curl -s https://llm-gw01.doit.wisc.edu/key/generate \
     -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
     -H "Content-Type: application/json" \
     -d "{\"key_alias\":\"marathon-$netid\",
          \"team_id\":\"$team_id\",
-         \"models\":[\"marathon-models\"],
+         \"user_id\":\"$netid\",
          \"rpm_limit\":60,
+         \"duration\":\"7d\",
          \"metadata\":{\"event\":\"ml-marathon\",\"netid\":\"$netid\"}}" \
     | python -c "import sys,json; d=json.load(sys.stdin); print('$netid', d['key'])"
 done < roster.csv > keys.txt
@@ -140,6 +177,21 @@ done < roster.csv > keys.txt
 
 `keys.txt` is then your distribution list. It contains live credentials —
 treat it accordingly and delete it after the event.
+
+Three fields worth understanding rather than copying:
+
+- **No `models` field.** Keys inherit the team's access, which is the
+  whole catalog — see [Model scoping](#model-scoping--not-used). Passing
+  a `models` value naming an access group that doesn't exist in
+  `config/litellm_config.yaml` produces a key that is rejected on every
+  call.
+- **`user_id`** is what aggregates a person across multiple keys in the
+  Usage dashboard. Cheap to set, impossible to backfill.
+- **`duration`** auto-expires the key. Set it for anything
+  event-shaped (`7d`) so cleanup is automatic; **omit it for standing
+  users**, or you'll break a researcher's pipeline mid-project. Standing
+  keys instead need a periodic review — there is no offboarding signal
+  from the gateway when someone leaves a lab.
 
 ## Step 3 — What participants get (hand-off)
 
@@ -183,7 +235,7 @@ Suggested starting points for a hackathon, per key:
 
 | Limit | Value | Why |
 |-------|-------|-----|
-| `rpm_limit` | 60 | Generous for interactive use, stops a runaway loop |
+| `rpm_limit` | 60 | Generous for interactive use, stops a runaway loop. **Raise it (120+) for a standing research key** — a batch job over a corpus trips 60 rpm immediately and reads as the service being broken |
 | `tpm_limit` | *(unset)* | Add only if a team is starving others |
 | `max_budget` | *(unset)* | Meaningless until pricing is verified |
 
