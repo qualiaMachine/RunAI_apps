@@ -3,7 +3,7 @@
 > **Admin doc, not part of the [New User Guide](../README.md#new-user-guide).**
 > Everything here assumes gateway admin access and cluster-admin
 > contacts. Participants don't need to read it — what they get is the
-> two lines of config in [Step 3](#step-3--what-participants-get-hand-off).
+> two lines of config in [Step 4](#step-4--what-participants-get-hand-off).
 
 How to give people access to the shared models without giving everyone a
 Run:ai account. Written for the ML Marathon, but it is the same three
@@ -193,7 +193,26 @@ Three fields worth understanding rather than copying:
   keys instead need a periodic review — there is no offboarding signal
   from the gateway when someone leaves a lab.
 
-## Step 3 — What participants get (hand-off)
+## Step 3 — Deliver the keys (1Password)
+
+A virtual key is a live credential. It does not go in Teams, email, a
+shared spreadsheet, or a workshop slide. Use 1Password:
+
+| Situation | How |
+|-----------|-----|
+| Per-person keys (the default) | A **1Password item share link** per person — restrict it to their `@wisc.edu` address, set a short expiry and a one-time view. Recipients don't need a 1Password account, which matters for event participants who aren't on the campus tenant. |
+| A lab or team's shared key | A **shared vault** the group already has, or one created for them. Fits the lab case, where the key outlives any one person. |
+| A key you're rotating | Share the new one first, confirm receipt, *then* revoke the old — revoking first means someone's job dies mid-run. |
+
+Confirm the campus tenant actually permits external item sharing before
+an event — organizations can disable it, and you don't want to discover
+that with 40 people waiting.
+
+Once every key is delivered, **delete `keys.txt`**. It's a plaintext file
+of live credentials with no reason to exist after hand-off; keys can
+always be reissued from the dashboard.
+
+## Step 4 — What participants get (hand-off)
 
 Two lines of config and a snippet:
 
@@ -215,12 +234,39 @@ Image generation uses the same client with `client.images.generate(...)`
 against the image model's public name — see
 [`image_app/README.md`](../image_app/README.md).
 
+To see what models they can call:
+
+```bash
+curl -s https://llm-gw01.doit.wisc.edu/v1/models \
+  -H "Authorization: Bearer sk-<their-key>"
+```
+
 Participants can check their own usage without a gateway login:
 
 ```bash
 curl -s https://llm-gw01.doit.wisc.edu/key/info \
   -H "Authorization: Bearer sk-<their-key>"
 ```
+
+### Four things to say when you send the key
+
+Worth stating explicitly — each one is a support ticket otherwise:
+
+1. **You must be on GlobalProtect (campus VPN)** to reach the gateway,
+   from anywhere including on-campus wifi.
+2. **Keep the key out of your repo.** Read it from an environment
+   variable (`OPENAI_API_KEY` works with the `openai` client
+   unmodified), not a literal in a notebook that gets pushed to GitHub.
+3. **Always call the gateway URL**, not a
+   `*.deepthought.doit.wisc.edu` model hostname someone shared. The
+   direct hostnames answer without a key, so calls that bypass the
+   gateway are invisible in usage reporting — and unattributed traffic
+   is what gets a pilot's quota questioned.
+4. **The first call after an idle period can take a couple of minutes**
+   on models configured to scale to zero, because a GPU replica is
+   starting. Set a generous client timeout rather than treating it as a
+   failure — see
+   [What scale-to-zero feels like to a caller](#what-scale-to-zero-feels-like-to-a-caller).
 
 ## Guardrails (dashboard)
 
