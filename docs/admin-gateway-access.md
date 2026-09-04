@@ -273,8 +273,9 @@ client = OpenAI(base_url="https://llm-gw01.doit.wisc.edu/v1")
 print([m.id for m in client.models.list()])
 
 # Snapshot, Sept 2026:
-#   qwen3-27b     chat            general-purpose text
-#   qwen3-vl-32b  chat + vision   send images via image_url content parts
+#   qwen3.8-27b            chat        general-purpose text
+#   churro-3b              chat+vision historical-document OCR
+#   qwen3-vl-embedding-8b  embeddings  4096-dim, multimodal
 
 resp = client.chat.completions.create(
     model="qwen3-27b",
