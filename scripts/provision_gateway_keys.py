@@ -12,11 +12,10 @@ of object -- rows in the proxy's Postgres -- so they are created through
 the running proxy's API, which is what this script does. There is nothing
 here to commit.
 
-Authenticate `op` with OP_SERVICE_ACCOUNT_TOKEN. 1Password's desktop-app
-integration allowlists the calling process, and python.exe is not on that
-list -- `op` typed into a terminal works while the same command run from
-this script fails with "account is not signed in". Switching shells does
-not help. Use --no-1password if a service account isn't available.
+If op reports "account is not signed in" here but works when you type it,
+approve the 1Password popup asking to authorize a new application -- it
+appears once and can open behind the terminal window. --no-1password
+skips op entirely if it still will not cooperate.
 
 Usage:
 
@@ -68,19 +67,41 @@ class Fatal(Exception):
 # 1Password
 # --------------------------------------------------------------------------
 
+def _run_op(args, capture_stderr):
+    """Invoke op. With capture_stderr=False, op keeps the real terminal on
+    stderr, which is what lets the desktop app authorize the connection."""
+    return subprocess.run(
+        ["op", *args],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE if capture_stderr else None,
+        text=True,
+    )
+
+
 def op(*args, check=True):
-    """Run the 1Password CLI and return (stdout, returncode, stderr)."""
+    """Run the 1Password CLI and return (stdout, returncode, stderr).
+
+    Capturing BOTH streams makes op non-interactive, and the desktop-app
+    integration then refuses to authorize with "account is not signed in"
+    -- which is why `op whoami` works when typed but not from a script.
+    So: try captured first (clean error text), and on failure retry with
+    stderr attached to the terminal so op can complete the handshake and
+    surface any prompt.
+    """
     try:
-        r = subprocess.run(["op", *args], capture_output=True, text=True)
+        r = _run_op(args, capture_stderr=True)
+        if r.returncode != 0:
+            r = _run_op(args, capture_stderr=False)
     except FileNotFoundError:
         raise Fatal(
-            "1Password CLI not found. Install it and run `op signin`:\n"
+            "1Password CLI not found. Install it:\n"
             "  Windows: winget install AgileBits.1Password.CLI\n"
             "  macOS:   brew install 1password-cli"
         )
+    err = (r.stderr or "").strip()
     if check and r.returncode != 0:
-        raise Fatal(f"op {' '.join(args)} failed:\n{r.stderr.strip()}")
-    return r.stdout.strip(), r.returncode, r.stderr.strip()
+        raise Fatal(f"op {' '.join(args)} failed:\n{err or '(see output above)'}")
+    return r.stdout.strip(), r.returncode, err
 
 
 def op_check_signin():
@@ -91,16 +112,14 @@ def op_check_signin():
     raise Fatal(
         "`op whoami` failed. Its output was:\n"
         f"  {err or '(no error output)'}\n\n"
-        "If `op whoami` works when YOU type it but fails here, that is the\n"
-        "expected behaviour: the 1Password desktop integration allowlists the\n"
-        "calling process, and python.exe is not on that list. Switching\n"
-        "shells does not help. Either:\n"
-        "  - set a service account token, which bypasses the desktop app:\n"
-        "      $env:OP_SERVICE_ACCOUNT_TOKEN = 'ops_...'   (PowerShell)\n"
-        "      export OP_SERVICE_ACCOUNT_TOKEN=ops_...     (bash)\n"
-        "  - or re-run with --no-1password and $LITELLM_MASTER_KEY set.\n\n"
-        "If instead no account is registered at all, enable 1Password app >\n"
-        "Settings > Developer > 'Integrate with 1Password CLI' and reopen it.\n"
+        "If `op whoami` works when you type it, the app is fine and this is\n"
+        "about how op was invoked. In order:\n"
+        "  - Watch for a 1Password popup asking to authorize a new\n"
+        "    application and approve it. It appears once, on first use, and\n"
+        "    can open behind your terminal window.\n"
+        "  - Run from PowerShell rather than Git Bash.\n"
+        "  - Fall back to --no-1password with $LITELLM_MASTER_KEY set, which\n"
+        "    skips op entirely and writes the keys to a file instead.\n"
     )
 
 

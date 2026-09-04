@@ -172,29 +172,19 @@ astudent,marathon-team-07,astudent@wisc.edu,60,7d
 | `rpm_limit` | **Leave blank** — see [Guardrails](#guardrails-dashboard). Fill in only to cap a key you have a specific reason to distrust |
 | `duration` | Blank for no expiry. Set it (`7d`) for anything event-shaped so cleanup is automatic; **leave blank for standing users** or you break a pipeline mid-project |
 
-**Authenticate `op` with a service account token**, not the desktop app:
-
-```powershell
-$env:OP_SERVICE_ACCOUNT_TOKEN = "ops_..."     # bash: export OP_SERVICE_ACCOUNT_TOKEN=ops_...
-```
-
-> **The desktop-app integration cannot be driven from a script.**
-> 1Password allowlists which *calling process* may connect. A recognized
-> terminal is fine — `op whoami` typed into PowerShell works — but
-> `python.exe` invoking `op` as a subprocess is refused, and so is Git
-> Bash's `bash.exe` typing it directly. Both fail identically with
-> *"account is not signed in"* while the app sits open and unlocked. This
-> is not a shell problem and switching shells does not fix it.
+> **If `op` reports "account is not signed in" from the script but works
+> when you type it,** the app is fine — it's about how `op` gets invoked.
+> Capturing both of its output streams makes it non-interactive and the
+> desktop integration then declines to authorize; the script retries with
+> the terminal attached, so watch for a **1Password popup asking to
+> authorize a new application** (it appears once and can open *behind*
+> your terminal window). Approve it and subsequent runs are silent.
 >
-> A **service account** (create at `uw-madison.1password.com` → Developer
-> Tools → Service Accounts, granted read on just the vault holding the
-> master key) bypasses the desktop app entirely and works from any
-> process. It's also what you'd need to run this unattended. Creating one
-> may be admin-gated on the campus tenant.
->
-> If you can't get a service account, `--no-1password` reads the master
-> key from `$LITELLM_MASTER_KEY` and writes minted keys to the output file
-> **in plaintext** — you then own distributing and deleting that file.
+> PowerShell is more reliable than Git Bash here. If it still won't
+> authenticate, `--no-1password` reads the master key from
+> `$LITELLM_MASTER_KEY` and writes minted keys to the output file **in
+> plaintext** — you then own filing them in 1Password and deleting the
+> file.
 
 **Dry run, then apply:**
 
