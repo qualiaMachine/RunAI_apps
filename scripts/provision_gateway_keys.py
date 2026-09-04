@@ -56,8 +56,8 @@ import urllib.error
 import urllib.request
 
 DEFAULT_GATEWAY = "https://llm-gw01.doit.wisc.edu"
-DEFAULT_VAULT = "DoIT-AI"
-DEFAULT_MASTER_KEY_REF = "op://DoIT-AI/LiteLLM gateway/credential"
+DEFAULT_VAULT = "BadgerBrain_LiteLLM"
+DEFAULT_MASTER_KEY_REF = "op://BadgerBrain_LiteLLM/LITELLM_MASTER_KEY/credential"
 
 EXAMPLE_CSV = """\
 netid,team,email,rpm_limit,duration
@@ -380,10 +380,10 @@ def main():
                 "never typed or displayed:\n\n"
                 "  PowerShell:\n"
                 "    $env:LITELLM_MASTER_KEY = op read "
-                "'op://DoIT-AI/LiteLLM gateway/credential'\n\n"
+                "'op://BadgerBrain_LiteLLM/LITELLM_MASTER_KEY/credential'\n\n"
                 "  bash:\n"
                 "    export LITELLM_MASTER_KEY=$(op read "
-                "'op://DoIT-AI/LiteLLM gateway/credential')\n\n"
+                "'op://BadgerBrain_LiteLLM/LITELLM_MASTER_KEY/credential')\n\n"
                 "Adjust the op:// path to wherever the master key lives."
             )
     else:
