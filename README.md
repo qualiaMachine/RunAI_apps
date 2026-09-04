@@ -26,6 +26,12 @@ ahead if you already have your bearings.
 | 06 | [Expose a vLLM endpoint outside the cluster](docs/06-external-endpoint.md) | A non-RunAI client (Denodo, an institutional app, your laptop) needs to call a hosted model over `https://`, including the cross-VLAN firewall hand-off |
 | 07 | [Submit workloads via the RunAI CLI](docs/07-cli-submission.md) | You want scriptable, repeatable submissions from your own machine instead of the web UI — install/config on Windows, verified submit commands, and the gotchas |
 
+**Only have an API key?** If you've been given a gateway key rather than
+a cluster account, you don't need the guide above — you call the shared
+models over HTTP and never log into Run:ai. Start at
+[Using the Shared Models](docs/gateway-quickstart.md), which covers
+setup, Python and R examples, and the cold-start behaviour.
+
 There is also a draft plan for the standing shared endpoints the
 pilot should host — which models, how their benchmarks and measured
 performance get tracked, and what triggers a swap:

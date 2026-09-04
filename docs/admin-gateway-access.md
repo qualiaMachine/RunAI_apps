@@ -2,8 +2,9 @@
 
 > **Admin doc, not part of the [New User Guide](../README.md#new-user-guide).**
 > Everything here assumes gateway admin access and cluster-admin
-> contacts. Participants don't need to read it — what they get is the
-> two lines of config in [Step 4](#step-4--what-participants-get-hand-off).
+> contacts. Participants don't need to read it — send them
+> [Using the Shared Models](gateway-quickstart.md), the user-facing
+> counterpart, along with their share link.
 
 How to give people access to the shared models without giving everyone a
 Run:ai account. Written for the ML Marathon, but it is the same three
