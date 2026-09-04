@@ -46,6 +46,10 @@ there is nothing to switch off.
 
 - **Gateway dashboard admin** — `https://llm-gw01.doit.wisc.edu`, log in
   with the master key (`LITELLM_MASTER_KEY`)
+- **1Password**, with the CLI signed in (`op whoami`). Every key in this
+  runbook — the master key you authenticate with and the virtual keys you
+  hand out — lives in 1Password and is never typed, pasted, or written to
+  a file. Install: `brew install 1password-cli`, or the MSI on Windows.
 - **Maintainer on the `se-litellm` GitLab repo** — *only* if you're
   adding a model to the catalog for the event. Cohort setup itself needs
   no git access. Note Developer can commit but can't manage CI/CD
@@ -95,7 +99,7 @@ below) costs nothing in tracking. The layers do different jobs:
 
 | Task | Surface | Effect |
 |------|---------|--------|
-| Create teams, mint/revoke keys, set budgets and rate limits | **LiteLLM dashboard** (or its API) | Instant |
+| Create teams, mint/revoke keys, set budgets and rate limits | **`scripts/provision_gateway_keys.py`** (the proxy's API); dashboard for one-offs | Instant |
 | Add a model to the catalog, set its pricing | **GitLab** MR on `config/litellm_config.yaml` | After pipeline deploy |
 | Autoscaling replicas, GPU quota | **Run:ai** | On redeploy / admin action |
 
@@ -109,7 +113,7 @@ the morning of an event.
 
 Everyone with a key gets the whole catalog. Keys are created without a
 model restriction, so there are **no access groups to define and no
-GitLab MR in this runbook** — the entire setup below is dashboard work.
+GitLab MR in this runbook** — the setup below is one script run.
 
 Two consequences to keep in mind:
 
@@ -127,90 +131,65 @@ If that changes, scoping is one `access_groups:` line per model in
 `config/litellm_config.yaml` (a GitLab MR), referenced by name when
 minting keys.
 
-## Step 1 — Create the team (dashboard)
+## Steps 1–3 — Run the script
 
-**Teams → + Create Team**, one per group. Set:
+> **None of this touches GitLab.** The `se-litellm` pipeline builds and
+> deploys the proxy — image, config, masked secrets, TLS, Postgres. Teams,
+> users and keys are *rows in that Postgres*, created at runtime through
+> the proxy's API. There is no file to commit and no pipeline to run, which
+> is also why none of it can be blocked by campus git being down on the
+> morning of an event. GitLab is only involved when a **model** changes.
+> (`se-litellm`'s own README says the same under *Managing access*.)
 
-| Field | Value |
-|-------|-------|
-| Team name | `marathon-team-07`, `wams`, `stat479-fa26` — see the table up top |
-| Models | leave unrestricted (whole catalog) |
-| Max budget / TPM / RPM | see [Guardrails](#guardrails-dashboard) below |
+Everything up to hand-off is one command. `scripts/provision_gateway_keys.py`
+creates any teams that don't exist, mints one key per person, files each
+key in 1Password, and emits a share link per person. Nothing is clicked in
+the dashboard, and no plaintext key touches disk.
 
-## Step 2 — Mint the keys (dashboard or API)
-
-**UI:** Virtual Keys → + Create New Key → assign the team, alias it with
-the person's NetID, and let it inherit the team's model access.
-
-**One key** (adding a person to an existing team — the common case
-outside events):
-
-```bash
-export LITELLM_MASTER_KEY=sk-...       # do not paste into shared terminals
-curl -s https://llm-gw01.doit.wisc.edu/key/generate \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"key_alias":"wams-bbadger",
-       "team_id":"<team id from the dashboard>",
-       "user_id":"bbadger",
-       "rpm_limit":120,
-       "metadata":{"team":"wams","contact":"bbadger@wisc.edu"}}'
-```
-
-**Scripted**, from a roster (one `netid,team_id` per line):
+**Write the roster.** One row per person:
 
 ```bash
-export LITELLM_MASTER_KEY=sk-...
-while IFS=, read -r netid team_id; do
-  curl -s https://llm-gw01.doit.wisc.edu/key/generate \
-    -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-    -H "Content-Type: application/json" \
-    -d "{\"key_alias\":\"marathon-$netid\",
-         \"team_id\":\"$team_id\",
-         \"user_id\":\"$netid\",
-         \"rpm_limit\":60,
-         \"duration\":\"7d\",
-         \"metadata\":{\"event\":\"ml-marathon\",\"netid\":\"$netid\"}}" \
-    | python -c "import sys,json; d=json.load(sys.stdin); print('$netid', d['key'])"
-done < roster.csv > keys.txt
+python scripts/provision_gateway_keys.py --example > roster.csv
 ```
 
-`keys.txt` is then your distribution list. It contains live credentials —
-treat it accordingly and delete it after the event.
+```
+netid,team,email,rpm_limit,duration
+bbadger,wams,bbadger@wisc.edu,120,
+astudent,marathon-team-07,astudent@wisc.edu,60,7d
+```
 
-Three fields worth understanding rather than copying:
+| Column | Notes |
+|--------|-------|
+| `netid` | Becomes the key alias (`<team>-<netid>`), the `user_id`, and the 1Password item title |
+| `team` | Any grouping label — created automatically if it doesn't exist yet |
+| `email` | Who the share link is locked to |
+| `rpm_limit` | Blank for the team default. 60 suits interactive use; **120+ for a standing research key**, or a batch job trips it immediately and reads as the service being broken |
+| `duration` | Blank for no expiry. Set it (`7d`) for anything event-shaped so cleanup is automatic; **leave blank for standing users** or you break a pipeline mid-project |
 
-- **No `models` field.** Keys inherit the team's access, which is the
-  whole catalog — see [Model scoping](#model-scoping--not-used). Passing
-  a `models` value naming an access group that doesn't exist in
-  `config/litellm_config.yaml` produces a key that is rejected on every
-  call.
-- **`user_id`** is what aggregates a person across multiple keys in the
-  Usage dashboard. Cheap to set, impossible to backfill.
-- **`duration`** auto-expires the key. Set it for anything
-  event-shaped (`7d`) so cleanup is automatic; **omit it for standing
-  users**, or you'll break a researcher's pipeline mid-project. Standing
-  keys instead need a periodic review — there is no offboarding signal
-  from the gateway when someone leaves a lab.
+**Dry run, then apply:**
 
-## Step 3 — Deliver the keys (1Password)
+```bash
+eval $(op signin)
 
-A virtual key is a live credential. It does not go in Teams, email, a
-shared spreadsheet, or a workshop slide. Use 1Password:
+python scripts/provision_gateway_keys.py roster.csv              # plan only
+python scripts/provision_gateway_keys.py roster.csv --apply      # do it
+```
 
-| Situation | How |
-|-----------|-----|
-| Per-person keys (the default) | A **1Password item share link** per person — restrict it to their `@wisc.edu` address, set a short expiry and a one-time view. Recipients don't need a 1Password account, which matters for event participants who aren't on the campus tenant. |
-| A lab or team's shared key | A **shared vault** the group already has, or one created for them. Fits the lab case, where the key outlives any one person. |
-| A key you're rotating | Share the new one first, confirm receipt, *then* revoke the old — revoking first means someone's job dies mid-run. |
+The dry run is the default and prints exactly which teams and keys it
+would create. `--apply` is the only thing that writes.
 
-Confirm the campus tenant actually permits external item sharing before
-an event — organizations can disable it, and you don't want to discover
-that with 40 people waiting.
+Useful flags: `--vault` (default `DoIT-AI`), `--gateway`,
+`--master-key-ref` (the `op://` path to the master key),
+`--expires-in` (share-link lifetime, default `14d`), `--out`.
 
-Once every key is delivered, **delete `keys.txt`**. It's a plaintext file
-of live credentials with no reason to exist after hand-off; keys can
-always be reissued from the dashboard.
+**Re-running is safe.** Anyone who already has a key item in the vault is
+skipped, so adding rows and re-running onboards only the new people. That
+also makes the vault — not a spreadsheet — the record of who has been
+issued a key.
+
+The script writes `share-links.csv`: **links, not keys.** Each is locked
+to one `@wisc.edu` address, single-view, and expiring. That file is safe
+to email or paste into Teams, which a file of `sk-…` values never was.
 
 ## Step 4 — What participants get (hand-off)
 
@@ -499,8 +478,12 @@ whether `min 0` is acceptable for a given model.
 
 ## After the event
 
-- Revoke keys in bulk: Virtual Keys → filter by team → delete, or
-  `POST /key/delete` with the key list from `keys.txt`.
-- Delete `keys.txt` and any copies.
+- Revoke keys in bulk: Virtual Keys → filter by team → delete. Keys
+  minted with `duration` expire on their own, so this is a sweep for
+  anything issued without one.
+- Archive or delete the event's 1Password vault once keys are revoked,
+  and delete `share-links.csv` — the links are expired and
+  single-view by then, but there's no reason to keep the roster
+  lying around.
 - Export the Usage dashboard first if the numbers feed a writeup —
   deleted keys drop out of the default view.

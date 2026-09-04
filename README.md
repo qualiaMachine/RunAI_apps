@@ -123,6 +123,7 @@ All apps use the same approach:
 |--------|---------|
 | `hardware_metrics.py` | GPU/energy profiling — VRAM, power draw, energy per request |
 | `provision_shared_models.py` | Download HuggingFace models to the shared PVC; `vram` subcommand estimates serving VRAM (weights + KV-cache/`--max-model-len` guidance) before you commit GPU quota |
+| `provision_gateway_keys.py` | Admin-only: create LiteLLM gateway teams and per-user keys from a roster CSV, filing each key in 1Password and emitting recipient-locked share links. See [Handing Out Model Access](docs/admin-gateway-access.md) |
 
 
 
