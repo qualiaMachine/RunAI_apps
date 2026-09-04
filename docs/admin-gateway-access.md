@@ -46,6 +46,10 @@ there is nothing to switch off.
 
 - **Gateway dashboard admin** — `https://llm-gw01.doit.wisc.edu`, log in
   with the master key (`LITELLM_MASTER_KEY`)
+- **1Password**, with the CLI signed in (`op whoami`). Every key in this
+  runbook — the master key you authenticate with and the virtual keys you
+  hand out — lives in 1Password and is never typed, pasted, or written to
+  a file. Install: `brew install 1password-cli`, or the MSI on Windows.
 - **Maintainer on the `se-litellm` GitLab repo** — *only* if you're
   adding a model to the catalog for the event. Cohort setup itself needs
   no git access. Note Developer can commit but can't manage CI/CD
@@ -143,8 +147,11 @@ minting keys.
 > proxy's database, not config — so this is dashboard or API only, it
 > takes effect immediately, and it needs no MR, no pipeline run, and no
 > Maintainer access on `se-litellm`. GitLab is only where you *read*
-> `LITELLM_MASTER_KEY` from (a masked CI/CD variable) before running the
-> curl. See [Where each step happens](#where-each-step-happens).
+> curl — and you don't even need that if the master key is in 1Password,
+> which is where the snippets below read it from. (GitLab holds its own
+> copy as a masked CI/CD variable so the deployment can start the proxy;
+> that copy is for the pipeline, not for you.) See
+> [Where each step happens](#where-each-step-happens).
 
 **UI:** Virtual Keys → + Create New Key → assign the team, alias it with
 the person's NetID, and let it inherit the team's model access.
@@ -153,23 +160,37 @@ the person's NetID, and let it inherit the team's model access.
 outside events):
 
 ```bash
-export LITELLM_MASTER_KEY=sk-...       # do not paste into shared terminals
-curl -s https://llm-gw01.doit.wisc.edu/key/generate \
+# Master key is read straight out of 1Password — never typed, never in
+# shell history, never on disk. Adjust the vault/item to match ours.
+export LITELLM_MASTER_KEY="$(op read 'op://DoIT-AI/LiteLLM gateway/master key')"
+
+key=$(curl -s https://llm-gw01.doit.wisc.edu/key/generate \
   -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key_alias":"wams-bbadger",
        "team_id":"<team id from the dashboard>",
        "user_id":"bbadger",
        "rpm_limit":120,
-       "metadata":{"team":"wams","contact":"bbadger@wisc.edu"}}'
+       "metadata":{"team":"wams","contact":"bbadger@wisc.edu"}}' \
+  | python -c "import sys,json; print(json.load(sys.stdin)['key'])")
+
+# Store it in 1Password rather than looking at it
+op item create --category "API Credential" --vault "DoIT-AI" \
+  --title "LiteLLM — bbadger" --tags litellm,wams \
+  "credential=$key" "username=bbadger" \
+  "base url[text]=https://llm-gw01.doit.wisc.edu/v1"
 ```
 
 **Scripted**, from a roster (one `netid,team_id` per line):
 
+Mint, file in 1Password, and produce the share link in one pass — no
+plaintext key ever touches disk:
+
 ```bash
-export LITELLM_MASTER_KEY=sk-...
+export LITELLM_MASTER_KEY="$(op read 'op://DoIT-AI/LiteLLM gateway/master key')"
+
 while IFS=, read -r netid team_id; do
-  curl -s https://llm-gw01.doit.wisc.edu/key/generate \
+  key=$(curl -s https://llm-gw01.doit.wisc.edu/key/generate \
     -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
     -H "Content-Type: application/json" \
     -d "{\"key_alias\":\"marathon-$netid\",
@@ -178,12 +199,24 @@ while IFS=, read -r netid team_id; do
          \"rpm_limit\":60,
          \"duration\":\"7d\",
          \"metadata\":{\"event\":\"ml-marathon\",\"netid\":\"$netid\"}}" \
-    | python -c "import sys,json; d=json.load(sys.stdin); print('$netid', d['key'])"
-done < roster.csv > keys.txt
+    | python -c "import sys,json; print(json.load(sys.stdin)['key'])")
+
+  op item create --category "API Credential" --vault "ML-Marathon" \
+    --title "LiteLLM — $netid" --tags litellm,ml-marathon \
+    "credential=$key" "username=$netid" \
+    "base url[text]=https://llm-gw01.doit.wisc.edu/v1" >/dev/null
+
+  link=$(op item share "LiteLLM — $netid" --vault "ML-Marathon" \
+    --emails "$netid@wisc.edu" --expires-in 7d --view-once)
+  echo "$netid,$link"
+done < roster.csv > share-links.csv
 ```
 
-`keys.txt` is then your distribution list. It contains live credentials —
-treat it accordingly and delete it after the event.
+`share-links.csv` holds **links, not keys** — each one restricted to that
+person's `@wisc.edu` address, single-view, and expiring in 7 days. It is
+safe to email or paste into Teams, which a file of `sk-…` values never
+was. The keys themselves only exist in the `ML-Marathon` vault, where you
+can audit, rotate, or revoke them after the event.
 
 Three fields worth understanding rather than copying:
 
@@ -203,21 +236,39 @@ Three fields worth understanding rather than copying:
 ## Step 3 — Deliver the keys (1Password)
 
 A virtual key is a live credential. It does not go in Teams, email, a
-shared spreadsheet, or a workshop slide. Use 1Password:
+shared spreadsheet, or a workshop slide — you share a **link** to the
+1Password item instead, and the link is what's safe to send.
 
-| Situation | How |
-|-----------|-----|
-| Per-person keys (the default) | A **1Password item share link** per person — restrict it to their `@wisc.edu` address, set a short expiry and a one-time view. Recipients don't need a 1Password account, which matters for event participants who aren't on the campus tenant. |
-| A lab or team's shared key | A **shared vault** the group already has, or one created for them. Fits the lab case, where the key outlives any one person. |
-| A key you're rotating | Share the new one first, confirm receipt, *then* revoke the old — revoking first means someone's job dies mid-run. |
+The roster loop above already emits these. For a single person:
+
+```bash
+op item share "LiteLLM — bbadger" --vault "DoIT-AI" \
+  --emails bbadger@wisc.edu --expires-in 14d --view-once
+```
+
+| Flag | Why |
+|------|-----|
+| `--emails` | Only that address can open it. Without this, **anyone holding the link can view the key** — the default is a public link. |
+| `--expires-in` | `(s)econds/(m)inutes/(h)ours/(d)ays/(w)eeks`; defaults to 7 days. |
+| `--view-once` | Link dies after a single view. If they fumble it, re-share — cheaper than a link sitting live in an inbox. |
+
+Recipients don't need a 1Password account, which is what makes this work
+for event participants who aren't on the campus tenant. UW-Madison's own
+walkthrough of item sharing is
+[KB 144574](https://kb.wisc.edu/security/144574).
+
+Two situations that differ:
+
+- **A lab or team's shared key** — put it in a **shared vault** the group
+  already has instead of sharing links to individuals. The key outlives
+  any one member, and vault membership becomes the onboarding and
+  offboarding mechanism.
+- **Rotating a key** — share the new one and confirm receipt *before*
+  revoking the old. Revoke first and someone's job dies mid-run.
 
 Confirm the campus tenant actually permits external item sharing before
 an event — organizations can disable it, and you don't want to discover
 that with 40 people waiting.
-
-Once every key is delivered, **delete `keys.txt`**. It's a plaintext file
-of live credentials with no reason to exist after hand-off; keys can
-always be reissued from the dashboard.
 
 ## Step 4 — What participants get (hand-off)
 
@@ -506,8 +557,12 @@ whether `min 0` is acceptable for a given model.
 
 ## After the event
 
-- Revoke keys in bulk: Virtual Keys → filter by team → delete, or
-  `POST /key/delete` with the key list from `keys.txt`.
-- Delete `keys.txt` and any copies.
+- Revoke keys in bulk: Virtual Keys → filter by team → delete. Keys
+  minted with `duration` expire on their own, so this is a sweep for
+  anything issued without one.
+- Archive or delete the event's 1Password vault once keys are revoked,
+  and delete `share-links.csv` — the links are expired and
+  single-view by then, but there's no reason to keep the roster
+  lying around.
 - Export the Usage dashboard first if the numbers feed a writeup —
   deleted keys drop out of the default view.
