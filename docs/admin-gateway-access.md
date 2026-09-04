@@ -169,7 +169,7 @@ astudent,marathon-team-07,astudent@wisc.edu,60,7d
 | `netid` | Becomes the key alias (`<team>-<netid>`), the `user_id`, and the 1Password item title |
 | `team` | Any grouping label — created automatically if it doesn't exist yet |
 | `email` | Who the share link is locked to |
-| `rpm_limit` | Blank for the team default. 60 suits interactive use; **120+ for a standing research key**, or a batch job trips it immediately and reads as the service being broken |
+| `rpm_limit` | **Leave blank** — see [Guardrails](#guardrails-dashboard). Fill in only to cap a key you have a specific reason to distrust |
 | `duration` | Blank for no expiry. Set it (`7d`) for anything event-shaped so cleanup is automatic; **leave blank for standing users** or you break a pipeline mid-project |
 
 **Dry run, then apply:**
@@ -262,13 +262,48 @@ Worth stating explicitly — each one is a support ticket otherwise:
 [open item](#known-limitations), so budgets on that model currently
 enforce nothing.
 
-Suggested starting points for a hackathon, per key:
+**Start with no limits at all.**
 
 | Limit | Value | Why |
 |-------|-------|-----|
-| `rpm_limit` | 60 | Generous for interactive use, stops a runaway loop. **Raise it (120+) for a standing research key** — a batch job over a corpus trips 60 rpm immediately and reads as the service being broken |
-| `tpm_limit` | *(unset)* | Add only if a team is starving others |
+| `rpm_limit` | *(unset)* | Add when the dashboard shows a real problem, not before |
+| `tpm_limit` | *(unset)* | The better lever than rpm when it comes to that — see below |
 | `max_budget` | *(unset)* | Meaningless until pricing is verified |
+
+Leaving them unset is deliberate, not laziness:
+
+- **Attribution doesn't depend on them.** Every request is recorded
+  against its key, user, team and model whether or not a limit exists,
+  so usage tracking — the actual point of the pilot — is unaffected.
+- **Limits are a database row**, addable in seconds with no MR, no
+  pipeline, no redeploy. There is no reason to guess a number now when
+  you can set an informed one later.
+- **vLLM already provides backpressure.** Oversubscription degrades to
+  latency, not collapse; the queue is a better throttle than a number
+  picked without measuring.
+- **A needless 429 reads as an outage.** Clients that don't retry with
+  backoff just fail, and you'd spend an event debugging your own rate
+  limit rather than the service.
+
+What you're accepting: a runaway loop — an agent retry storm, a
+`while True` in a notebook — can saturate the queue for everyone with
+nothing stopping it automatically. The blast radius is degraded latency,
+not lost data or spend, and revoking the key takes seconds once the Logs
+page shows it. Fine while someone is watching; reconsider for a key
+running unattended over a long weekend.
+
+When you do add a limit, two things to keep in mind:
+
+- **`rpm` is the wrong unit for token-heavy work.** One request with a
+  100k-token context costs far more GPU than a hundred short chats, and
+  rpm treats them identically. For document extraction or batch
+  summarization, `tpm_limit` is the honest control.
+- **Per-key limits stop individuals; team limits protect the pilot.**
+  Forty people at 60 rpm each is well past what two GPUs serve, so
+  per-key ceilings never protected capacity — the team limit is the
+  fairness lever.
+
+For real numbers rather than reasoning, run the load test below.
 
 If you're also load-testing (below), set these high or leave them off
 for the teams generating load — otherwise the gateway throttles the
