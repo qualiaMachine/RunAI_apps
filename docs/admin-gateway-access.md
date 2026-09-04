@@ -174,7 +174,7 @@ astudent,marathon-team-07,astudent@wisc.edu,,7d
 
 | Column | Notes |
 |--------|-------|
-| `netid` | Becomes the key alias (`<team>-<netid>`), the `user_id`, and the 1Password item title (`team_netid`) |
+| `netid` | With `team`, forms the identifier used everywhere: gateway key alias, 1Password item title, all `team_netid`. `netid` alone is the `user_id` |
 | `team` | Any grouping label — created automatically if it doesn't exist yet |
 | `email` | Who the share link is locked to |
 | `rpm_limit` | **Leave blank** — see [Guardrails](#guardrails-dashboard). Fill in only to cap a key you have a specific reason to distrust |

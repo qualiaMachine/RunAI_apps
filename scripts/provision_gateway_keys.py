@@ -135,7 +135,11 @@ def op_check_signin():
 
 
 def item_title(team, netid):
-    """ASCII only: this string also lands in an emitted .ps1, and PowerShell
+    """The one identifier for a person: gateway key alias, 1Password item
+    title, and the key the idempotency check matches on. These must agree,
+    so everything derives it from here.
+
+    ASCII only -- this string also lands in an emitted .ps1, and PowerShell
     5.1 reads scripts as ANSI unless they carry a BOM."""
     return f"{team}_{netid}"
 
@@ -282,7 +286,7 @@ def existing_key_aliases(gateway, master_key):
 
 def generate_key(gateway, master_key, netid, team_id, rpm, duration, team):
     payload = {
-        "key_alias": f"{team}-{netid}",
+        "key_alias": item_title(team, netid),
         "team_id": team_id,
         "user_id": netid,
         "metadata": {"team": team, "netid": netid},
@@ -421,7 +425,7 @@ def main():
             todo = list(rows)
         else:
             for r in rows:
-                alias = f"{r['team'].strip()}-{r['netid'].strip()}"
+                alias = item_title(r["team"].strip(), r["netid"].strip())
                 (skipped if alias in existing else todo).append(r)
     else:
         for r in rows:
