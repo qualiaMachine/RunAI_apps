@@ -172,14 +172,28 @@ astudent,marathon-team-07,astudent@wisc.edu,60,7d
 | `rpm_limit` | **Leave blank** — see [Guardrails](#guardrails-dashboard). Fill in only to cap a key you have a specific reason to distrust |
 | `duration` | Blank for no expiry. Set it (`7d`) for anything event-shaped so cleanup is automatic; **leave blank for standing users** or you break a pipeline mid-project |
 
-**Dry run, then apply:**
+**Dry run, then apply.** On Windows run this one from **PowerShell, not
+Git Bash** (see below):
 
-```bash
-eval $(op signin)
-
-python scripts/provision_gateway_keys.py roster.csv              # plan only
-python scripts/provision_gateway_keys.py roster.csv --apply      # do it
+```powershell
+python scripts\provision_gateway_keys.py roster.csv              # plan only
+python scripts\provision_gateway_keys.py roster.csv --apply      # do it
 ```
+
+> **The 1Password CLI does not work from Git Bash on Windows.**
+> `op signin` returns silently and `op whoami` reports *"account is not
+> signed in"*, even with the desktop app open and unlocked. The desktop
+> integration verifies the calling process, and MSYS's process tree isn't
+> one it accepts — there is no Git Bash–side fix. PowerShell works
+> normally. Everything else in this repo (git, the Run:ai CLI) is happy in
+> Git Bash; it's only `op` that isn't.
+>
+> Two alternatives if you need it in Git Bash or unattended:
+> `export OP_SERVICE_ACCOUNT_TOKEN=ops_…` (a service account needs no
+> interactive unlock and works in any shell), or `--no-1password`, which
+> reads the master key from `$LITELLM_MASTER_KEY` and writes minted keys
+> to the output file **in plaintext** — you then own distributing and
+> deleting that file.
 
 The dry run is the default and prints exactly which teams and keys it
 would create. `--apply` is the only thing that writes.

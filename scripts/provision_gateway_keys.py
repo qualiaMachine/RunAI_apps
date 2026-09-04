@@ -12,7 +12,12 @@ of object -- rows in the proxy's Postgres -- so they are created through
 the running proxy's API, which is what this script does. There is nothing
 here to commit.
 
-Usage (Git Bash, Windows or Linux/Mac):
+On Windows, run this from PowerShell. The 1Password CLI cannot reach the
+desktop app from Git Bash/MSYS -- `op whoami` reports "account is not
+signed in" no matter what -- so `op read` fails there. Use
+OP_SERVICE_ACCOUNT_TOKEN or --no-1password if you must stay in Git Bash.
+
+Usage:
 
     # 1. write a roster (see --example)
     python scripts/provision_gateway_keys.py --example > roster.csv
@@ -85,14 +90,15 @@ def op_check_signin():
     raise Fatal(
         "`op whoami` failed. Its output was:\n"
         f"  {err or '(no error output)'}\n\n"
-        "Run `op whoami` yourself in this same shell — if it works there but\n"
-        "not here, the CLI is authenticating interactively and can't prompt\n"
-        "from inside a script. Common fixes:\n"
-        "  - 1Password app > Settings > Developer > 'Integrate with 1Password\n"
-        "    CLI', then unlock the app. `eval $(op signin)` is a no-op when\n"
-        "    the desktop integration is on, so it won't help by itself.\n"
-        "  - Or use a service account, which needs no interactive unlock:\n"
-        "      export OP_SERVICE_ACCOUNT_TOKEN=ops_...\n"
+        "If you are in Git Bash on Windows, that is the likely cause: the\n"
+        "1Password desktop integration rejects MSYS's process tree, so `op`\n"
+        "cannot reach the app no matter how it is configured.\n"
+        "  - Run this script from PowerShell instead (it works there), or\n"
+        "  - export OP_SERVICE_ACCOUNT_TOKEN=ops_...  (any shell, no unlock), or\n"
+        "  - re-run with --no-1password and $LITELLM_MASTER_KEY set.\n\n"
+        "Otherwise: 1Password app > Settings > Developer > 'Integrate with\n"
+        "1Password CLI', then fully quit and reopen the app. `op signin` is a\n"
+        "no-op when that integration is on, so it won't help by itself.\n"
     )
 
 
