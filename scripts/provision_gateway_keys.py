@@ -45,10 +45,10 @@ DEFAULT_MASTER_KEY_REF = "op://DoIT-AI/LiteLLM gateway/master key"
 
 EXAMPLE_CSV = """\
 netid,team,email,rpm_limit,duration
-bbadger,wams,bbadger@wisc.edu,120,
-osky,wams,osky@wisc.edu,120,
-astudent,marathon-team-07,astudent@wisc.edu,60,7d
-bstudent,marathon-team-07,bstudent@wisc.edu,60,7d
+bbadger,wams,bbadger@wisc.edu,,
+osky,wams,osky@wisc.edu,,
+astudent,marathon-team-07,astudent@wisc.edu,,7d
+bstudent,marathon-team-07,bstudent@wisc.edu,,7d
 """
 
 COLUMNS = "netid,team,email,rpm_limit,duration"
@@ -63,7 +63,7 @@ class Fatal(Exception):
 # --------------------------------------------------------------------------
 
 def op(*args, check=True):
-    """Run the 1Password CLI and return stdout."""
+    """Run the 1Password CLI and return (stdout, returncode, stderr)."""
     try:
         r = subprocess.run(["op", *args], capture_output=True, text=True)
     except FileNotFoundError:
@@ -74,17 +74,30 @@ def op(*args, check=True):
         )
     if check and r.returncode != 0:
         raise Fatal(f"op {' '.join(args)} failed:\n{r.stderr.strip()}")
-    return r.stdout.strip(), r.returncode
+    return r.stdout.strip(), r.returncode, r.stderr.strip()
 
 
 def op_check_signin():
-    out, rc = op("whoami", check=False)
-    if rc != 0:
-        raise Fatal("1Password CLI is not signed in. Run: eval $(op signin)")
+    """Preflight. Reports op's own error rather than guessing at the cause."""
+    out, rc, err = op("whoami", check=False)
+    if rc == 0:
+        return
+    raise Fatal(
+        "`op whoami` failed. Its output was:\n"
+        f"  {err or '(no error output)'}\n\n"
+        "Run `op whoami` yourself in this same shell — if it works there but\n"
+        "not here, the CLI is authenticating interactively and can't prompt\n"
+        "from inside a script. Common fixes:\n"
+        "  - 1Password app > Settings > Developer > 'Integrate with 1Password\n"
+        "    CLI', then unlock the app. `eval $(op signin)` is a no-op when\n"
+        "    the desktop integration is on, so it won't help by itself.\n"
+        "  - Or use a service account, which needs no interactive unlock:\n"
+        "      export OP_SERVICE_ACCOUNT_TOKEN=ops_...\n"
+    )
 
 
 def op_item_exists(title, vault):
-    _, rc = op("item", "get", title, "--vault", vault, check=False)
+    _, rc, _err = op("item", "get", title, "--vault", vault, check=False)
     return rc == 0
 
 
@@ -102,7 +115,7 @@ def op_item_create(title, vault, key, netid, gateway, tags):
 
 
 def op_item_share(title, vault, email, expires):
-    out, _ = op(
+    out, _rc, _err = op(
         "item", "share", title,
         "--vault", vault,
         "--emails", email,
