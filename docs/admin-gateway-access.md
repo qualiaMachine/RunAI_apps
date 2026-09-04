@@ -268,6 +268,14 @@ from openai import OpenAI
 
 client = OpenAI(base_url="https://llm-gw01.doit.wisc.edu/v1")
 
+# Authoritative list of what this key can call -- the catalogue changes
+# by merge request, so ask rather than trusting any list in a doc:
+print([m.id for m in client.models.list()])
+
+# Snapshot, Sept 2026:
+#   qwen3-27b     chat            general-purpose text
+#   qwen3-vl-32b  chat + vision   send images via image_url content parts
+
 resp = client.chat.completions.create(
     model="qwen3-27b",
     messages=[{"role": "user", "content": "hello"}],
