@@ -46,10 +46,17 @@ there is nothing to switch off.
 
 - **Gateway dashboard admin** — `https://llm-gw01.doit.wisc.edu`, log in
   with the master key (`LITELLM_MASTER_KEY`)
-- **1Password**, with the CLI signed in (`op whoami`). Every key in this
-  runbook — the master key you authenticate with and the virtual keys you
-  hand out — lives in 1Password and is never typed, pasted, or written to
-  a file. Install: `brew install 1password-cli`, or the MSI on Windows.
+- **1Password** — where the master key lives and where the virtual keys
+  you mint should end up. Store the master key once as an **API
+  Credential** item (title `LiteLLM gateway`), created *in the app* so it
+  never lands in shell history; the reference is then
+  `op://<vault>/LiteLLM gateway/credential`.
+  To get its value the first time: `se-litellm` → Settings → CI/CD →
+  Variables → `LITELLM_MASTER_KEY` → **Reveal value** (Maintainer or
+  Owner). If it was created "masked and hidden" it can't be revealed —
+  read it off the running proxy instead with
+  `docker exec litellm printenv LITELLM_MASTER_KEY` on `llm-gw01`. Don't
+  regenerate it as a shortcut: LiteLLM encrypts stored values with it.
 - **Maintainer on the `se-litellm` GitLab repo** — *only* if you're
   adding a model to the catalog for the event. Cohort setup itself needs
   no git access. Note Developer can commit but can't manage CI/CD
@@ -142,9 +149,10 @@ minting keys.
 > (`se-litellm`'s own README says the same under *Managing access*.)
 
 Everything up to hand-off is one command. `scripts/provision_gateway_keys.py`
-creates any teams that don't exist, mints one key per person, files each
-key in 1Password, and emits a share link per person. Nothing is clicked in
-the dashboard, and no plaintext key touches disk.
+creates any teams that don't exist and mints one key per person, writing
+them to `keys.csv`. Nothing is clicked in the dashboard. With a 1Password
+service account you can add `--use-op` and it files each key and emits
+share links too; without one, that part is a minute in the 1Password app.
 
 **Write the roster.** One row per person. Start from the committed
 template — [`scripts/roster.example.csv`](../scripts/roster.example.csv),
@@ -155,47 +163,69 @@ python scripts/provision_gateway_keys.py --example > roster.csv
 # edit roster.csv: replace the sample rows with your people
 ```
 
-`roster.csv` and `share-links.csv` are gitignored. Neither holds a key,
-but a list of real people doesn't belong in the repo.
+`roster.csv`, `keys.csv`, `share-links.csv` and `file_in_1password.*` are
+all gitignored — some hold live credentials, the rest list real people.
 
 ```
 netid,team,email,rpm_limit,duration
-bbadger,wams,bbadger@wisc.edu,120,
-astudent,marathon-team-07,astudent@wisc.edu,60,7d
+bbadger,wams,bbadger@wisc.edu,,
+astudent,marathon-team-07,astudent@wisc.edu,,7d
 ```
 
 | Column | Notes |
 |--------|-------|
-| `netid` | Becomes the key alias (`<team>-<netid>`), the `user_id`, and the 1Password item title |
+| `netid` | With `team`, forms the identifier used everywhere: gateway key alias, 1Password item title, all `team_netid`. `netid` alone is the `user_id` |
 | `team` | Any grouping label — created automatically if it doesn't exist yet |
 | `email` | Who the share link is locked to |
-| `rpm_limit` | Blank for the team default. 60 suits interactive use; **120+ for a standing research key**, or a batch job trips it immediately and reads as the service being broken |
+| `rpm_limit` | **Leave blank** — see [Guardrails](#guardrails-dashboard). Fill in only to cap a key you have a specific reason to distrust |
 | `duration` | Blank for no expiry. Set it (`7d`) for anything event-shaped so cleanup is automatic; **leave blank for standing users** or you break a pipeline mid-project |
 
-**Dry run, then apply:**
+**Load the master key from 1Password**, then run the two commands. `op
+read` in *your* shell is trusted, so the key is never typed or displayed:
 
-```bash
-eval $(op signin)
+```powershell
+$env:LITELLM_MASTER_KEY = op read "op://BadgerBrain_LiteLLM/LITELLM_MASTER_KEY/credential"
+# bash: export LITELLM_MASTER_KEY=$(op read 'op://BadgerBrain_LiteLLM/LITELLM_MASTER_KEY/credential')
 
-python scripts/provision_gateway_keys.py roster.csv              # plan only
-python scripts/provision_gateway_keys.py roster.csv --apply      # do it
+python scripts\provision_gateway_keys.py roster.csv            # dry run: plan only
+python scripts\provision_gateway_keys.py roster.csv --apply    # mint the keys
+.\file_in_1password.ps1                                        # file + share them
 ```
+
+The first command creates any missing teams and mints the keys, then
+writes `file_in_1password.ps1`. The second files each key in 1Password as
+an API Credential, shares it with its owner, and deletes itself. No manual
+clicking either side.
+
+> **Why it's two commands.** 1Password's desktop integration authorizes by
+> *calling application*: a terminal you typed into is trusted, `python.exe`
+> is not. So `op` works when you run it and fails from inside a script —
+> confirmed with a bare `python -c` one-liner, and no shell, subprocess or
+> output-capture trick changes it. Emitting the commands for your shell to
+> run sidesteps it, because then your terminal is `op`'s parent.
+>
+> Run the emitted script **from a terminal**, not from an editor or IDE
+> task runner — those hit the same restriction.
+>
+> A **service account token** (`OP_SERVICE_ACCOUNT_TOKEN`) is the only
+> thing that lifts the restriction. With one, pass `--use-op` and the
+> Python script does the 1Password half directly, in one command. Worth
+> setting up if this ever needs to run unattended.
 
 The dry run is the default and prints exactly which teams and keys it
 would create. `--apply` is the only thing that writes.
 
-Useful flags: `--vault` (default `DoIT-AI`), `--gateway`,
-`--master-key-ref` (the `op://` path to the master key),
-`--expires-in` (share-link lifetime, default `14d`), `--out`.
+Useful flags: `--vault` (default `BadgerBrain_LiteLLM`), `--gateway`,
+`--expires-in` (share-link lifetime, default `14d`), `--op-script`, and
+`--master-key-ref` (only with `--use-op`).
 
-**Re-running is safe.** Anyone who already has a key item in the vault is
-skipped, so adding rows and re-running onboards only the new people. That
-also makes the vault — not a spreadsheet — the record of who has been
-issued a key.
+**Re-running is safe.** Anyone who already has a key is skipped — matched
+on the gateway's key aliases, or on the vault when running `--use-op` — so
+adding rows and re-running onboards only the new people. If that check
+can't run, the script says so rather than quietly minting duplicates.
 
-The script writes `share-links.csv`: **links, not keys.** Each is locked
-to one `@wisc.edu` address, single-view, and expiring. That file is safe
-to email or paste into Teams, which a file of `sk-…` values never was.
+`file_in_1password.ps1` holds live credentials until you run it, at which
+point it deletes itself. If you abandon a run partway, delete it by hand.
 
 ## Step 4 — What participants get (hand-off)
 
@@ -262,13 +292,48 @@ Worth stating explicitly — each one is a support ticket otherwise:
 [open item](#known-limitations), so budgets on that model currently
 enforce nothing.
 
-Suggested starting points for a hackathon, per key:
+**Start with no limits at all.**
 
 | Limit | Value | Why |
 |-------|-------|-----|
-| `rpm_limit` | 60 | Generous for interactive use, stops a runaway loop. **Raise it (120+) for a standing research key** — a batch job over a corpus trips 60 rpm immediately and reads as the service being broken |
-| `tpm_limit` | *(unset)* | Add only if a team is starving others |
+| `rpm_limit` | *(unset)* | Add when the dashboard shows a real problem, not before |
+| `tpm_limit` | *(unset)* | The better lever than rpm when it comes to that — see below |
 | `max_budget` | *(unset)* | Meaningless until pricing is verified |
+
+Leaving them unset is deliberate, not laziness:
+
+- **Attribution doesn't depend on them.** Every request is recorded
+  against its key, user, team and model whether or not a limit exists,
+  so usage tracking — the actual point of the pilot — is unaffected.
+- **Limits are a database row**, addable in seconds with no MR, no
+  pipeline, no redeploy. There is no reason to guess a number now when
+  you can set an informed one later.
+- **vLLM already provides backpressure.** Oversubscription degrades to
+  latency, not collapse; the queue is a better throttle than a number
+  picked without measuring.
+- **A needless 429 reads as an outage.** Clients that don't retry with
+  backoff just fail, and you'd spend an event debugging your own rate
+  limit rather than the service.
+
+What you're accepting: a runaway loop — an agent retry storm, a
+`while True` in a notebook — can saturate the queue for everyone with
+nothing stopping it automatically. The blast radius is degraded latency,
+not lost data or spend, and revoking the key takes seconds once the Logs
+page shows it. Fine while someone is watching; reconsider for a key
+running unattended over a long weekend.
+
+When you do add a limit, two things to keep in mind:
+
+- **`rpm` is the wrong unit for token-heavy work.** One request with a
+  100k-token context costs far more GPU than a hundred short chats, and
+  rpm treats them identically. For document extraction or batch
+  summarization, `tpm_limit` is the honest control.
+- **Per-key limits stop individuals; team limits protect the pilot.**
+  Forty people at 60 rpm each is well past what two GPUs serve, so
+  per-key ceilings never protected capacity — the team limit is the
+  fairness lever.
+
+For real numbers rather than reasoning, run the load test below.
 
 If you're also load-testing (below), set these high or leave them off
 for the teams generating load — otherwise the gateway throttles the
@@ -488,8 +553,7 @@ whether `min 0` is acceptable for a given model.
   minted with `duration` expire on their own, so this is a sweep for
   anything issued without one.
 - Archive or delete the event's 1Password vault once keys are revoked,
-  and delete `share-links.csv` — the links are expired and
-  single-view by then, but there's no reason to keep the roster
-  lying around.
+  and delete `keys.csv` / `share-links.csv` and the roster. Anything
+  left holding live credentials is the thing that outlives the event.
 - Export the Usage dashboard first if the numbers feed a writeup —
   deleted keys drop out of the default view.

@@ -86,3 +86,7 @@ logs/
 # The committed template is scripts/roster.example.csv.
 roster.csv
 share-links.csv
+keys.csv
+file_in_1password.ps1
+file_in_1password.sh
+__pycache__/
