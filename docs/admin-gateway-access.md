@@ -155,13 +155,13 @@ python scripts/provision_gateway_keys.py --example > roster.csv
 # edit roster.csv: replace the sample rows with your people
 ```
 
-`roster.csv`, `keys.csv` and `share-links.csv` are all gitignored —
-`keys.csv` holds live credentials, and the other two list real people.
+`roster.csv`, `keys.csv`, `share-links.csv` and `file_in_1password.*` are
+all gitignored — some hold live credentials, the rest list real people.
 
 ```
 netid,team,email,rpm_limit,duration
-bbadger,wams,bbadger@wisc.edu,120,
-astudent,marathon-team-07,astudent@wisc.edu,60,7d
+bbadger,wams,bbadger@wisc.edu,,
+astudent,marathon-team-07,astudent@wisc.edu,,7d
 ```
 
 | Column | Notes |
@@ -172,49 +172,50 @@ astudent,marathon-team-07,astudent@wisc.edu,60,7d
 | `rpm_limit` | **Leave blank** — see [Guardrails](#guardrails-dashboard). Fill in only to cap a key you have a specific reason to distrust |
 | `duration` | Blank for no expiry. Set it (`7d`) for anything event-shaped so cleanup is automatic; **leave blank for standing users** or you break a pipeline mid-project |
 
-**Set the master key**, then dry-run and apply:
+**Set the master key**, then run the two commands:
 
 ```powershell
 $env:LITELLM_MASTER_KEY = "sk-..."     # bash: export LITELLM_MASTER_KEY=sk-...
+
+python scripts\provision_gateway_keys.py roster.csv            # dry run: plan only
+python scripts\provision_gateway_keys.py roster.csv --apply    # mint the keys
+.\file_in_1password.ps1                                        # file + share them
 ```
 
-> **The 1Password CLI cannot be driven from this script**, and that is
-> 1Password working as designed: the desktop-app integration authorizes by
-> *calling application*. A terminal you typed into is trusted; `python.exe`
-> is not, so `op whoami` succeeds when you type it and fails identically
-> from a bare `python -c` one-liner. No shell, subprocess or output-capture
-> trick gets around it — the only bypass is a **service account token**
-> (`OP_SERVICE_ACCOUNT_TOKEN`), which is worth setting up if this ever runs
-> unattended. With one, add `--use-op` and the script files each key and
-> emits share links itself.
+The first command creates any missing teams and mints the keys, then
+writes `file_in_1password.ps1`. The second files each key in 1Password as
+an API Credential, shares it with its owner, and deletes itself. No manual
+clicking either side.
+
+> **Why it's two commands.** 1Password's desktop integration authorizes by
+> *calling application*: a terminal you typed into is trusted, `python.exe`
+> is not. So `op` works when you run it and fails from inside a script —
+> confirmed with a bare `python -c` one-liner, and no shell, subprocess or
+> output-capture trick changes it. Emitting the commands for your shell to
+> run sidesteps it, because then your terminal is `op`'s parent.
 >
-> Without it the script writes `keys.csv` and you file the keys in the
-> 1Password app and share them from there. For a lab or a single
-> researcher that is under a minute of clicking; the automation only earns
-> its keep at cohort scale.
-
-**Dry run, then apply:**
-
-```powershell
-python scripts\provision_gateway_keys.py roster.csv              # plan only
-python scripts\provision_gateway_keys.py roster.csv --apply      # do it
-```
+> Run the emitted script **from a terminal**, not from an editor or IDE
+> task runner — those hit the same restriction.
+>
+> A **service account token** (`OP_SERVICE_ACCOUNT_TOKEN`) is the only
+> thing that lifts the restriction. With one, pass `--use-op` and the
+> Python script does the 1Password half directly, in one command. Worth
+> setting up if this ever needs to run unattended.
 
 The dry run is the default and prints exactly which teams and keys it
 would create. `--apply` is the only thing that writes.
 
 Useful flags: `--vault` (default `DoIT-AI`), `--gateway`,
-`--master-key-ref` (the `op://` path to the master key),
-`--expires-in` (share-link lifetime, default `14d`), `--out`.
+`--expires-in` (share-link lifetime, default `14d`), `--op-script`, and
+`--master-key-ref` (only with `--use-op`).
 
-**Re-running is safe.** Anyone who already has a key item in the vault is
-skipped, so adding rows and re-running onboards only the new people. That
-also makes the vault — not a spreadsheet — the record of who has been
-issued a key.
+**Re-running is safe.** Anyone who already has a key is skipped — matched
+on the gateway's key aliases, or on the vault when running `--use-op` — so
+adding rows and re-running onboards only the new people. If that check
+can't run, the script says so rather than quietly minting duplicates.
 
-The script writes `keys.csv` — **live credentials in plaintext.** File
-them in 1Password, share from there (next step), and delete the file.
-With `--use-op` it writes share links instead, which are safe to email.
+`file_in_1password.ps1` holds live credentials until you run it, at which
+point it deletes itself. If you abandon a run partway, delete it by hand.
 
 ## Step 4 — What participants get (hand-off)
 

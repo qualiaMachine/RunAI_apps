@@ -12,16 +12,20 @@ of object -- rows in the proxy's Postgres -- so they are created through
 the running proxy's API, which is what this script does. There is nothing
 here to commit.
 
-By default this only talks to the gateway: master key from
-$LITELLM_MASTER_KEY, minted keys written to a CSV. File them in 1Password
-and share them from the app -- seconds per person, and the only thing that
-works with a normal 1Password account.
+Two commands, no manual clicking:
 
---use-op automates that side too, but needs OP_SERVICE_ACCOUNT_TOKEN. The
-desktop-app integration authorizes by calling application: a terminal you
-typed into is trusted, python.exe is not, so `op whoami` succeeds when
-typed and fails from any script. This is 1Password behaving as designed
-and no shell or subprocess trick gets around it.
+    python scripts/provision_gateway_keys.py roster.csv --apply
+    .\file_in_1password.ps1        (or ./file_in_1password.sh)
+
+The first mints the keys against the gateway and writes the second, which
+files each key in 1Password, shares it with its owner, and deletes itself.
+
+The split exists because 1Password's desktop integration authorizes by
+calling application: a terminal you typed into is trusted, python.exe is
+not, so `op` fails from inside this script while working when you run it
+yourself. Emitting the commands sidesteps that. OP_SERVICE_ACCOUNT_TOKEN
+is the only thing that lifts the restriction -- with one, pass --use-op
+and this script does the 1Password half directly.
 
 Usage:
 
@@ -124,9 +128,53 @@ def op_check_signin():
         "    application and approve it. It appears once, on first use, and\n"
         "    can open behind your terminal window.\n"
         "  - Run from PowerShell rather than Git Bash.\n"
-        "  - Fall back to --no-1password with $LITELLM_MASTER_KEY set, which\n"
-        "    skips op entirely and writes the keys to a file instead.\n"
+        "  - Drop --use-op: the default path emits a script you run\n"
+        "    yourself, which op trusts because your terminal is its parent.\n"
     )
+
+
+def item_title(netid):
+    """ASCII only: this string also lands in an emitted .ps1, and PowerShell
+    5.1 reads scripts as ANSI unless they carry a BOM."""
+    return f"LiteLLM - {netid}"
+
+
+def emit_op_script(path, rows, vault, gateway, expires):
+    """Write the 1Password half as a shell script for the USER to run.
+
+    op refuses to talk to the desktop app when its parent process is
+    python.exe, but is trusted when the parent is the terminal. Emitting
+    the commands sidesteps that without a service account.
+    """
+    win = path.endswith(".ps1")
+    lines = []
+    if win:
+        lines += ["# Run this from PowerShell:  .\\" + os.path.basename(path),
+                  "# It files each key in 1Password, shares it, then deletes",
+                  "# itself. Contains live credentials until it does.",
+                  "$ErrorActionPreference = 'Stop'", ""]
+    else:
+        lines += ["#!/bin/sh", "# Files each key in 1Password, shares it, then",
+                  "# deletes itself. Contains live credentials until it does.",
+                  "set -e", ""]
+    # PowerShell continues lines with a backtick, not a backslash, so keep
+    # each command on one line there rather than getting that subtly wrong.
+    for netid, email, key, team in rows:
+        title = item_title(netid)
+        create = (f'op item create --category "API Credential" '
+                  f'--vault "{vault}" --title "{title}" '
+                  f'--tags "litellm,{team}" "credential={key}" '
+                  f'"username={netid}" "base url[text]={gateway}/v1"')
+        share = (f'op item share "{title}" --vault "{vault}" '
+                 f'--emails "{email}" --expires-in "{expires}" --view-once')
+        lines += [create, share, ""]
+    lines.append("Remove-Item -LiteralPath $PSCommandPath -Force" if win
+                 else 'rm -- "$0"')
+    lines.append("")
+    with open(path, "w", encoding="ascii", errors="replace", newline="") as f:
+        f.write(("\r\n" if win else "\n").join(lines))
+    if not win:
+        os.chmod(path, 0o700)
 
 
 def op_item_exists(title, vault):
@@ -295,6 +343,9 @@ def main():
                    help="where to write results (default keys.csv)")
     p.add_argument("--example", action="store_true",
                    help="print an example roster CSV and exit")
+    p.add_argument("--op-script",
+                   help="path for the emitted 1Password script "
+                        "(default file_in_1password.ps1 / .sh)")
     p.add_argument("--use-op", action="store_true",
                    help="also drive the 1Password CLI: read the master key "
                         "via --master-key-ref, file each key in --vault, and "
@@ -368,7 +419,7 @@ def main():
                 (skipped if alias in existing else todo).append(r)
     else:
         for r in rows:
-            title = f"LiteLLM — {r['netid'].strip()}"
+            title = item_title(r["netid"].strip())
             (skipped if op_item_exists(title, args.vault) else todo).append(r)
 
     print(f"\nKeys to mint: {len(todo)}")
@@ -393,16 +444,16 @@ def main():
         teams[t] = create_team(args.gateway, master_key, t)
         print(f"created team {t} ({teams[t]})")
 
-    links = []
+    links, pending = [], []
     for r in todo:
         netid, team = r["netid"].strip(), r["team"].strip()
-        title = f"LiteLLM — {netid}"
+        title = item_title(netid)
         key = generate_key(
             args.gateway, master_key, netid, teams[team],
             (r.get("rpm_limit") or "").strip(), (r.get("duration") or "").strip(), team,
         )
         if not args.use_op:
-            links.append((netid, r["email"].strip(), key))
+            pending.append((netid, r["email"].strip(), key, team))
             print(f"minted: {netid}")
         else:
             op_item_create(title, args.vault, key, netid, args.gateway,
@@ -413,21 +464,28 @@ def main():
             links.append((netid, r["email"].strip(), link))
             print(f"minted + filed + shared: {netid}")
 
-    with open(args.out, "w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        w.writerow(["netid", "email",
-                    "share_link" if args.use_op else "api_key"])
-        w.writerows(links)
-
-    if not args.use_op:
-        print(f"\n{len(links)} key(s) issued -> {args.out}")
-        print("!! That file contains LIVE CREDENTIALS in plaintext. Distribute")
-        print("!! them over a secure channel and delete it when you are done.")
-    else:
+    if args.use_op:
+        with open(args.out, "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["netid", "email", "share_link"])
+            w.writerows(links)
         print(f"\n{len(links)} key(s) issued. Share links -> {args.out}")
         print("That file holds links, not keys: each is restricted to one "
               "address,")
         print(f"single-view, and expires in {args.expires_in}. Safe to email.")
+        return 0
+
+    script = args.op_script or ("file_in_1password.ps1" if os.name == "nt"
+                                else "file_in_1password.sh")
+    emit_op_script(script, pending, args.vault, args.gateway, args.expires_in)
+    run = f".\\{script}" if os.name == "nt" else f"./{script}"
+    print(f"\n{len(pending)} key(s) minted on the gateway.")
+    print(f"\nNow run this from your terminal to finish:\n\n    {run}\n")
+    print("It files each key in 1Password, shares it with its owner, then")
+    print("deletes itself. Run it from the terminal, not from an editor or")
+    print("IDE task: op only trusts the desktop app when a terminal you are")
+    print("typing in is its parent, which is the whole reason for this step.")
+    print(f"\n!! Until you run it, {script} holds live credentials.")
     return 0
 
 
