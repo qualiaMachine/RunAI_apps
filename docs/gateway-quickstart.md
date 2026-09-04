@@ -69,10 +69,26 @@ profile.
 Ask the gateway rather than trusting a list in a doc — the catalogue
 changes:
 
+```powershell
+# PowerShell
+(Invoke-RestMethod https://llm-gw01.doit.wisc.edu/v1/models `
+   -Headers @{ Authorization = "Bearer $env:OPENAI_API_KEY" }).data.id
+```
+
 ```bash
+# bash / zsh
 curl -s https://llm-gw01.doit.wisc.edu/v1/models \
   -H "Authorization: Bearer $OPENAI_API_KEY"
 ```
+
+> **Two PowerShell traps**, and they produce confusing errors rather than
+> clear ones:
+> - **`curl` is an alias for `Invoke-WebRequest`**, so bash-style `curl -H ...`
+>   fails with *"Cannot bind parameter 'Headers'"*. Use `Invoke-RestMethod`
+>   as above, or spell it `curl.exe` to get the real curl.
+> - **The variable is `$env:OPENAI_API_KEY`, not `$OPENAI_API_KEY`.** The
+>   bash spelling is simply undefined in PowerShell, so your header becomes
+>   `"Bearer "` and the gateway replies *"Malformed API Key"*.
 
 As of September 2026:
 
@@ -231,7 +247,14 @@ unattributed traffic is what gets a pilot's capacity questioned. Use
 
 No login needed — your key can query itself:
 
+```powershell
+# PowerShell
+Invoke-RestMethod https://llm-gw01.doit.wisc.edu/key/info `
+  -Headers @{ Authorization = "Bearer $env:OPENAI_API_KEY" }
+```
+
 ```bash
+# bash / zsh
 curl -s https://llm-gw01.doit.wisc.edu/key/info \
   -H "Authorization: Bearer $OPENAI_API_KEY"
 ```
@@ -243,7 +266,8 @@ That shows your key's limits and what it's spent so far.
 | What you see | What it usually means |
 |---|---|
 | Hang, or DNS/connection error | Not on GlobalProtect |
-| `Malformed API Key ... Ensure Key has 'Bearer ' prefix` | Your env var is empty. In Python, restart the process after setting it; in shell, note that a header string built *before* the variable was set keeps the old empty value |
+| `Malformed API Key ... Ensure Key has 'Bearer ' prefix` | Your key never made it into the header. In PowerShell, check you wrote `$env:OPENAI_API_KEY` and not `$OPENAI_API_KEY`, and that any `$headers` variable was built *after* setting it — it captures the value at assignment. In Python, restart the process after setting the variable |
+| `Cannot bind parameter 'Headers'` or `A drive with the name 'https' does not exist` | You ran a bash `curl` command in PowerShell, where `curl` aliases `Invoke-WebRequest`. Use `Invoke-RestMethod`, or `curl.exe` |
 | `Invalid proxy key` / 401 | Wrong key, or it expired — ask for a new share link |
 | `404 ... Model Group=...` | Model name typo, or it was removed. Re-check `/v1/models` |
 | Timeout on the first call | Cold start — raise your client timeout to 300s and retry |
