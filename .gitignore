@@ -79,3 +79,10 @@ logs/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Gateway key provisioning (scripts/provision_gateway_keys.py).
+# roster.csv lists real people; share-links.csv holds 1Password share
+# links. Neither contains a key, but neither belongs in the repo.
+# The committed template is scripts/roster.example.csv.
+roster.csv
+share-links.csv
