@@ -229,14 +229,30 @@ point it deletes itself. If you abandon a run partway, delete it by hand.
 
 ## Step 4 — What participants get (hand-off)
 
-Two lines of config and a snippet:
-
 - **Base URL:** `https://llm-gw01.doit.wisc.edu/v1`
-- **API key:** their `sk-…`
+- **API key:** the 1Password share link from Step 3
+
+**Step one for them is saving the key into their own 1Password**, from
+the share link. Everything below reads it from there, so the key is never
+typed into a terminal, pasted into a notebook, or committed.
+
+```powershell
+# PowerShell — the item name is the one from the share link
+$env:OPENAI_API_KEY = op read "op://Private/wams_bbadger/credential"
+```
+
+```bash
+# bash / zsh
+export OPENAI_API_KEY=$(op read 'op://Private/wams_bbadger/credential')
+```
+
+Then the key never appears in their code at all — the `openai` client
+picks `OPENAI_API_KEY` up on its own:
 
 ```python
 from openai import OpenAI
-client = OpenAI(base_url="https://llm-gw01.doit.wisc.edu/v1", api_key="sk-...")
+
+client = OpenAI(base_url="https://llm-gw01.doit.wisc.edu/v1")
 
 resp = client.chat.completions.create(
     model="qwen3-27b",
@@ -249,18 +265,20 @@ Image generation uses the same client with `client.images.generate(...)`
 against the image model's public name — see
 [`image_app/README.md`](../image_app/README.md).
 
-To see what models they can call:
+> **Without 1Password** (an external participant, a shared lab machine):
+> still set the environment variable rather than putting the key in code
+> — `$env:OPENAI_API_KEY = "sk-..."` for the session only. A key in a
+> notebook cell gets committed; a key in an env var does not.
+
+To see which models they can call, and their own usage — both read the
+same variable, so still no key on the command line:
 
 ```bash
 curl -s https://llm-gw01.doit.wisc.edu/v1/models \
-  -H "Authorization: Bearer sk-<their-key>"
-```
+  -H "Authorization: Bearer $OPENAI_API_KEY"
 
-Participants can check their own usage without a gateway login:
-
-```bash
 curl -s https://llm-gw01.doit.wisc.edu/key/info \
-  -H "Authorization: Bearer sk-<their-key>"
+  -H "Authorization: Bearer $OPENAI_API_KEY"
 ```
 
 ### Four things to say when you send the key
@@ -269,9 +287,10 @@ Worth stating explicitly — each one is a support ticket otherwise:
 
 1. **You must be on GlobalProtect (campus VPN)** to reach the gateway,
    from anywhere including on-campus wifi.
-2. **Keep the key out of your repo.** Read it from an environment
-   variable (`OPENAI_API_KEY` works with the `openai` client
-   unmodified), not a literal in a notebook that gets pushed to GitHub.
+2. **Save the key into 1Password, then load it with `op read`** into
+   `OPENAI_API_KEY` — the `openai` client picks that up unmodified, so
+   the key never appears in their code. A key pasted into a notebook
+   cell gets committed; an environment variable does not.
 3. **Always call the gateway URL**, not a
    `*.deepthought.doit.wisc.edu` model hostname someone shared. The
    direct hostnames answer without a key, so calls that bypass the
