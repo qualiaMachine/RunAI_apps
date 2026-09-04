@@ -148,11 +148,12 @@ minting keys.
 > morning of an event. GitLab is only involved when a **model** changes.
 > (`se-litellm`'s own README says the same under *Managing access*.)
 
-Everything up to hand-off is one command. `scripts/provision_gateway_keys.py`
-creates any teams that don't exist and mints one key per person, writing
-them to `keys.csv`. Nothing is clicked in the dashboard. With a 1Password
-service account you can add `--use-op` and it files each key and emits
-share links too; without one, that part is a minute in the 1Password app.
+Two commands, no clicking. `scripts/provision_gateway_keys.py` creates any
+teams that don't exist, mints one key per person, and writes
+`file_in_1password.ps1`; running that script files each key in 1Password,
+shares it with its owner, and deletes itself. With a 1Password service
+account you can add `--use-op` and the Python script does both halves in
+one go.
 
 **Write the roster.** One row per person. Start from the committed
 template — [`scripts/roster.example.csv`](../scripts/roster.example.csv),
@@ -163,8 +164,9 @@ python scripts/provision_gateway_keys.py --example > roster.csv
 # edit roster.csv: replace the sample rows with your people
 ```
 
-`roster.csv`, `keys.csv`, `share-links.csv` and `file_in_1password.*` are
-all gitignored — some hold live credentials, the rest list real people.
+`roster.csv`, `share-links.csv` and `file_in_1password.*` are all
+gitignored — `file_in_1password.*` holds live credentials until it runs,
+the others list real people.
 
 ```
 netid,team,email,rpm_limit,duration
@@ -572,7 +574,8 @@ whether `min 0` is acceptable for a given model.
   minted with `duration` expire on their own, so this is a sweep for
   anything issued without one.
 - Archive or delete the event's 1Password vault once keys are revoked,
-  and delete `keys.csv` / `share-links.csv` and the roster. Anything
+  and delete the roster plus any `share-links.csv` or leftover
+  `file_in_1password.*`. Anything
   left holding live credentials is the thing that outlives the event.
 - Export the Usage dashboard first if the numbers feed a writeup —
   deleted keys drop out of the default view.

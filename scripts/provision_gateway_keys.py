@@ -150,6 +150,12 @@ def emit_op_script(path, rows, vault, gateway, expires, view_once=False):
     op refuses to talk to the desktop app when its parent process is
     python.exe, but is trusted when the parent is the terminal. Emitting
     the commands sidesteps that without a service account.
+
+    The keys are command-line arguments here, so on a shared multi-user
+    host they are briefly visible in the process list while the script
+    runs. That is the same exposure --use-op has, and is acceptable on a
+    single-user admin workstation; it is a reason not to run either on a
+    shared box.
     """
     win = path.endswith(".ps1")
     lines = []
@@ -358,8 +364,10 @@ def main():
                    help="op:// reference to the gateway master key")
     p.add_argument("--expires-in", default="14d",
                    help="share-link lifetime (default 14d)")
-    p.add_argument("--out", default="keys.csv",
-                   help="where to write results (default keys.csv)")
+    p.add_argument("--out", default="share-links.csv",
+                   help="with --use-op, where to write netid,email,share_link "
+                        "(default share-links.csv). Unused otherwise -- the "
+                        "default path writes --op-script instead.")
     p.add_argument("--example", action="store_true",
                    help="print an example roster CSV and exit")
     p.add_argument("--view-once", action="store_true",
