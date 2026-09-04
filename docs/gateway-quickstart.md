@@ -45,8 +45,34 @@ it.
 
 ## Step 2 — Load it into your shell
 
-Read it out of 1Password at the start of each session, so the key never
-appears in your shell history or your code:
+Best done with the **1Password CLI** (`op`), which reads the key straight
+out of your vault so it never appears in your shell history or your code.
+
+Install it once:
+
+```powershell
+# Windows
+winget install AgileBits.1Password.CLI
+```
+
+```bash
+# macOS
+brew install 1password-cli
+```
+
+Full instructions, including Linux:
+<https://developer.1password.com/docs/cli/get-started/>
+
+Then enable the desktop integration, which is what lets `op` unlock
+without a password: **1Password app → Settings → Developer → "Integrate
+with 1Password CLI"**, then quit and reopen the app. Check it works:
+
+```
+op whoami
+```
+
+If that prints your account, you're set. Now load the key at the start of
+each session:
 
 ```powershell
 # PowerShell — replace with your item's name
@@ -58,9 +84,26 @@ $env:OPENAI_API_KEY = op read "op://Private/wams_bbadger/credential"
 export OPENAI_API_KEY=$(op read 'op://Private/wams_bbadger/credential')
 ```
 
-No 1Password CLI? Set the variable for the session only
-(`$env:OPENAI_API_KEY = "sk-..."`). Still don't put it in your code — a
-key in a notebook cell gets committed to git eventually.
+**No 1Password CLI, or `op` won't authenticate?** You don't need it —
+the share link works on its own. Open the item in 1Password (or the
+browser extension), copy the key, and set the variable for this session
+only:
+
+```powershell
+$env:OPENAI_API_KEY = "sk-..."      # PowerShell
+```
+
+```bash
+export OPENAI_API_KEY=sk-...        # bash / zsh
+```
+
+Still don't put it in your code — a key in a notebook cell gets committed
+to git eventually.
+
+> You do **not** need a 1Password account to open a share link, which is
+> why this works for collaborators outside UW-Madison. UW-Madison staff
+> and students do have 1Password available; DoIT's KB covers accounts and
+> [item sharing](https://kb.wisc.edu/security/144574).
 
 ## Step 3 — Start your tools from that same terminal
 
