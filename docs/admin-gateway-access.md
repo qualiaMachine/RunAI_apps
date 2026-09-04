@@ -47,8 +47,16 @@ there is nothing to switch off.
 - **Gateway dashboard admin** — `https://llm-gw01.doit.wisc.edu`, log in
   with the master key (`LITELLM_MASTER_KEY`)
 - **1Password** — where the master key lives and where the virtual keys
-  you mint should end up. The desktop app is enough; the `op` CLI is
-  optional and only helps if you have a service account (see below).
+  you mint should end up. Store the master key once as an **API
+  Credential** item (title `LiteLLM gateway`), created *in the app* so it
+  never lands in shell history; the reference is then
+  `op://<vault>/LiteLLM gateway/credential`.
+  To get its value the first time: `se-litellm` → Settings → CI/CD →
+  Variables → `LITELLM_MASTER_KEY` → **Reveal value** (Maintainer or
+  Owner). If it was created "masked and hidden" it can't be revealed —
+  read it off the running proxy instead with
+  `docker exec litellm printenv LITELLM_MASTER_KEY` on `llm-gw01`. Don't
+  regenerate it as a shortcut: LiteLLM encrypts stored values with it.
 - **Maintainer on the `se-litellm` GitLab repo** — *only* if you're
   adding a model to the catalog for the event. Cohort setup itself needs
   no git access. Note Developer can commit but can't manage CI/CD
@@ -176,8 +184,8 @@ astudent,marathon-team-07,astudent@wisc.edu,,7d
 read` in *your* shell is trusted, so the key is never typed or displayed:
 
 ```powershell
-$env:LITELLM_MASTER_KEY = op read "op://DoIT-AI/LiteLLM gateway/master key"
-# bash: export LITELLM_MASTER_KEY=$(op read 'op://DoIT-AI/LiteLLM gateway/master key')
+$env:LITELLM_MASTER_KEY = op read "op://DoIT-AI/LiteLLM gateway/credential"
+# bash: export LITELLM_MASTER_KEY=$(op read 'op://DoIT-AI/LiteLLM gateway/credential')
 
 python scripts\provision_gateway_keys.py roster.csv            # dry run: plan only
 python scripts\provision_gateway_keys.py roster.csv --apply    # mint the keys
