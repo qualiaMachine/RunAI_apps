@@ -332,6 +332,11 @@ def generate_key(gateway, master_key, netid, team_id, rpm, duration, team):
 def read_roster(path):
     with open(path, newline="", encoding="utf-8-sig") as f:
         rows = list(csv.DictReader(f))
+    # Drop rows that are entirely blank. Excel writes a trailing ",,,," line
+    # whenever a cell below the data was ever touched, and that should not be
+    # a hard error.
+    rows = [r for r in rows
+            if any((v or "").strip() for v in r.values())]
     if not rows:
         raise Fatal(f"{path} has no data rows.")
     missing = {"netid", "team", "email"} - set(rows[0])
@@ -343,7 +348,12 @@ def read_roster(path):
     for i, r in enumerate(rows, start=2):
         for col in ("netid", "team", "email"):
             if not (r.get(col) or "").strip():
-                raise Fatal(f"{path} line {i}: '{col}' is empty.")
+                raise Fatal(
+                    f"{path}: a row is missing '{col}'.\n"
+                    f"  row {i - 1} of data: "
+                    + ",".join((r.get(c) or "") for c in
+                               ("netid", "team", "email", "rpm_limit", "duration"))
+                )
     return rows
 
 
