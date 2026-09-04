@@ -134,10 +134,10 @@ def op_check_signin():
     )
 
 
-def item_title(netid):
+def item_title(team, netid):
     """ASCII only: this string also lands in an emitted .ps1, and PowerShell
     5.1 reads scripts as ANSI unless they carry a BOM."""
-    return f"LiteLLM - {netid}"
+    return f"{team}_{netid}"
 
 
 def emit_op_script(path, rows, vault, gateway, expires):
@@ -161,7 +161,7 @@ def emit_op_script(path, rows, vault, gateway, expires):
     # PowerShell continues lines with a backtick, not a backslash, so keep
     # each command on one line there rather than getting that subtly wrong.
     for netid, email, key, team in rows:
-        title = item_title(netid)
+        title = item_title(team, netid)
         create = (f'op item create --category "API Credential" '
                   f'--vault "{vault}" --title "{title}" '
                   f'--tags "litellm,{team}" "credential={key}" '
@@ -425,7 +425,7 @@ def main():
                 (skipped if alias in existing else todo).append(r)
     else:
         for r in rows:
-            title = item_title(r["netid"].strip())
+            title = item_title(r["team"].strip(), r["netid"].strip())
             (skipped if op_item_exists(title, args.vault) else todo).append(r)
 
     print(f"\nKeys to mint: {len(todo)}")
@@ -453,7 +453,7 @@ def main():
     links, pending = [], []
     for r in todo:
         netid, team = r["netid"].strip(), r["team"].strip()
-        title = item_title(netid)
+        title = item_title(team, netid)
         key = generate_key(
             args.gateway, master_key, netid, teams[team],
             (r.get("rpm_limit") or "").strip(), (r.get("duration") or "").strip(), team,
