@@ -234,12 +234,17 @@ point it deletes itself. If you abandon a run partway, delete it by hand.
 - **Base URL:** `https://llm-gw01.doit.wisc.edu/v1`
 - **API key:** the 1Password share link from Step 3
 
-**Step one for them is saving the key into their own 1Password**, from
-the share link. Everything below reads it from there, so the key is never
-typed into a terminal, pasted into a notebook, or committed.
+Three steps for them, the first two in a terminal:
+
+**1. Save the key into their own 1Password** from the share link you sent.
+It lands in their Private vault by default; the item name is whatever the
+share was titled (`wams_bbadger`).
+
+**2. Load it into the shell they'll work from.** `op read` fetches it
+without ever displaying it:
 
 ```powershell
-# PowerShell — the item name is the one from the share link
+# PowerShell
 $env:OPENAI_API_KEY = op read "op://Private/wams_bbadger/credential"
 ```
 
@@ -248,8 +253,15 @@ $env:OPENAI_API_KEY = op read "op://Private/wams_bbadger/credential"
 export OPENAI_API_KEY=$(op read 'op://Private/wams_bbadger/credential')
 ```
 
-Then the key never appears in their code at all — the `openai` client
-picks `OPENAI_API_KEY` up on its own:
+**3. Start Python from that same terminal** — `python script.py`,
+`jupyter lab`, `code .`, whichever. This is the step people trip on: the
+variable lives in that one shell session, so a notebook launched from the
+Start menu or a different window won't see it and the client will report
+a missing API key. It's also gone when the terminal closes, so step 2
+repeats each session (or goes in their shell profile).
+
+The payoff is that the key never appears in their code — the `openai`
+client reads `OPENAI_API_KEY` on its own:
 
 ```python
 from openai import OpenAI
