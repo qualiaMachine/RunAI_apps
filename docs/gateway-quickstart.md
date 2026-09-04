@@ -22,9 +22,35 @@ change the base URL works unmodified — the `openai` Python package,
 
 ## Before anything else: the VPN
 
-You must be on **GlobalProtect** to reach the gateway, including from
-on-campus wifi. Nothing below works without it, and the failure looks
-like a hang or a DNS error rather than a clear message.
+Two things have to be true before anything below works:
+
+1. **You're on GlobalProtect**, including from on-campus wifi.
+2. **Your NetID has been added to the firewall rule.** Access to the
+   gateway is granted per person at the campus firewall, so being on the
+   VPN isn't enough on its own. Chris arranges this when you request a
+   key — but it's a manual step with a lead time, so if you've just been
+   given a key, check it's been done before assuming something's broken.
+
+Neither failure announces itself. Both look like a hang or
+`Unable to connect to the remote server`.
+
+If you're on the VPN and still can't connect, find out which layer is
+failing before assuming your key is wrong:
+
+```powershell
+Resolve-DnsName llm-gw01.doit.wisc.edu
+Test-NetConnection llm-gw01.doit.wisc.edu -Port 443
+```
+
+| Result | Meaning |
+|---|---|
+| DNS fails | Not on the VPN, or a DNS problem — reconnect GlobalProtect |
+| `PingSucceeded: True`, `TcpTestSucceeded: False` | **Almost always your NetID isn't in the firewall rule yet.** The host is reachable, but the firewall drops your connection before the gateway ever sees it. Nothing you can fix and nothing to do with your key — message Chris with your NetID and the full `Test-NetConnection` output |
+| `TcpTestSucceeded: True` | Network is fine; the problem is your key or your request — see the troubleshooting table at the bottom |
+
+That middle case is worth knowing about: access is allowed per VPN
+address range, so it's possible to be properly connected and still be
+refused.
 
 ## Step 1 — Get your key, and save it
 
@@ -215,7 +241,37 @@ print(resp.choices[0].message.content)
 
 ## R
 
-No OpenAI-specific package needed — `httr2` talks to the API directly.
+Two reasonable paths:
+
+| | Use when |
+|---|---|
+| **`ellmer`** | Chat. Handles conversation state, streaming, tool calling and structured output. **No embeddings support.** |
+| **`httr2`** | Embeddings, or when you want no LLM dependency and full control over the request |
+
+### ellmer (chat)
+
+```r
+# install.packages("ellmer")
+library(ellmer)
+
+chat <- chat_openai_compatible(
+  base_url = "https://llm-gw01.doit.wisc.edu/v1",
+  model    = "qwen3.8-27b",
+  api_key  = Sys.getenv("OPENAI_API_KEY")
+)
+
+chat$chat("Explain PCA in two sentences.")
+
+# the object keeps the conversation, so follow-ups have context
+chat$chat("Now give an example with gene expression data.")
+```
+
+ellmer moves quickly — check `?chat_openai_compatible` if an argument
+name doesn't match. It also ships `chat_vllm()`, a thin wrapper over the
+same thing that reads `VLLM_API_KEY` instead; either works against the
+gateway.
+
+### httr2 (anything, including embeddings)
 
 ```r
 # install.packages("httr2")
@@ -265,10 +321,6 @@ dim(m)   # 2 x 4096
 > was launched without inheriting your shell environment (Step 3). Either
 > start RStudio from the terminal where you set the variable, or add the
 > line to `~/.Renviron` — never to your `.R` script.
-
-`ellmer` also works if you prefer a higher-level interface; point its
-OpenAI provider at the gateway's base URL and it uses `OPENAI_API_KEY`
-the same way.
 
 ## The first call can take a couple of minutes
 
