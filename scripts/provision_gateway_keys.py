@@ -144,7 +144,7 @@ def item_title(team, netid):
     return f"{team}_{netid}"
 
 
-def emit_op_script(path, rows, vault, gateway, expires):
+def emit_op_script(path, rows, vault, gateway, expires, view_once=False):
     """Write the 1Password half as a shell script for the USER to run.
 
     op refuses to talk to the desktop app when its parent process is
@@ -157,13 +157,23 @@ def emit_op_script(path, rows, vault, gateway, expires):
         lines += ["# Run this from PowerShell:  .\\" + os.path.basename(path),
                   "# It files each key in 1Password, shares it, then deletes",
                   "# itself. Contains live credentials until it does.",
-                  "$ErrorActionPreference = 'Stop'", ""]
+                  "# Stops on the first failure without deleting itself, so a",
+                  "# partial run can be fixed and re-run.",
+                  "$ErrorActionPreference = 'Stop'",
+                  "function Assert-Ok($what) {",
+                  "  if ($LASTEXITCODE -ne 0) { throw \"FAILED: $what\" }",
+                  "}", ""]
     else:
         lines += ["#!/bin/sh", "# Files each key in 1Password, shares it, then",
                   "# deletes itself. Contains live credentials until it does.",
                   "set -e", ""]
     # PowerShell continues lines with a backtick, not a backslash, so keep
     # each command on one line there rather than getting that subtly wrong.
+    # op rejects --expires-in together with --view-once ("the expiration
+    # cannot be set when the share is only one view"), so pick one. Default
+    # to an expiring, recipient-locked link: a fumbled single-view link
+    # costs a re-share, while an expiry bounds the window either way.
+    limit = "--view-once" if view_once else f'--expires-in "{expires}"'
     for netid, email, key, team in rows:
         title = item_title(team, netid)
         create = (f'op item create --category "API Credential" '
@@ -171,8 +181,12 @@ def emit_op_script(path, rows, vault, gateway, expires):
                   f'--tags "litellm,{team}" "credential={key}" '
                   f'"username={netid}" "base url[text]={gateway}/v1"')
         share = (f'op item share "{title}" --vault "{vault}" '
-                 f'--emails "{email}" --expires-in "{expires}" --view-once')
-        lines += [create, share, ""]
+                 f'--emails "{email}" {limit}')
+        if win:
+            lines += [create, f'Assert-Ok "create {title}"',
+                      share, f'Assert-Ok "share {title}"', ""]
+        else:
+            lines += [create, share, ""]
     lines.append("Remove-Item -LiteralPath $PSCommandPath -Force" if win
                  else 'rm -- "$0"')
     lines.append("")
@@ -348,6 +362,10 @@ def main():
                    help="where to write results (default keys.csv)")
     p.add_argument("--example", action="store_true",
                    help="print an example roster CSV and exit")
+    p.add_argument("--view-once", action="store_true",
+                   help="share links die after one view instead of expiring. "
+                        "op forbids combining the two, so this drops "
+                        "--expires-in.")
     p.add_argument("--op-script",
                    help="path for the emitted 1Password script "
                         "(default file_in_1password.ps1 / .sh)")
@@ -487,7 +505,8 @@ def main():
 
     script = args.op_script or ("file_in_1password.ps1" if os.name == "nt"
                                 else "file_in_1password.sh")
-    emit_op_script(script, pending, args.vault, args.gateway, args.expires_in)
+    emit_op_script(script, pending, args.vault, args.gateway,
+                   args.expires_in, args.view_once)
     run = f".\\{script}" if os.name == "nt" else f"./{script}"
     print(f"\n{len(pending)} key(s) minted on the gateway.")
     print(f"\nNow run this from your terminal to finish:\n\n    {run}\n")
