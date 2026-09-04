@@ -201,12 +201,15 @@ Deploy (RunAI CLI shown; UI works the same way — see
 ```bash
 MSYS_NO_PATHCONV=1 ./runai-cli-amd64.exe inference submit trocr-kurrent \
   -i vllm/vllm-openai:latest --image-pull-policy IfNotPresent \
-  --gpu-devices-request 1 --gpu-request-type portion --gpu-portion-request 0.10 \
-  --cpu-core-request 4 --cpu-memory-request 8G \
+  --gpu-devices-request 1 --gpu-request-type portion --gpu-portion-request 0.15 \
   --existing-pvc=claimname=shared-model-repository-project-3w4iu,path=/models \
   --serving-port=container=8000,protocol=http \
   -c -- bash -c 'curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && pip install --no-cache-dir --target /tmp/deps "transformers>=4.42,<5" sentencepiece protobuf && PYTHONPATH=/tmp/deps python3 /tmp/RunAI_apps-main/ocr_app/scripts/trocr_server.py'
 ```
+
+Do **not** add `--cpu-core-request` / `--cpu-memory-request` — they are
+rejected at admission on this cluster now and the workload fails in
+seconds with no pod and no useful error. Cluster defaults are fine.
 
 Model must be on the shared PVC first
 (`python /models/provision_shared_models.py download dh-unibe/trocr-kurrent-XVI-XVII`).
