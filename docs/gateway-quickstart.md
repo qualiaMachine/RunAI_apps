@@ -22,10 +22,17 @@ change the base URL works unmodified — the `openai` Python package,
 
 ## Before anything else: the VPN
 
-You must be on **GlobalProtect** to reach the gateway, including from
-on-campus wifi. Nothing below works without it, and the failure looks
-like a hang or `Unable to connect to the remote server` rather than a
-clear message.
+Two things have to be true before anything below works:
+
+1. **You're on GlobalProtect**, including from on-campus wifi.
+2. **Your NetID has been added to the firewall rule.** Access to the
+   gateway is granted per person at the campus firewall, so being on the
+   VPN isn't enough on its own. Chris arranges this when you request a
+   key — but it's a manual step with a lead time, so if you've just been
+   given a key, check it's been done before assuming something's broken.
+
+Neither failure announces itself. Both look like a hang or
+`Unable to connect to the remote server`.
 
 If you're on the VPN and still can't connect, find out which layer is
 failing before assuming your key is wrong:
@@ -38,7 +45,7 @@ Test-NetConnection llm-gw01.doit.wisc.edu -Port 443
 | Result | Meaning |
 |---|---|
 | DNS fails | Not on the VPN, or a DNS problem — reconnect GlobalProtect |
-| `PingSucceeded: True`, `TcpTestSucceeded: False` | **The host is reachable but port 443 is blocked for your VPN address.** Not something you can fix — send Chris the full `Test-NetConnection` output, including `SourceAddress`, so the firewall allowlist can be checked against your VPN range |
+| `PingSucceeded: True`, `TcpTestSucceeded: False` | **Almost always your NetID isn't in the firewall rule yet.** The host is reachable, but the firewall drops your connection before the gateway ever sees it. Nothing you can fix and nothing to do with your key — message Chris with your NetID and the full `Test-NetConnection` output |
 | `TcpTestSucceeded: True` | Network is fine; the problem is your key or your request — see the troubleshooting table at the bottom |
 
 That middle case is worth knowing about: access is allowed per VPN

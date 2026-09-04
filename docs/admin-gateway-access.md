@@ -65,7 +65,8 @@ there is nothing to switch off.
 - **Run:ai access to `shared-models`** — only if you're also changing
   autoscaling or asking for quota.
 - Participants must be on GlobalProtect (campus VPN) to reach the
-  gateway.
+  gateway, **and their NetID must be added to the firewall rule first** —
+  see [Step 0](#step-0--get-netids-added-to-the-firewall).
 - The models participants need should be in the catalog **days ahead**.
   That's the only part of this that needs a pipeline deploy; everything
   else is instant.
@@ -138,6 +139,44 @@ Two consequences to keep in mind:
 If that changes, scoping is one `access_groups:` line per model in
 `config/litellm_config.yaml` (a GitLab MR), referenced by name when
 minting keys.
+
+## Step 0 — Get NetIDs added to the firewall
+
+**Do this first, and allow lead time.** Access to `llm-gw01:443` is
+filtered by **NetID** at the Palo Alto firewall, not by IP range. Being on
+GlobalProtect is necessary but not sufficient: until someone's NetID is in
+the rule, their traffic never reaches the gateway.
+
+Send Mike the NetIDs of everyone who needs access and wait for the rule to
+commit. The `netid` column of your roster is exactly this list:
+
+```powershell
+(Import-Csv roster.csv).netid -join ", "
+```
+
+Two things make this the step most likely to bite you:
+
+- **It cannot be automated.** Palo Alto API access isn't available to us,
+  so this is a person doing it by hand. Treat it like the model-catalogue
+  MR: something with a lead time, not something you do on the morning of
+  an event.
+- **The failure is silent and misleading.** A user whose NetID isn't in
+  the rule gets `Unable to connect to the remote server` — no 401, no
+  mention of the firewall. They will report it as a broken key, and you
+  will debug the key. The triage steps are in
+  [the user quickstart](gateway-quickstart.md#before-anything-else-the-vpn):
+  DNS resolves and ping succeeds, but TCP 443 fails.
+
+Consequences worth planning around:
+
+- **Walk-up registration doesn't work.** Someone who turns up without
+  having been added can't be onboarded in the moment.
+- **For a cohort, batch it.** Forty NetIDs in one request, well ahead of
+  the event, and confirm the rule committed before you distribute keys.
+- This is per-user traceability, which is a real security benefit — every
+  connection maps to a person at the network layer, independent of the
+  gateway key. Worth revisiting for production, where the manual step
+  becomes the bottleneck; for a pilot cohort it's acceptable.
 
 ## Steps 1–3 — Run the script
 
