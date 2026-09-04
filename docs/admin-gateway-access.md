@@ -2,8 +2,9 @@
 
 > **Admin doc, not part of the [New User Guide](../README.md#new-user-guide).**
 > Everything here assumes gateway admin access and cluster-admin
-> contacts. Participants don't need to read it — what they get is the
-> two lines of config in [Step 4](#step-4--what-participants-get-hand-off).
+> contacts. Participants don't need to read it — send them
+> [Using the Shared Models](gateway-quickstart.md), the user-facing
+> counterpart, along with their share link.
 
 How to give people access to the shared models without giving everyone a
 Run:ai account. Written for the ML Marathon, but it is the same three
@@ -267,6 +268,15 @@ client reads `OPENAI_API_KEY` on its own:
 from openai import OpenAI
 
 client = OpenAI(base_url="https://llm-gw01.doit.wisc.edu/v1")
+
+# Authoritative list of what this key can call -- the catalogue changes
+# by merge request, so ask rather than trusting any list in a doc:
+print([m.id for m in client.models.list()])
+
+# Snapshot, Sept 2026:
+#   qwen3.8-27b            chat        general-purpose text
+#   churro-3b              chat+vision historical-document OCR
+#   qwen3-vl-embedding-8b  embeddings  4096-dim, multimodal
 
 resp = client.chat.completions.create(
     model="qwen3-27b",
