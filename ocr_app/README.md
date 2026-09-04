@@ -157,6 +157,7 @@ ocr_app/
 │   ├── merge.py                    # Dedup + continuation-flag stitching across chunks
 │   ├── qa_audit.py                 # Coverage report: missing pages, thin content, truncation
 │   ├── ocr_server.py               # FastAPI per-page server (not deployment-tested)
+│   ├── trocr_server.py             # TrOCR line-OCR endpoint (Kurrent handwriting) — see below
 │   ├── batch_extract.py            # Per-page batch CLI (not deployment-tested)
 │   └── ...
 ├── app.py                          # Streamlit per-page UI (not deployment-tested)
@@ -171,3 +172,66 @@ ocr_app/
 ├── requirements_ui.txt             # Streamlit UI deps
 └── .env.example                    # Environment variable template
 ```
+
+## TrOCR line-OCR endpoint (historical handwriting)
+
+`scripts/trocr_server.py` serves a TrOCR checkpoint (default:
+`dh-unibe/trocr-kurrent-XVI-XVII`, German Kurrent) as a small
+JSON-in/text-out endpoint. TrOCR is **line-level** — send single
+segmented text lines (e.g. Kraken output), not full pages; use
+`/ocr_batch` to score one page's lines in a single batched call.
+
+Runs on the stock `vllm/vllm-openai` image, with three packages
+installed to `/tmp/deps` at startup and put ahead of the image's own via
+`PYTHONPATH` (system site-packages are read-only in inference
+containers; `/tmp` is writable):
+
+- **`transformers>=4.42,<5`** — load-bearing. TrOCR checkpoints ship
+  slow (sentencepiece/BPE) tokenizers, and transformers 5.x — which the
+  vLLM image now carries — removed slow-tokenizer support entirely. The
+  5.x failure is a confusing `Couldn't instantiate the backend
+  tokenizer ... need sentencepiece` error that installing sentencepiece
+  does *not* fix. Same pin the RAG embedding server uses.
+- **`sentencepiece`**, **`protobuf`** — needed to read the slow
+  tokenizer itself.
+
+Deploy (RunAI CLI shown; UI works the same way — see
+`docs/07-cli-submission.md` at the repo root):
+
+```bash
+MSYS_NO_PATHCONV=1 ./runai-cli-amd64.exe inference submit trocr-kurrent \
+  -i vllm/vllm-openai:latest --image-pull-policy IfNotPresent \
+  --gpu-devices-request 1 --gpu-request-type portion --gpu-portion-request 0.15 \
+  --existing-pvc=claimname=shared-model-repository-project-3w4iu,path=/models \
+  --serving-port=container=8000,protocol=http \
+  -c -- bash -c 'curl -sL https://github.com/qualiaMachine/RunAI_apps/archive/refs/heads/main.tar.gz | tar xz -C /tmp && pip install --no-cache-dir --target /tmp/deps "transformers>=4.42,<5" sentencepiece protobuf && PYTHONPATH=/tmp/deps python3 /tmp/RunAI_apps-main/ocr_app/scripts/trocr_server.py'
+```
+
+Do **not** add `--cpu-core-request` / `--cpu-memory-request` — they are
+rejected at admission on this cluster now and the workload fails in
+seconds with no pod and no useful error. Cluster defaults are fine.
+
+Model must be on the shared PVC first
+(`python /models/provision_shared_models.py download dh-unibe/trocr-kurrent-XVI-XVII`).
+Swap checkpoints (e.g. `fgho/trocr-hanseXVI-kurrent`) via the
+`TROCR_MODEL_ID` env var — no code changes.
+
+Client usage:
+
+```python
+import base64, requests
+URL = "https://trocr-kurrent-runai-shared-models.deepthought.doit.wisc.edu"
+
+def ocr_lines(line_images):          # list of PIL images from Kraken
+    payload = {"images_b64": []}
+    import io
+    for img in line_images:
+        buf = io.BytesIO(); img.save(buf, format="PNG")
+        payload["images_b64"].append(base64.b64encode(buf.getvalue()).decode())
+    return requests.post(f"{URL}/ocr_batch", json=payload, timeout=300).json()["texts"]
+```
+
+> If the deploy crash-loops instantly with no logs, the tarball extract
+> to `/tmp` hit the cluster's container write restrictions — attach a
+> small writable scratch PVC and change both `/tmp` references in the
+> command to the scratch path (same fix as `image_app`'s deployment).

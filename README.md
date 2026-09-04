@@ -24,11 +24,17 @@ ahead if you already have your bearings.
 | 04 | [Storage](docs/04-storage.md) | You need to know where data lives — short-term scratch through cluster-wide shared datasets — and how to get it from "a drive in my lab" to "mountable in a workload" |
 | 05 | [Examples](docs/05-examples.md) | You're ready to deploy something — pointers to the OCR pipeline, the RAG/chatbot, and the patterns to copy when building your own |
 | 06 | [Expose a vLLM endpoint outside the cluster](docs/06-external-endpoint.md) | A non-RunAI client (Denodo, an institutional app, your laptop) needs to call a hosted model over `https://`, including the cross-VLAN firewall hand-off |
+| 07 | [Submit workloads via the RunAI CLI](docs/07-cli-submission.md) | You want scriptable, repeatable submissions from your own machine instead of the web UI — install/config on Windows, verified submit commands, and the gotchas |
 
 There is also a draft plan for the standing shared endpoints the
 pilot should host — which models, how their benchmarks and measured
 performance get tracked, and what triggers a swap:
 [Shared Model Catalogue](docs/model-catalogue.md).
+
+Admin-side (not part of the user guide): handing out gateway keys to a
+cohort — teams, per-user keys, rate limits, and what the LiteLLM
+numbers do and don't capture — is in
+[Handing Out Model Access](docs/admin-gateway-access.md).
 
 The OCR-specific and RAG-specific deployment guides live in the app
 READMEs — [`ocr_app/README.md`](ocr_app/README.md) and
@@ -45,7 +51,8 @@ them as starting templates and adapt to your needs.
 |------|------------|-------------------|
 | [`ocr_app/`](ocr_app/README.md) | Vision-language document extraction (Qwen3-VL-32B). Turns PDFs/scans into structured JSON. | Grant administration, archival corpora, library digitization, anything where layout matters |
 | [`rag_app/`](rag_app/README.md) | Retrieval-augmented chatbot over a curated corpus (Qwen 7B/14B/72B). | Q&A over institutional knowledge bases, research literature search, "ChatGPT for our docs" |
-| [`scripts/`](scripts) | Shared utilities used by both apps. | You usually don't touch this directly. |
+| [`image_app/`](image_app/README.md) | Text-to-image generation (Qwen-Image) with a browser UI. | Cartoon diagrams and illustrative graphics for presentations, posters with rendered text |
+| [`scripts/`](scripts) | Shared utilities used by the apps. | You usually don't touch this directly. |
 
 
 ### [Document Extraction (`ocr_app/`)](ocr_app/README.md)
@@ -115,7 +122,8 @@ All apps use the same approach:
 | Script | Purpose |
 |--------|---------|
 | `hardware_metrics.py` | GPU/energy profiling — VRAM, power draw, energy per request |
-| `provision_shared_models.py` | Download HuggingFace models to the shared PVC |
+| `provision_shared_models.py` | Download HuggingFace models to the shared PVC; `vram` subcommand estimates serving VRAM (weights + KV-cache/`--max-model-len` guidance) before you commit GPU quota |
+| `provision_gateway_keys.py` | Admin-only: create LiteLLM gateway teams and per-user keys from a roster CSV, filing each key in 1Password and emitting recipient-locked share links. See [Handing Out Model Access](docs/admin-gateway-access.md) |
 
 
 
