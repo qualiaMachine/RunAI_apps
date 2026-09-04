@@ -146,11 +146,17 @@ creates any teams that don't exist, mints one key per person, files each
 key in 1Password, and emits a share link per person. Nothing is clicked in
 the dashboard, and no plaintext key touches disk.
 
-**Write the roster.** One row per person:
+**Write the roster.** One row per person. Start from the committed
+template — [`scripts/roster.example.csv`](../scripts/roster.example.csv),
+which `--example` also prints:
 
 ```bash
 python scripts/provision_gateway_keys.py --example > roster.csv
+# edit roster.csv: replace the sample rows with your people
 ```
+
+`roster.csv` and `share-links.csv` are gitignored. Neither holds a key,
+but a list of real people doesn't belong in the repo.
 
 ```
 netid,team,email,rpm_limit,duration
