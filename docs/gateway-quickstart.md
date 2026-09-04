@@ -14,7 +14,7 @@ Run:ai account, and you never log into the cluster.
 | | |
 |---|---|
 | **Base URL** | `https://llm-gw01.doit.wisc.edu/v1` |
-| **API key** | your `sk-…`, delivered as a 1Password share link |
+| **API key** | your `sk-…` — ask Chris (endemann@wisc.edu); it arrives as a 1Password share link |
 
 The gateway speaks the **OpenAI API**. Any client library that lets you
 change the base URL works unmodified — the `openai` Python package,
@@ -26,12 +26,22 @@ You must be on **GlobalProtect** to reach the gateway, including from
 on-campus wifi. Nothing below works without it, and the failure looks
 like a hang or a DNS error rather than a clear message.
 
-## Step 1 — Save your key
+## Step 1 — Get your key, and save it
 
-Your key arrives as a 1Password share link. Open it and **save the item
-into your own 1Password**. Don't paste the key into a file, a notebook,
-or a chat message — it identifies you, and everything you run is
-recorded against it.
+**Don't have a key yet?** Ask Chris (endemann@wisc.edu) for one. Tell him
+which group or project you're with, so your usage lands under the right
+team. He'll send it as a **1Password share link** — that's the only way
+keys go out here, so if someone offers to paste one into Teams or an
+email, ask for a share link instead.
+
+The link is locked to your `@wisc.edu` address and expires, so open it
+reasonably promptly. If it's expired or you lose it, ask for another —
+re-sharing is trivial and far better than working around it.
+
+When you open it, **save the item into your own 1Password**. From then
+on it's yours. Don't paste the key into a file, a notebook, or a chat
+message — it identifies you, and everything you run is recorded against
+it.
 
 ## Step 2 — Load it into your shell
 
@@ -273,8 +283,9 @@ That shows your key's limits and what it's spent so far.
 | Timeout on the first call | Cold start — raise your client timeout to 300s and retry |
 | 429 | Rate limited. Back off and retry; if it's persistent, ask for a higher limit |
 
-Anything else, or a model that's consistently unavailable: contact
-Chris. Include the model name and the exact error text — the error body
+Anything else, a model that's consistently unavailable, or a key you've
+lost: contact Chris (endemann@wisc.edu) — a replacement key is a
+one-minute job. Include the model name and the exact error text — the error body
 from the gateway says which layer failed.
 
 ## What this doesn't cover
