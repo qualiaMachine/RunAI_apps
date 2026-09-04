@@ -12,10 +12,11 @@ of object -- rows in the proxy's Postgres -- so they are created through
 the running proxy's API, which is what this script does. There is nothing
 here to commit.
 
-On Windows, run this from PowerShell. The 1Password CLI cannot reach the
-desktop app from Git Bash/MSYS -- `op whoami` reports "account is not
-signed in" no matter what -- so `op read` fails there. Use
-OP_SERVICE_ACCOUNT_TOKEN or --no-1password if you must stay in Git Bash.
+Authenticate `op` with OP_SERVICE_ACCOUNT_TOKEN. 1Password's desktop-app
+integration allowlists the calling process, and python.exe is not on that
+list -- `op` typed into a terminal works while the same command run from
+this script fails with "account is not signed in". Switching shells does
+not help. Use --no-1password if a service account isn't available.
 
 Usage:
 
@@ -90,15 +91,16 @@ def op_check_signin():
     raise Fatal(
         "`op whoami` failed. Its output was:\n"
         f"  {err or '(no error output)'}\n\n"
-        "If you are in Git Bash on Windows, that is the likely cause: the\n"
-        "1Password desktop integration rejects MSYS's process tree, so `op`\n"
-        "cannot reach the app no matter how it is configured.\n"
-        "  - Run this script from PowerShell instead (it works there), or\n"
-        "  - export OP_SERVICE_ACCOUNT_TOKEN=ops_...  (any shell, no unlock), or\n"
-        "  - re-run with --no-1password and $LITELLM_MASTER_KEY set.\n\n"
-        "Otherwise: 1Password app > Settings > Developer > 'Integrate with\n"
-        "1Password CLI', then fully quit and reopen the app. `op signin` is a\n"
-        "no-op when that integration is on, so it won't help by itself.\n"
+        "If `op whoami` works when YOU type it but fails here, that is the\n"
+        "expected behaviour: the 1Password desktop integration allowlists the\n"
+        "calling process, and python.exe is not on that list. Switching\n"
+        "shells does not help. Either:\n"
+        "  - set a service account token, which bypasses the desktop app:\n"
+        "      $env:OP_SERVICE_ACCOUNT_TOKEN = 'ops_...'   (PowerShell)\n"
+        "      export OP_SERVICE_ACCOUNT_TOKEN=ops_...     (bash)\n"
+        "  - or re-run with --no-1password and $LITELLM_MASTER_KEY set.\n\n"
+        "If instead no account is registered at all, enable 1Password app >\n"
+        "Settings > Developer > 'Integrate with 1Password CLI' and reopen it.\n"
     )
 
 
