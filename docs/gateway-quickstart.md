@@ -24,7 +24,26 @@ change the base URL works unmodified — the `openai` Python package,
 
 You must be on **GlobalProtect** to reach the gateway, including from
 on-campus wifi. Nothing below works without it, and the failure looks
-like a hang or a DNS error rather than a clear message.
+like a hang or `Unable to connect to the remote server` rather than a
+clear message.
+
+If you're on the VPN and still can't connect, find out which layer is
+failing before assuming your key is wrong:
+
+```powershell
+Resolve-DnsName llm-gw01.doit.wisc.edu
+Test-NetConnection llm-gw01.doit.wisc.edu -Port 443
+```
+
+| Result | Meaning |
+|---|---|
+| DNS fails | Not on the VPN, or a DNS problem — reconnect GlobalProtect |
+| `PingSucceeded: True`, `TcpTestSucceeded: False` | **The host is reachable but port 443 is blocked for your VPN address.** Not something you can fix — send Chris the full `Test-NetConnection` output, including `SourceAddress`, so the firewall allowlist can be checked against your VPN range |
+| `TcpTestSucceeded: True` | Network is fine; the problem is your key or your request — see the troubleshooting table at the bottom |
+
+That middle case is worth knowing about: access is allowed per VPN
+address range, so it's possible to be properly connected and still be
+refused.
 
 ## Step 1 — Get your key, and save it
 
