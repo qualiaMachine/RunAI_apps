@@ -12,8 +12,9 @@ of object -- rows in the proxy's Postgres -- so they are created through
 the running proxy's API, which is what this script does. There is nothing
 here to commit.
 
-Two commands, no manual clicking:
+Two commands, no manual clicking and no key ever typed:
 
+    $env:LITELLM_MASTER_KEY = op read 'op://<vault>/<item>/master key'
     python scripts/provision_gateway_keys.py roster.csv --apply
     .\file_in_1password.ps1        (or ./file_in_1password.sh)
 
@@ -374,11 +375,16 @@ def main():
         master_key = os.environ.get("LITELLM_MASTER_KEY", "").strip()
         if not master_key:
             raise Fatal(
-                "Set the gateway master key first:\n"
-                "  PowerShell:  $env:LITELLM_MASTER_KEY = 'sk-...'\n"
-                "  bash:        export LITELLM_MASTER_KEY=sk-...\n\n"
-                "Copy it out of 1Password, or from the se-litellm GitLab\n"
-                "CI/CD variables."
+                "Load the gateway master key from 1Password first. Run this\n"
+                "in your own shell -- op trusts your terminal, so the key is\n"
+                "never typed or displayed:\n\n"
+                "  PowerShell:\n"
+                "    $env:LITELLM_MASTER_KEY = op read "
+                "'op://DoIT-AI/LiteLLM gateway/master key'\n\n"
+                "  bash:\n"
+                "    export LITELLM_MASTER_KEY=$(op read "
+                "'op://DoIT-AI/LiteLLM gateway/master key')\n\n"
+                "Adjust the op:// path to wherever the master key lives."
             )
     else:
         op_check_signin()

@@ -172,10 +172,12 @@ astudent,marathon-team-07,astudent@wisc.edu,,7d
 | `rpm_limit` | **Leave blank** — see [Guardrails](#guardrails-dashboard). Fill in only to cap a key you have a specific reason to distrust |
 | `duration` | Blank for no expiry. Set it (`7d`) for anything event-shaped so cleanup is automatic; **leave blank for standing users** or you break a pipeline mid-project |
 
-**Set the master key**, then run the two commands:
+**Load the master key from 1Password**, then run the two commands. `op
+read` in *your* shell is trusted, so the key is never typed or displayed:
 
 ```powershell
-$env:LITELLM_MASTER_KEY = "sk-..."     # bash: export LITELLM_MASTER_KEY=sk-...
+$env:LITELLM_MASTER_KEY = op read "op://DoIT-AI/LiteLLM gateway/master key"
+# bash: export LITELLM_MASTER_KEY=$(op read 'op://DoIT-AI/LiteLLM gateway/master key')
 
 python scripts\provision_gateway_keys.py roster.csv            # dry run: plan only
 python scripts\provision_gateway_keys.py roster.csv --apply    # mint the keys
