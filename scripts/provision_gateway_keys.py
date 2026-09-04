@@ -235,7 +235,16 @@ def main():
     args = p.parse_args()
 
     if args.example:
-        print(EXAMPLE_CSV, end="")
+        # Prefer the committed template so the two can't drift; the
+        # embedded copy keeps --example working if the script is run
+        # on its own (e.g. copied onto a workspace).
+        template = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "roster.example.csv")
+        try:
+            with open(template, encoding="utf-8") as f:
+                print(f.read(), end="")
+        except OSError:
+            print(EXAMPLE_CSV, end="")
         return 0
     if not args.roster:
         p.error("roster CSV required (or --example)")
