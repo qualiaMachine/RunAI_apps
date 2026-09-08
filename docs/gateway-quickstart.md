@@ -360,10 +360,23 @@ OPENAI_API_KEY=op://<vault>/<your item>/credential
 ```
 
 ```powershell
-op run --env-file=.\rstudio.env -- rstudio
+# Windows PowerShell / Windows Terminal — close RStudio first
+op run --env-file=.\rstudio.env -- "C:\Program Files\RStudio\rstudio.exe"
+```
+
+```bash
+# macOS
+op run --env-file=./rstudio.env -- open -a RStudio
 ```
 
 That file is safe to commit — it contains no secret.
+
+> **Not from RStudio's Terminal pane.** That tab is a separate process
+> from the R console, so variables set there never reach `Sys.getenv()`,
+> and relaunching RStudio from inside RStudio does nothing for the session
+> you're in. `op run` has to come first, from a real terminal, with
+> RStudio closed. If you're already in a session and don't want to
+> restart, use `keyring` below instead.
 
 **`keyring`**, if `op` won't cooperate. Uses Windows Credential Manager
 or the macOS Keychain, so still no plaintext file:
