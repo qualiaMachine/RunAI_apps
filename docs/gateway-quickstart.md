@@ -346,6 +346,38 @@ dim(m)   # 2 x 4096
 > if you'd rather not keep the key on disk — `.Renviron` is plaintext, so
 > it's a step down from `op read` and a poor idea on a shared machine.
 
+#### Keeping the key out of `.Renviron`
+
+There is no 1Password SDK for R — the official ones are Go, JS and Python
+— so the options are the CLI or the OS keychain.
+
+**Launch RStudio through `op run`.** 1Password resolves the reference at
+launch and RStudio inherits the real value; nothing is written to disk.
+Put a *reference* (not a key) in `rstudio.env`:
+
+```
+OPENAI_API_KEY=op://<vault>/<your item>/credential
+```
+
+```powershell
+op run --env-file=.\rstudio.env -- rstudio
+```
+
+That file is safe to commit — it contains no secret.
+
+**`keyring`**, if `op` won't cooperate. Uses Windows Credential Manager
+or the macOS Keychain, so still no plaintext file:
+
+```r
+keyring::key_set("litellm")                                  # once, prompts
+Sys.setenv(OPENAI_API_KEY = keyring::key_get("litellm"))     # each session
+```
+
+**Calling `op` from inside R** (`system2("op", c("read", "op://..."))`)
+usually fails with *"account is not signed in"* — the desktop integration
+authorises by calling application, and `rsession` isn't one it accepts.
+One line to try, but don't plan around it.
+
 ## The first call can take a couple of minutes
 
 Some models are configured to release their GPU when idle. The first
