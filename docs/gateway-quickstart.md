@@ -317,10 +317,34 @@ m <- embed(c("badgers dig burrows", "the mitochondria is the powerhouse"))
 dim(m)   # 2 x 4096
 ```
 
-> **If `Sys.getenv("OPENAI_API_KEY")` comes back empty in RStudio**, it
-> was launched without inheriting your shell environment (Step 3). Either
-> start RStudio from the terminal where you set the variable, or add the
-> line to `~/.Renviron` — never to your `.R` script.
+> **`Error: nzchar(key) is not TRUE` means `Sys.getenv("OPENAI_API_KEY")`
+> came back empty** — RStudio was started without inheriting your shell
+> environment (Step 3). Your key is fine. Two ways to fix it:
+>
+> **Persist it** (what most RStudio users want):
+>
+> ```r
+> usethis::edit_r_environ()      # opens ~/.Renviron
+> ```
+>
+> Add one line — no quotes, no `export`:
+>
+> ```
+> OPENAI_API_KEY=sk-...
+> ```
+>
+> Then **Session → Restart R**. `.Renviron` is read only at startup, so
+> without the restart it still looks empty. Check with
+> `nchar(Sys.getenv("OPENAI_API_KEY"))`.
+>
+> Call `edit_r_environ()` with no arguments so it edits the **user-level**
+> file in your home directory. `edit_r_environ("project")` writes one into
+> the project folder, where it gets committed. And never put the key in a
+> `.R` script.
+>
+> **Or start RStudio from a terminal** that already has the variable set,
+> if you'd rather not keep the key on disk — `.Renviron` is plaintext, so
+> it's a step down from `op read` and a poor idea on a shared machine.
 
 ## The first call can take a couple of minutes
 
