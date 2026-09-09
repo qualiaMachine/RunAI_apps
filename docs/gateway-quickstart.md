@@ -5,9 +5,11 @@ participant, a lab member, someone building an app. You call the models
 over HTTP from your own laptop, notebook, or server. You don't need a
 Run:ai account, and you never log into the cluster.
 
-> If instead you want to *run* your own model, fine-tune, or get a GPU
-> workspace, that's a different path — start at the
-> [New User Guide](../README.md#new-user-guide).
+> **A key gets you the models listed below, and nothing else.** Running
+> your own model, fine-tuning, or getting a GPU workspace needs a Run:ai
+> account, which a key doesn't upgrade into — and for hackathon
+> participants it isn't on offer at all. The catalogue is fixed too:
+> models are provisioned in advance on request, not added mid-event.
 
 The gateway is at **`https://llm-gw01.doit.wisc.edu/v1`** and speaks the
 OpenAI API, so any client that lets you set a base URL works unmodified:
@@ -490,11 +492,19 @@ from the gateway says which layer failed.
 
 ## Scope
 
-A gateway key lets you **call** the shared models. It doesn't give you a
-Run:ai account, a GPU, storage on the cluster, or the ability to host
-your own model. If you need those, that's the
-[New User Guide](../README.md#new-user-guide) — start with
-[00 Overview](00-overview.md) and mention what you're trying to do.
+A gateway key lets you **call** the models in the catalogue. It doesn't
+give you a Run:ai account, a GPU, storage on the cluster, the ability to
+host your own model, or a way to add one.
+
+**Hackathon participants: this is the full extent of the access.** Cluster
+accounts aren't part of the event, and the model list is whatever was
+requested and provisioned beforehand — adding a model needs a config
+change and a deploy, so it isn't something that happens during an event.
+
+Outside an event, a cluster account is a separate request rather than an
+upgrade path. If that's genuinely what your work needs, talk to Chris
+about it; the [New User Guide](../README.md#new-user-guide) describes
+what's involved, starting with [00 Overview](00-overview.md).
 
 Also worth knowing: this is a **pilot**. Read the
 [Usage Policy](usage-policy.md) before putting real data through it —
