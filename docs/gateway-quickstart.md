@@ -16,15 +16,13 @@ Postman.
 | `churro-3b` | chat + vision | OCR of historical documents and handwriting; send page images |
 | `qwen3-vl-embedding-8b` | embeddings | 4096-dim vectors for search / RAG; handles text and images |
 
-That's the catalogue as of September 2026. It changes, so
-[ask the gateway](#listing-models) for the live version once your key is
-set up.
+That's the catalogue as of September 2026. It changes — contact Chris if
+you need something that isn't here.
 
 > **A key gets you these models, not the cluster.** Running your own
 > model, fine-tuning, or getting a GPU workspace needs a Run:ai account,
 > which a key doesn't upgrade into — and for hackathon participants that
-> isn't on offer. Need a model that isn't in the table? Ask Chris — it can
-> be added, though not instantly.
+> isn't on offer.
 
 ## PowerShell and bash
 
@@ -191,7 +189,7 @@ profile.
 
 ## Listing models
 
-The table at the top is a snapshot. This is the live list:
+The table at the top is a snapshot. To see the current list:
 
 ```powershell
 # PowerShell
