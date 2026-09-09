@@ -20,6 +20,28 @@ The gateway speaks the **OpenAI API**. Any client library that lets you
 change the base URL works unmodified — the `openai` Python package,
 `httr2` in R, LangChain, LlamaIndex, curl, Postman.
 
+## A note on shells
+
+Commands below come in pairs: **PowerShell first, then bash/zsh**. Three
+differences account for most of the confusion:
+
+| | PowerShell | bash / zsh |
+|---|---|---|
+| Set a variable | `$env:NAME = "value"` | `export NAME=value` |
+| Use a variable | `$env:NAME` | `$NAME` |
+| `curl` | an *alias* for `Invoke-WebRequest` — use `Invoke-RestMethod`, or `curl.exe` for the real thing | real curl |
+
+PowerShell keeps environment variables in a separate `env:` namespace.
+`$OPENAI_API_KEY` without that prefix is an ordinary PowerShell variable
+that doesn't exist — it evaluates to empty silently, so your header
+becomes `"Bearer "` and the gateway answers *"Malformed API Key"*. Bash
+has no such split, which is why the two spellings differ.
+
+> **On Windows, use PowerShell rather than Git Bash** for anything
+> involving `op`. The 1Password desktop integration refuses connections
+> from Git Bash and reports *"account is not signed in"* no matter how the
+> app is configured. Git Bash is fine for everything else.
+
 ## Before anything else: the VPN
 
 Two things have to be true before anything below works:
@@ -38,8 +60,17 @@ If you're on the VPN and still can't connect, find out which layer is
 failing before assuming your key is wrong:
 
 ```powershell
+# PowerShell
 Resolve-DnsName llm-gw01.doit.wisc.edu
 Test-NetConnection llm-gw01.doit.wisc.edu -Port 443
+```
+
+```bash
+# bash / zsh — 401 means you reached the gateway and it wants a key,
+# which is the result you want here. A hang or connection error is
+# VPN or firewall.
+curl -s -o /dev/null -w "%{http_code}\n" --max-time 10 \
+  https://llm-gw01.doit.wisc.edu/v1/models
 ```
 
 | Result | Meaning |
@@ -123,8 +154,19 @@ $env:OPENAI_API_KEY = "sk-..."      # PowerShell
 export OPENAI_API_KEY=sk-...        # bash / zsh
 ```
 
-Still don't put it in your code — a key in a notebook cell gets committed
-to git eventually.
+Either way, confirm it landed before moving on — this prints only the
+first few characters, so it's safe on a shared screen:
+
+```powershell
+$env:OPENAI_API_KEY.Substring(0,6)     # PowerShell — expect sk-...
+```
+
+```bash
+echo ${OPENAI_API_KEY:0:6}             # bash / zsh — expect sk-...
+```
+
+An error or blank line means it didn't take. Still don't put the key in
+your code — one in a notebook cell gets committed to git eventually.
 
 > You do **not** need a 1Password account to open a share link, which is
 > why this works for collaborators outside UW-Madison. UW-Madison staff
