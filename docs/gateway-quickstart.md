@@ -9,18 +9,12 @@ Run:ai account, and you never log into the cluster.
 > workspace, that's a different path — start at the
 > [New User Guide](../README.md#new-user-guide).
 
-## What you have
+The gateway is at **`https://llm-gw01.doit.wisc.edu/v1`** and speaks the
+OpenAI API, so any client that lets you set a base URL works unmodified:
+the `openai` Python package, `httr2` in R, LangChain, LlamaIndex, curl,
+Postman.
 
-| | |
-|---|---|
-| **Base URL** | `https://llm-gw01.doit.wisc.edu/v1` |
-| **API key** | your `sk-…` — ask Chris (endemann@wisc.edu); it arrives as a 1Password share link |
-
-The gateway speaks the **OpenAI API**. Any client library that lets you
-change the base URL works unmodified — the `openai` Python package,
-`httr2` in R, LangChain, LlamaIndex, curl, Postman.
-
-## A note on shells
+## PowerShell and bash
 
 Commands below come in pairs: **PowerShell first, then bash/zsh**. Three
 differences account for most of the confusion:
@@ -42,9 +36,9 @@ has no such split, which is why the two spellings differ.
 > from Git Bash and reports *"account is not signed in"* no matter how the
 > app is configured. Git Bash is fine for everything else.
 
-## Before anything else: the VPN
+## Network access
 
-Two things have to be true before anything below works:
+Two things must be true before any of this works:
 
 1. **You're on GlobalProtect**, including from on-campus wifi.
 2. **Your NetID has been added to the firewall rule.** Access to the
@@ -185,7 +179,7 @@ broken key rather than a missing step. It's also gone when you close the
 terminal, so Step 2 repeats each session unless you add it to your shell
 profile.
 
-## Which models can I call?
+## Available models
 
 Ask the gateway rather than trusting a list in a doc — the catalogue
 changes:
@@ -433,7 +427,7 @@ usually fails with *"account is not signed in"* — the desktop integration
 authorises by calling application, and `rsession` isn't one it accepts.
 One line to try, but don't plan around it.
 
-## The first call can take a couple of minutes
+## Cold starts
 
 Some models are configured to release their GPU when idle. The first
 request after a quiet period **waits while a GPU replica starts** —
@@ -451,7 +445,7 @@ Practical consequences:
 - `qwen3.8-27b` stays warm; `churro-3b` and `qwen3-vl-embedding-8b`
   are the ones that sleep.
 
-## Always call the gateway URL
+## Use the gateway URL, not model hostnames
 
 You may come across a direct model hostname ending in
 `deepthought.doit.wisc.edu`. **Don't use it.** Those answer without a key,
@@ -477,7 +471,7 @@ curl -s https://llm-gw01.doit.wisc.edu/key/info \
 
 That shows your key's limits and what it's spent so far.
 
-## When something breaks
+## Troubleshooting
 
 | What you see | What it usually means |
 |---|---|
@@ -494,7 +488,7 @@ lost: contact Chris (endemann@wisc.edu) — a replacement key is a
 one-minute job. Include the model name and the exact error text — the error body
 from the gateway says which layer failed.
 
-## What this doesn't cover
+## Scope
 
 A gateway key lets you **call** the shared models. It doesn't give you a
 Run:ai account, a GPU, storage on the cluster, or the ability to host

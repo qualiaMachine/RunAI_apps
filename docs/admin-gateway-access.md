@@ -164,7 +164,7 @@ Two things make this the step most likely to bite you:
   the rule gets `Unable to connect to the remote server` — no 401, no
   mention of the firewall. They will report it as a broken key, and you
   will debug the key. The triage steps are in
-  [the user quickstart](gateway-quickstart.md#before-anything-else-the-vpn):
+  [the user quickstart](gateway-quickstart.md#network-access):
   DNS resolves and ping succeeds, but TCP 443 fails.
 
 Consequences worth planning around:
