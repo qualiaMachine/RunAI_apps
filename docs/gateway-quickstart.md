@@ -87,11 +87,13 @@ curl -s -o /dev/null -w "%{http_code}\n" --max-time 10 \
 
 ## Step 1 — Get your key, and save it
 
-**Don't have a key yet?** Ask Chris (endemann@wisc.edu) for one. Tell him
+**Don't have a key yet?** Request one through the
+[Badger Brain access form](https://forms.gle/vkcLzApNrX7KbkTP9). It asks
 which group or project you're with, so your usage lands under the right
-team. He'll send it as a **1Password share link** — that's the only way
-keys go out here, so if someone offers to paste one into Teams or an
-email, ask for a share link instead.
+team, and your NetID, so the firewall rule can be updated. The key
+arrives as a **1Password share link** — that's the only way keys go out
+here, so if someone offers to paste one into Teams or an email, ask for a
+share link instead.
 
 The link is locked to your `@wisc.edu` address and expires, so open it
 reasonably promptly. If it's expired or you lose it, ask for another —
@@ -483,10 +485,11 @@ That shows your key's limits and what it's spent so far.
 | Timeout on the first call | Cold start — raise your client timeout to 300s and retry |
 | 429 | Rate limited. Back off and retry; if it's persistent, ask for a higher limit |
 
-Anything else, a model that's consistently unavailable, or a key you've
-lost: contact Chris (endemann@wisc.edu) — a replacement key is a
-one-minute job. Include the model name and the exact error text; the
-error body from the gateway says which layer failed.
+Lost your key? Request a replacement through the
+[access form](https://forms.gle/vkcLzApNrX7KbkTP9) — it's a one-minute
+job on our side. Anything else, or a model that's consistently
+unavailable: contact Chris, and include the model name and the exact
+error text; the error body from the gateway says which layer failed.
 
 ## Scope
 
