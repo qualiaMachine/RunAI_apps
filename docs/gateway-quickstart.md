@@ -16,8 +16,12 @@ Postman.
 | `churro-3b` | chat + vision | OCR of historical documents and handwriting; send page images |
 | `qwen3-vl-embedding-8b` | embeddings | 4096-dim vectors for search / RAG; handles text and images |
 
-That's the catalogue as of September 2026. It changes — contact Chris if
-you need something that isn't here.
+That's the catalogue as of September 2026. It changes: check this doc for
+the latest, or once you're connected, run the command under
+[Listing models](#listing-models) to see exactly what your key can call.
+Want a model that isn't hosted? Talk to Chris — but note the whole
+pilot currently runs on 96 GB of VRAM total, so it's a trade-off, not
+an add.
 
 > **A key gets you these models, not the cluster.** Running your own
 > model, fine-tuning, or getting a GPU workspace needs a Run:ai account,
