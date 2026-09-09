@@ -409,7 +409,7 @@ When you do add a limit, two things to keep in mind:
 - **`rpm` is the wrong unit for token-heavy work.** One request with a
   100k-token context costs far more GPU than a hundred short chats, and
   rpm treats them identically. For document extraction or batch
-  summarization, `tpm_limit` is the honest control.
+  summarization, `tpm_limit` is the right control.
 - **Per-key limits stop individuals; team limits protect the pilot.**
   Forty people at 60 rpm each is well past what two GPUs serve, so
   per-key ceilings never protected capacity — the team limit is the

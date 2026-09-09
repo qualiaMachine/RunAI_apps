@@ -384,7 +384,7 @@ dim(m)   # 2 x 4096
 > Sys.setenv(OPENAI_API_KEY = rstudioapi::askForSecret("OPENAI_API_KEY"))
 > ```
 >
-> Gone when R restarts, which is the point. `.Renviron` is plaintext on
+> Gone when R restarts. `.Renviron` is plaintext on
 > disk, so this is the better choice on a shared machine.
 
 ### Keeping the key out of `.Renviron`
@@ -502,8 +502,7 @@ to host your own model.
 
 **Cluster access is available on request, not by default.** If you want
 to explore fine-tuning or run something the gateway can't do, talk to
-Chris — that goes for hackathon participants too. The honest caveat: the
-pilot has two GPUs for at least the next six months, and the shared
+Chris — that goes for hackathon participants too. The pilot has two GPUs for at least the next six months, and the shared
 endpoints already live on them, so GPU time for your own workload can't
 be promised and may well not materialise. Worth asking; not worth
 planning a project around.
@@ -518,6 +517,6 @@ If you do get an account, the
 [New User Guide](../README.md#new-user-guide) describes what's involved,
 starting with [00 Overview](00-overview.md).
 
-Also worth knowing: this is a **pilot**. Read the
+This is a **pilot**. Read the
 [Usage Policy](usage-policy.md) before putting real data through it —
 public data only, and no availability guarantees.
