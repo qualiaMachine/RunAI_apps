@@ -5,11 +5,11 @@ participant, a lab member, someone building an app. You call the models
 over HTTP from your own laptop, notebook, or server. You don't need a
 Run:ai account, and you never log into the cluster.
 
-> **A key gets you the models listed below, and nothing else.** Running
-> your own model, fine-tuning, or getting a GPU workspace needs a Run:ai
-> account, which a key doesn't upgrade into — and for hackathon
-> participants it isn't on offer at all. The catalogue is fixed too:
-> models are provisioned in advance on request, not added mid-event.
+> **A key gets you the models in the catalogue, not the cluster.**
+> Running your own model, fine-tuning, or getting a GPU workspace needs a
+> Run:ai account, which a key doesn't upgrade into — and for hackathon
+> participants that isn't on offer. Need a model that isn't listed? Ask
+> Chris — it can be added, though not instantly.
 
 The gateway is at **`https://llm-gw01.doit.wisc.edu/v1`** and speaks the
 OpenAI API, so any client that lets you set a base URL works unmodified:
@@ -493,18 +493,20 @@ from the gateway says which layer failed.
 ## Scope
 
 A gateway key lets you **call** the models in the catalogue. It doesn't
-give you a Run:ai account, a GPU, storage on the cluster, the ability to
-host your own model, or a way to add one.
+give you a Run:ai account, a GPU, storage on the cluster, or the ability
+to host your own model. For hackathon participants that's the full
+extent of the access — cluster accounts aren't part of the event.
 
-**Hackathon participants: this is the full extent of the access.** Cluster
-accounts aren't part of the event, and the model list is whatever was
-requested and provisioned beforehand — adding a model needs a config
-change and a deploy, so it isn't something that happens during an event.
+**Asking for another model is fine.** It's a config change plus a
+pipeline deploy on our side, not a rebuild of anything. A model already
+on the cluster can usually be exposed within minutes; one that has to be
+downloaded and given its own GPU workload takes longer. Either way, ask
+sooner rather than at the moment you need it.
 
 Outside an event, a cluster account is a separate request rather than an
-upgrade path. If that's genuinely what your work needs, talk to Chris
-about it; the [New User Guide](../README.md#new-user-guide) describes
-what's involved, starting with [00 Overview](00-overview.md).
+upgrade path. If that's what your work needs, talk to Chris; the
+[New User Guide](../README.md#new-user-guide) describes what's involved,
+starting with [00 Overview](00-overview.md).
 
 Also worth knowing: this is a **pilot**. Read the
 [Usage Policy](usage-policy.md) before putting real data through it —
