@@ -26,8 +26,8 @@ an add.
 > **A key gets you these models, not the cluster.** Running your own
 > model, fine-tuning, or getting a GPU workspace needs a Run:ai account,
 > which is a separate request rather than something a key upgrades into.
-> It's available on request, including for hackathon participants — but
-> GPU time isn't guaranteed. See [Scope](#scope).
+> Available on request, but GPU time isn't guaranteed — see
+> [Scope](#scope).
 
 ## PowerShell and bash
 
@@ -502,9 +502,9 @@ to host your own model.
 
 **Cluster access is available on request, not by default.** If you want
 to explore fine-tuning or run something the gateway can't do, talk to
-Chris — that goes for hackathon participants too. The pilot has two GPUs for at least the next six months, and the shared
-endpoints already live on them, so GPU time for your own workload can't
-be promised and may well not materialise. Worth asking; not worth
+Chris. The pilot has two GPUs for at least the next six months, and the
+shared endpoints already live on them, so GPU time for your own workload
+can't be promised and may well not materialise. Worth asking; not worth
 planning a project around.
 
 **Asking for another model is fine.** It's a config change plus a
