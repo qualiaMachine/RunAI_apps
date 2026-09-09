@@ -5,16 +5,26 @@ participant, a lab member, someone building an app. You call the models
 over HTTP from your own laptop, notebook, or server. You don't need a
 Run:ai account, and you never log into the cluster.
 
-> **A key gets you the models in the catalogue, not the cluster.**
-> Running your own model, fine-tuning, or getting a GPU workspace needs a
-> Run:ai account, which a key doesn't upgrade into — and for hackathon
-> participants that isn't on offer. Need a model that isn't listed? Ask
-> Chris — it can be added, though not instantly.
-
 The gateway is at **`https://llm-gw01.doit.wisc.edu/v1`** and speaks the
 OpenAI API, so any client that lets you set a base URL works unmodified:
 the `openai` Python package, `httr2` in R, LangChain, LlamaIndex, curl,
 Postman.
+
+| Model | Type | Use it for |
+|-------|------|-----------|
+| `qwen3.8-27b` | chat | General text: writing, reasoning, code, summarisation |
+| `churro-3b` | chat + vision | OCR of historical documents and handwriting; send page images |
+| `qwen3-vl-embedding-8b` | embeddings | 4096-dim vectors for search / RAG; handles text and images |
+
+That's the catalogue as of September 2026. It changes, so
+[ask the gateway](#listing-models) for the live version once your key is
+set up.
+
+> **A key gets you these models, not the cluster.** Running your own
+> model, fine-tuning, or getting a GPU workspace needs a Run:ai account,
+> which a key doesn't upgrade into — and for hackathon participants that
+> isn't on offer. Need a model that isn't in the table? Ask Chris — it can
+> be added, though not instantly.
 
 ## PowerShell and bash
 
@@ -74,10 +84,6 @@ curl -s -o /dev/null -w "%{http_code}\n" --max-time 10 \
 | DNS fails | Not on the VPN, or a DNS problem — reconnect GlobalProtect |
 | `PingSucceeded: True`, `TcpTestSucceeded: False` | **Almost always your NetID isn't in the firewall rule yet.** The host is reachable, but the firewall drops your connection before the gateway ever sees it. Nothing you can fix and nothing to do with your key — message Chris with your NetID and the full `Test-NetConnection` output |
 | `TcpTestSucceeded: True` | Network is fine; the problem is your key or your request — see the troubleshooting table at the bottom |
-
-That middle case is worth knowing about: access is allowed per VPN
-address range, so it's possible to be properly connected and still be
-refused.
 
 ## Step 1 — Get your key, and save it
 
@@ -181,10 +187,9 @@ broken key rather than a missing step. It's also gone when you close the
 terminal, so Step 2 repeats each session unless you add it to your shell
 profile.
 
-## Available models
+## Listing models
 
-Ask the gateway rather than trusting a list in a doc — the catalogue
-changes:
+The table at the top is a snapshot. This is the live list:
 
 ```powershell
 # PowerShell
@@ -198,22 +203,8 @@ curl -s https://llm-gw01.doit.wisc.edu/v1/models \
   -H "Authorization: Bearer $OPENAI_API_KEY"
 ```
 
-> **Two PowerShell traps**, and they produce confusing errors rather than
-> clear ones:
-> - **`curl` is an alias for `Invoke-WebRequest`**, so bash-style `curl -H ...`
->   fails with *"Cannot bind parameter 'Headers'"*. Use `Invoke-RestMethod`
->   as above, or spell it `curl.exe` to get the real curl.
-> - **The variable is `$env:OPENAI_API_KEY`, not `$OPENAI_API_KEY`.** The
->   bash spelling is simply undefined in PowerShell, so your header becomes
->   `"Bearer "` and the gateway replies *"Malformed API Key"*.
-
-As of September 2026:
-
-| Model | Type | Use it for |
-|-------|------|-----------|
-| `qwen3.8-27b` | chat | General text: writing, reasoning, code, summarisation |
-| `churro-3b` | chat + vision | OCR of historical documents and handwriting; send page images |
-| `qwen3-vl-embedding-8b` | embeddings | 4096-dim vectors for search / RAG; handles text and images |
+If this errors in PowerShell, it's almost always one of the two
+differences in [PowerShell and bash](#powershell-and-bash).
 
 ## Python
 
@@ -380,11 +371,18 @@ dim(m)   # 2 x 4096
 > the project folder, where it gets committed. And never put the key in a
 > `.R` script.
 >
-> **Or start RStudio from a terminal** that already has the variable set,
-> if you'd rather not keep the key on disk — `.Renviron` is plaintext, so
-> it's a step down from `op read` and a poor idea on a shared machine.
+> **Just for this session**, if you'd rather not keep the key on disk —
+> pops a dialog, you paste into it, and nothing lands in your console
+> history or a file:
+>
+> ```r
+> Sys.setenv(OPENAI_API_KEY = rstudioapi::askForSecret("OPENAI_API_KEY"))
+> ```
+>
+> Gone when R restarts, which is the point. `.Renviron` is plaintext on
+> disk, so this is the better choice on a shared machine.
 
-#### Keeping the key out of `.Renviron`
+### Keeping the key out of `.Renviron`
 
 There is no 1Password SDK for R — the official ones are Go, JS and Python
 — so the options are the CLI or the OS keychain.
@@ -477,7 +475,7 @@ That shows your key's limits and what it's spent so far.
 
 | What you see | What it usually means |
 |---|---|
-| Hang, or DNS/connection error | Not on GlobalProtect |
+| Hang, or `Unable to connect to the remote server` | Not on GlobalProtect, or your NetID isn't in the firewall rule yet — see [Network access](#network-access) to tell which |
 | `Malformed API Key ... Ensure Key has 'Bearer ' prefix` | Your key never made it into the header. In PowerShell, check you wrote `$env:OPENAI_API_KEY` and not `$OPENAI_API_KEY`, and that any `$headers` variable was built *after* setting it — it captures the value at assignment. In Python, restart the process after setting the variable |
 | `Cannot bind parameter 'Headers'` or `A drive with the name 'https' does not exist` | You ran a bash `curl` command in PowerShell, where `curl` aliases `Invoke-WebRequest`. Use `Invoke-RestMethod`, or `curl.exe` |
 | `Invalid proxy key` / 401 | Wrong key, or it expired — ask for a new share link |
@@ -487,8 +485,8 @@ That shows your key's limits and what it's spent so far.
 
 Anything else, a model that's consistently unavailable, or a key you've
 lost: contact Chris (endemann@wisc.edu) — a replacement key is a
-one-minute job. Include the model name and the exact error text — the error body
-from the gateway says which layer failed.
+one-minute job. Include the model name and the exact error text; the
+error body from the gateway says which layer failed.
 
 ## Scope
 
