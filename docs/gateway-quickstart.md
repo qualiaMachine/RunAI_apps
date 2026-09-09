@@ -25,8 +25,9 @@ an add.
 
 > **A key gets you these models, not the cluster.** Running your own
 > model, fine-tuning, or getting a GPU workspace needs a Run:ai account,
-> which a key doesn't upgrade into — and for hackathon participants that
-> isn't on offer.
+> which is a separate request rather than something a key upgrades into.
+> It's available on request, including for hackathon participants — but
+> GPU time isn't guaranteed. See [Scope](#scope).
 
 ## PowerShell and bash
 
@@ -497,8 +498,15 @@ error text; the error body from the gateway says which layer failed.
 
 A gateway key lets you **call** the models in the catalogue. It doesn't
 give you a Run:ai account, a GPU, storage on the cluster, or the ability
-to host your own model. For hackathon participants that's the full
-extent of the access — cluster accounts aren't part of the event.
+to host your own model.
+
+**Cluster access is available on request, not by default.** If you want
+to explore fine-tuning or run something the gateway can't do, talk to
+Chris — that goes for hackathon participants too. The honest caveat: the
+pilot has two GPUs for at least the next six months, and the shared
+endpoints already live on them, so GPU time for your own workload can't
+be promised and may well not materialise. Worth asking; not worth
+planning a project around.
 
 **Asking for another model is fine.** It's a config change plus a
 pipeline deploy on our side, not a rebuild of anything. A model already
@@ -506,8 +514,7 @@ on the cluster can usually be exposed within minutes; one that has to be
 downloaded and given its own GPU workload takes longer. Either way, ask
 sooner rather than at the moment you need it.
 
-Outside an event, a cluster account is a separate request rather than an
-upgrade path. If that's what your work needs, talk to Chris; the
+If you do get an account, the
 [New User Guide](../README.md#new-user-guide) describes what's involved,
 starting with [00 Overview](00-overview.md).
 
