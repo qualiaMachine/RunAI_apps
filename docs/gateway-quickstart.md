@@ -19,9 +19,9 @@ Postman.
 That's the catalogue as of September 2026. It changes: check this doc for
 the latest, or once you're connected, run the command under
 [Listing models](#listing-models) to see exactly what your key can call.
-Want a model that isn't hosted? Talk to Chris — but note the whole
-pilot currently runs on 96 GB of VRAM total, so it's a trade-off, not
-an add.
+Want a model that isn't hosted? Talk to Chris. The pilot runs on two
+RTX Pro 6000s (96 GB VRAM each), and the shared endpoints already
+occupy most of that, so adding a model usually means trading one out.
 
 > **A key gets you these models, not the cluster.** Running your own
 > model, fine-tuning, or getting a GPU workspace needs a Run:ai account,
@@ -498,9 +498,9 @@ to host your own model.
 
 **Cluster access is available on request, not by default.** If you want
 to explore fine-tuning or run something the gateway can't do, talk to
-Chris. The pilot has two GPUs for at least the next six months, and the
-shared endpoints already live on them, so GPU time for your own workload
-can't be promised and may well not materialise. Worth asking; not worth
+Chris. The pilot has two RTX Pro 6000s (96 GB each) for at least the next
+six months, and the shared endpoints already live on them, so GPU time
+for your own workload can't be promised and may well not materialise. Worth asking; not worth
 planning a project around.
 
 **Asking for another model is fine.** It's a config change plus a
