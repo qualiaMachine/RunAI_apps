@@ -102,7 +102,9 @@ The link is locked to your `@wisc.edu` address and expires, so open it
 reasonably promptly. If it's expired or you lose it, ask for another —
 re-sharing is trivial and far better than working around it.
 
-When you open it, **save the item into your own 1Password**. From then
+When you open it, **save the item into your UW-Madison 1Password
+account** — every NetID has one; DoIT's KB covers
+[receiving shared items](https://kb.wisc.edu/security/144574). From then
 on it's yours. Don't paste the key into a file, a notebook, or a chat
 message — it identifies you, and everything you run is recorded against
 it.
@@ -148,9 +150,8 @@ $env:OPENAI_API_KEY = op read "op://Private/wams_bbadger/credential"
 export OPENAI_API_KEY=$(op read 'op://Private/wams_bbadger/credential')
 ```
 
-**No 1Password CLI, or `op` won't authenticate?** You don't need it —
-the share link works on its own. Open the item in 1Password (or the
-browser extension), copy the key, and set the variable for this session
+**If `op` won't authenticate**, open the item in the 1Password app or
+browser extension, copy the key, and set the variable for this session
 only:
 
 ```powershell
@@ -174,11 +175,6 @@ echo ${OPENAI_API_KEY:0:6}             # bash / zsh — expect sk-...
 
 An error or blank line means it didn't take. Still don't put the key in
 your code — one in a notebook cell gets committed to git eventually.
-
-> You do **not** need a 1Password account to open a share link, which is
-> why this works for collaborators outside UW-Madison. UW-Madison staff
-> and students do have 1Password available; DoIT's KB covers accounts and
-> [item sharing](https://kb.wisc.edu/security/144574).
 
 ## Step 3 — Start your tools from that same terminal
 
