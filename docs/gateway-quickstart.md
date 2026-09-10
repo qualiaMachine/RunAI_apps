@@ -31,8 +31,8 @@ occupy most of that, so adding a model usually means trading one out.
 
 ## PowerShell and bash
 
-Commands below come in pairs: **PowerShell first, then bash/zsh**. Three
-differences account for most of the confusion:
+Commands come in pairs: **PowerShell first, then bash/zsh**. Three
+differences matter:
 
 | | PowerShell | bash / zsh |
 |---|---|---|
@@ -41,15 +41,13 @@ differences account for most of the confusion:
 | `curl` | an *alias* for `Invoke-WebRequest` — use `Invoke-RestMethod`, or `curl.exe` for the real thing | real curl |
 
 PowerShell keeps environment variables in a separate `env:` namespace.
-`$OPENAI_API_KEY` without that prefix is an ordinary PowerShell variable
-that doesn't exist — it evaluates to empty silently, so your header
-becomes `"Bearer "` and the gateway answers *"Malformed API Key"*. Bash
-has no such split, which is why the two spellings differ.
+`$OPENAI_API_KEY` without the prefix is an ordinary variable that doesn't
+exist; it evaluates to empty, the header becomes `"Bearer "`, and the
+gateway answers *"Malformed API Key"*.
 
 > **On Windows, use PowerShell rather than Git Bash** for anything
 > involving `op`. The 1Password desktop integration refuses connections
-> from Git Bash and reports *"account is not signed in"* no matter how the
-> app is configured. Git Bash is fine for everything else.
+> from Git Bash and reports *"account is not signed in"*.
 
 ## Network access
 
@@ -59,14 +57,10 @@ Two things must be true before any of this works:
 2. **Your NetID has been added to the firewall rule.** Access to the
    gateway is granted per person at the campus firewall, so being on the
    VPN isn't enough on its own. Chris arranges this when you request a
-   key — but it's a manual step with a lead time, so if you've just been
-   given a key, check it's been done before assuming something's broken.
+   key. It's a manual step with a lead time.
 
-Neither failure announces itself. Both look like a hang or
-`Unable to connect to the remote server`.
-
-If you're on the VPN and still can't connect, find out which layer is
-failing before assuming your key is wrong:
+Both failures look the same: a hang, or
+`Unable to connect to the remote server`. To tell which:
 
 ```powershell
 # PowerShell
@@ -85,7 +79,7 @@ curl -s -o /dev/null -w "%{http_code}\n" --max-time 10 \
 | Result | Meaning |
 |---|---|
 | DNS fails | Not on the VPN, or a DNS problem — reconnect GlobalProtect |
-| `PingSucceeded: True`, `TcpTestSucceeded: False` | **Almost always your NetID isn't in the firewall rule yet.** The host is reachable, but the firewall drops your connection before the gateway ever sees it. Nothing you can fix and nothing to do with your key — message Chris with your NetID and the full `Test-NetConnection` output |
+| `PingSucceeded: True`, `TcpTestSucceeded: False` | Your NetID isn't in the firewall rule yet. The host is reachable, but the firewall drops the connection before the gateway sees it. Send Chris your NetID and the full `Test-NetConnection` output |
 | `TcpTestSucceeded: True` | Network is fine; the problem is your key or your request — see the troubleshooting table at the bottom |
 
 ## Step 1 — Get your key, and save it
@@ -95,12 +89,10 @@ curl -s -o /dev/null -w "%{http_code}\n" --max-time 10 \
 which group or project you're with, so your usage lands under the right
 team, and your NetID, so the firewall rule can be updated. The key
 arrives as a **1Password share link** — that's the only way keys go out
-here, so if someone offers to paste one into Teams or an email, ask for a
-share link instead.
+here.
 
-The link is locked to your `@wisc.edu` address and expires, so open it
-reasonably promptly. If it's expired or you lose it, ask for another —
-re-sharing is trivial and far better than working around it.
+The link is locked to your `@wisc.edu` address and expires. If it has
+expired or you lose it, request another.
 
 When you open it, **save the item into your UW-Madison 1Password
 account** — every NetID has one; DoIT's KB covers
@@ -111,8 +103,8 @@ it.
 
 ## Step 2 — Load it into your shell
 
-Best done with the **1Password CLI** (`op`), which reads the key straight
-out of your vault so it never appears in your shell history or your code.
+Use the **1Password CLI** (`op`), which reads the key from your vault so
+it never appears in your shell history or your code.
 
 Install it once:
 
@@ -129,16 +121,14 @@ brew install 1password-cli
 Full instructions, including Linux:
 <https://developer.1password.com/docs/cli/get-started/>
 
-Then enable the desktop integration, which is what lets `op` unlock
-without a password: **1Password app → Settings → Developer → "Integrate
-with 1Password CLI"**, then quit and reopen the app. Check it works:
+Enable the desktop integration: **1Password app → Settings → Developer →
+"Integrate with 1Password CLI"**, then quit and reopen the app. Check:
 
 ```
 op whoami
 ```
 
-If that prints your account, you're set. Now load the key at the start of
-each session:
+Then load the key at the start of each session:
 
 ```powershell
 # PowerShell — replace with your item's name
@@ -162,8 +152,7 @@ $env:OPENAI_API_KEY = "sk-..."      # PowerShell
 export OPENAI_API_KEY=sk-...        # bash / zsh
 ```
 
-Either way, confirm it landed before moving on — this prints only the
-first few characters, so it's safe on a shared screen:
+Confirm it's set. This prints only the first few characters:
 
 ```powershell
 $env:OPENAI_API_KEY.Substring(0,6)     # PowerShell — expect sk-...
@@ -173,20 +162,18 @@ $env:OPENAI_API_KEY.Substring(0,6)     # PowerShell — expect sk-...
 echo ${OPENAI_API_KEY:0:6}             # bash / zsh — expect sk-...
 ```
 
-An error or blank line means it didn't take. Still don't put the key in
-your code — one in a notebook cell gets committed to git eventually.
+An error or blank line means it isn't set. Don't put the key in your
+code.
 
 ## Step 3 — Start your tools from that same terminal
 
 `python`, `jupyter lab`, `R`, `rstudio`, `code .` — launch whichever you
 use **from the shell where you just set the variable**.
 
-This is the step people trip on. The variable lives in that one shell
-session. A notebook opened from the Start menu or a desktop icon won't
-see it, and the client reports a missing API key — which reads like a
-broken key rather than a missing step. It's also gone when you close the
-terminal, so Step 2 repeats each session unless you add it to your shell
-profile.
+The variable lives in that one shell session. A notebook opened from the
+Start menu or a desktop icon won't see it, and the client reports a
+missing API key. It's also gone when you close the terminal, so Step 2
+repeats each session unless you add it to your shell profile.
 
 ## Listing models
 
@@ -204,8 +191,7 @@ curl -s https://llm-gw01.doit.wisc.edu/v1/models \
   -H "Authorization: Bearer $OPENAI_API_KEY"
 ```
 
-If this errors in PowerShell, it's almost always one of the two
-differences in [PowerShell and bash](#powershell-and-bash).
+If this errors in PowerShell, see [PowerShell and bash](#powershell-and-bash).
 
 ## Python
 
@@ -296,10 +282,9 @@ chat$chat("Explain PCA in two sentences.")
 chat$chat("Now give an example with gene expression data.")
 ```
 
-ellmer moves quickly — check `?chat_openai_compatible` if an argument
-name doesn't match. It also ships `chat_vllm()`, a thin wrapper over the
-same thing that reads `VLLM_API_KEY` instead; either works against the
-gateway.
+Check `?chat_openai_compatible` if an argument name doesn't match —
+ellmer changes between releases. `chat_vllm()` is the same thing reading
+`VLLM_API_KEY` instead; either works.
 
 ### httr2 (anything, including embeddings)
 
@@ -363,9 +348,8 @@ dim(m)   # 2 x 4096
 > OPENAI_API_KEY=sk-...
 > ```
 >
-> Then **Session → Restart R**. `.Renviron` is read only at startup, so
-> without the restart it still looks empty. Check with
-> `nchar(Sys.getenv("OPENAI_API_KEY"))`.
+> Then **Session → Restart R** — `.Renviron` is read only at startup.
+> Check with `nchar(Sys.getenv("OPENAI_API_KEY"))`.
 >
 > Call `edit_r_environ()` with no arguments so it edits the **user-level**
 > file in your home directory. `edit_r_environ("project")` writes one into
@@ -380,8 +364,8 @@ dim(m)   # 2 x 4096
 > Sys.setenv(OPENAI_API_KEY = rstudioapi::askForSecret("OPENAI_API_KEY"))
 > ```
 >
-> Gone when R restarts. `.Renviron` is plaintext on
-> disk, so this is the better choice on a shared machine.
+> Gone when R restarts. `.Renviron` is plaintext on disk; prefer this on
+> a shared machine.
 
 ### Keeping the key out of `.Renviron`
 
@@ -409,11 +393,9 @@ op run --env-file=./rstudio.env -- open -a RStudio
 That file is safe to commit — it contains no secret.
 
 > **Not from RStudio's Terminal pane.** That tab is a separate process
-> from the R console, so variables set there never reach `Sys.getenv()`,
-> and relaunching RStudio from inside RStudio does nothing for the session
-> you're in. `op run` has to come first, from a real terminal, with
-> RStudio closed. If you're already in a session and don't want to
-> restart, use `keyring` below instead.
+> from the R console, so variables set there never reach `Sys.getenv()`.
+> Run `op run` from a real terminal with RStudio closed. Already in a
+> session? Use `keyring` below.
 
 **`keyring`**, if `op` won't cooperate. Uses Windows Credential Manager
 or the macOS Keychain, so still no plaintext file:
@@ -424,25 +406,19 @@ Sys.setenv(OPENAI_API_KEY = keyring::key_get("litellm"))     # each session
 ```
 
 **Calling `op` from inside R** (`system2("op", c("read", "op://..."))`)
-usually fails with *"account is not signed in"* — the desktop integration
+usually fails with *"account is not signed in"*: the desktop integration
 authorises by calling application, and `rsession` isn't one it accepts.
-One line to try, but don't plan around it.
 
 ## Cold starts
 
-Some models are configured to release their GPU when idle. The first
-request after a quiet period **waits while a GPU replica starts** —
-typically 90 seconds or so. The connection is held open the whole time;
-nothing is lost.
+Some models release their GPU when idle. The first request after a quiet
+period waits while a replica starts — about 90 seconds. The connection
+is held open; nothing is lost.
 
-Practical consequences:
-
-- **Set a generous client timeout.** The examples above use 300 seconds.
-  A default 30- or 60-second timeout will give up mid-startup and look
-  like a failure.
-- **Don't treat a slow first call as broken.** Try a second request
-  before reporting a problem — if the second is fast, that was a cold
-  start working exactly as designed.
+- **Set a long client timeout.** The examples use 300 seconds; a
+  30- or 60-second default gives up mid-startup.
+- **A slow first call isn't a fault.** If a second request is fast, the
+  first was a cold start.
 - `qwen3.8-27b` stays warm; `churro-3b` and `qwen3-vl-embedding-8b`
   are the ones that sleep.
 
@@ -450,13 +426,12 @@ Practical consequences:
 
 You may come across a direct model hostname ending in
 `deepthought.doit.wisc.edu`. **Don't use it.** Those answer without a key,
-so calls that bypass the gateway don't appear in usage reporting — and
-unattributed traffic is what gets a pilot's capacity questioned. Use
+so calls that bypass the gateway don't appear in usage reporting. Use
 `https://llm-gw01.doit.wisc.edu/v1` for everything.
 
 ## Check your own usage
 
-No login needed — your key can query itself:
+Your key can query itself:
 
 ```powershell
 # PowerShell
@@ -485,10 +460,8 @@ That shows your key's limits and what it's spent so far.
 | 429 | Rate limited. Back off and retry; if it's persistent, ask for a higher limit |
 
 Lost your key? Request a replacement through the
-[access form](https://forms.gle/vkcLzApNrX7KbkTP9) — it's a one-minute
-job on our side. Anything else, or a model that's consistently
-unavailable: contact Chris, and include the model name and the exact
-error text; the error body from the gateway says which layer failed.
+[access form](https://forms.gle/vkcLzApNrX7KbkTP9). Anything else:
+contact Chris with the model name and the exact error text.
 
 ## Scope
 
@@ -500,8 +473,7 @@ to host your own model.
 to explore fine-tuning or run something the gateway can't do, talk to
 Chris. The pilot has two RTX Pro 6000s (96 GB each) for at least the next
 six months, and the shared endpoints already live on them, so GPU time
-for your own workload can't be promised and may well not materialise. Worth asking; not worth
-planning a project around.
+for your own workload can't be promised.
 
 **Asking for another model is fine.** It's a config change plus a
 pipeline deploy on our side, not a rebuild of anything. A model already
