@@ -501,6 +501,11 @@ def main():
                    help="delete these keys from the gateway and emit a "
                         "script that removes their 1Password items. Dry run "
                         "unless --apply.")
+    p.add_argument("--revoke-roster", action="store_true",
+                   help="revoke every key the given roster would create "
+                        "(team_netid for each row), for a clean redo. Keys "
+                        "not in the roster are untouched. Dry run unless "
+                        "--apply.")
     p.add_argument("--view-once", action="store_true",
                    help="share links die after one view instead of expiring. "
                         "op forbids combining the two, so this drops "
@@ -538,6 +543,12 @@ def main():
         except OSError:
             print(EXAMPLE_CSV, end="")
         return 0
+    if args.revoke_roster:
+        if not args.roster:
+            p.error("--revoke-roster needs the roster CSV")
+        args.revoke = [item_title(r["team"].strip(), r["netid"].strip())
+                       for r in read_roster(args.roster)]
+
     if args.list or args.revoke:
         master_key = os.environ.get("LITELLM_MASTER_KEY", "").strip()
         if not master_key:

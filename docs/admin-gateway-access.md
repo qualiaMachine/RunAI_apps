@@ -306,6 +306,17 @@ python scripts\provision_gateway_keys.py --revoke wams_bbadger osky_x --apply
 .\revoke_in_1password.ps1                                              # removes the 1Password items
 ```
 
+To redo a whole batch — say, to resend with `--email` — `--revoke-roster`
+revokes every key the roster would create and nothing else:
+
+```powershell
+python scripts\provision_gateway_keys.py roster.csv --revoke-roster           # dry run
+python scripts\provision_gateway_keys.py roster.csv --revoke-roster --apply
+.\revoke_in_1password.ps1
+python scripts\provision_gateway_keys.py roster.csv --apply --email
+.\file_in_1password.ps1
+```
+
 `--revoke` deletes from the gateway immediately on `--apply` and emits
 the 1Password half as a script, for the same reason provisioning does.
 Then fix the roster and re-run provisioning; the dry run should list
