@@ -145,7 +145,23 @@ def item_title(team, netid):
     return f"{team}_{netid}"
 
 
-def emit_op_script(path, rows, vault, gateway, expires, view_once=False):
+def load_email_template(path):
+    """First line 'Subject: ...', blank line, then the body. Placeholders:
+    {netid} {team} {email} {link} {expires}."""
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    head, _, body = text.partition("\n\n")
+    if not head.lower().startswith("subject:"):
+        raise Fatal(f"{path}: first line must be 'Subject: ...'")
+    return head[len("subject:"):].strip(), body.strip("\n")
+
+
+def _ps_single_quoted(text):
+    return "'" + text.replace("'", "''") + "'"
+
+
+def emit_op_script(path, rows, vault, gateway, expires, view_once=False,
+                   email=None, email_override=None):
     """Write the 1Password half as a shell script for the USER to run.
 
     op refuses to talk to the desktop app when its parent process is
@@ -170,7 +186,15 @@ def emit_op_script(path, rows, vault, gateway, expires, view_once=False):
                   "function Assert-Ok($what) {",
                   "  if ($LASTEXITCODE -ne 0) { throw \"FAILED: $what\" }",
                   "}", ""]
+        if email:
+            # Outlook COM: sends as the signed-in user, no SMTP credentials,
+            # copy lands in Sent Items. Outlook must be installed and set up.
+            lines += ["$ol = New-Object -ComObject Outlook.Application", ""]
     else:
+        if email:
+            print("NOTE: --email is only implemented for the PowerShell "
+                  "script (Outlook); share links will be printed instead.")
+            email = None
         lines += ["#!/bin/sh", "# Files each key in 1Password, shares it, then",
                   "# deletes itself. Contains live credentials until it does.",
                   "set -e", ""]
@@ -181,17 +205,37 @@ def emit_op_script(path, rows, vault, gateway, expires, view_once=False):
     # to an expiring, recipient-locked link: a fumbled single-view link
     # costs a re-share, while an expiry bounds the window either way.
     limit = "--view-once" if view_once else f'--expires-in "{expires}"'
-    for netid, email, key, team in rows:
+    for netid, email_addr, key, team in rows:
         title = item_title(team, netid)
         create = (f'op item create --category "API Credential" '
                   f'--vault "{vault}" --title "{title}" '
                   f'--tags "litellm,{team}" "credential={key}" '
                   f'"username={netid}" "base url[text]={gateway}/v1"')
         share = (f'op item share "{title}" --vault "{vault}" '
-                 f'--emails "{email}" {limit}')
+                 f'--emails "{email_addr}" {limit}')
         if win:
             lines += [create, f'Assert-Ok "create {title}"',
-                      share, f'Assert-Ok "share {title}"', ""]
+                      f'$link = ({share}) | Out-String',
+                      f'Assert-Ok "share {title}"',
+                      '$link = $link.Trim()']
+            if email:
+                subj, body = email
+                fill = {"{netid}": netid, "{team}": team, "{email}": email_addr,
+                        "{expires}": expires}
+                for k, v in fill.items():
+                    subj = subj.replace(k, v); body = body.replace(k, v)
+                to = email_override or email_addr
+                lines += [
+                    "$m = $ol.CreateItem(0)",
+                    f"$m.To = {_ps_single_quoted(to)}",
+                    f"$m.Subject = {_ps_single_quoted(subj)}",
+                    f"$m.Body = {_ps_single_quoted(body)}.Replace('{{link}}', $link)",
+                    "$m.Send()",
+                    f'Write-Host "emailed {to}"',
+                ]
+            else:
+                lines += [f'Write-Host "{title}: $link"']
+            lines.append("")
         else:
             lines += [create, share, ""]
     lines.append("Remove-Item -LiteralPath $PSCommandPath -Force" if win
@@ -461,6 +505,17 @@ def main():
                    help="share links die after one view instead of expiring. "
                         "op forbids combining the two, so this drops "
                         "--expires-in.")
+    p.add_argument("--email", action="store_true",
+                   help="have the emitted script email each person their "
+                        "share link via Outlook, using --email-template")
+    p.add_argument("--email-template",
+                   default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                        "key_email.txt"),
+                   help="'Subject: ...' line, blank line, body. Placeholders "
+                        "{netid} {team} {email} {link} {expires}")
+    p.add_argument("--email-override", metavar="ADDR",
+                   help="send every email to ADDR instead of the roster "
+                        "address -- for testing the template on yourself")
     p.add_argument("--op-script",
                    help="path for the emitted 1Password script "
                         "(default file_in_1password.ps1 / .sh)")
@@ -656,13 +711,21 @@ def main():
 
     script = args.op_script or ("file_in_1password.ps1" if os.name == "nt"
                                 else "file_in_1password.sh")
+    email = load_email_template(args.email_template) if args.email else None
     emit_op_script(script, pending, args.vault, args.gateway,
-                   args.expires_in, args.view_once)
+                   args.expires_in, args.view_once,
+                   email=email, email_override=args.email_override)
     run = f".\\{script}" if os.name == "nt" else f"./{script}"
     print(f"\n{len(pending)} key(s) minted on the gateway.")
     print(f"\nNow run this from your terminal to finish:\n\n    {run}\n")
-    print("It files each key in 1Password, shares it with its owner, then")
-    print("deletes itself. Run it from the terminal, not from an editor or")
+    if email:
+        who = f"everything to {args.email_override}" if args.email_override else "each person"
+        print(f"It files each key in 1Password, shares it, emails {who} via")
+        print("Outlook, then deletes itself.", end=" ")
+    else:
+        print("It files each key in 1Password, shares it with its owner, then")
+        print("deletes itself.", end=" ")
+    print("Run it from the terminal, not from an editor or")
     print("IDE task: op only trusts the desktop app when a terminal you are")
     print("typing in is its parent, which is the whole reason for this step.")
     print(f"\n!! Until you run it, {script} holds live credentials.")

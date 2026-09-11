@@ -1,0 +1,25 @@
+Subject: Your Badger Brain API key
+
+Hi {netid},
+
+Your API key for the Badger Brain model gateway is ready. It's shared
+through 1Password. Open this link and save the item into your UW-Madison
+1Password account:
+
+{link}
+
+The link is locked to your @wisc.edu address and expires in {expires}.
+If it has expired by the time you get to it, reply and I'll send another.
+
+Setup instructions, with Python and R examples:
+https://github.com/qualiaMachine/RunAI_apps/blob/main/docs/gateway-quickstart.md
+
+Two things have to be in place before the key works:
+
+  1. You're on GlobalProtect (campus VPN).
+  2. Your NetID has been added to the gateway firewall rule. I'll confirm
+     when that's done.
+
+Team: {team}
+
+Chris

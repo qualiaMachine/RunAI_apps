@@ -270,6 +270,31 @@ on the gateway's key aliases, or on the vault when running `--use-op` — so
 adding rows and re-running onboards only the new people. If that check
 can't run, the script says so rather than quietly minting duplicates.
 
+**Emailing the share links.** Add `--email` and the emitted script also
+sends each person their link through Outlook — it runs as you, needs no
+SMTP setup, and the copy lands in Sent Items. The email carries the
+1Password link only, never the key.
+
+```powershell
+python scripts\provision_gateway_keys.py roster.csv --apply --email
+.\file_in_1password.ps1
+```
+
+The message comes from `scripts/key_email.txt`: a `Subject:` line, a
+blank line, then the body. Placeholders `{netid}`, `{team}`, `{email}`,
+`{link}` and `{expires}` are filled per person. Edit it or point
+`--email-template` at another file.
+
+To test the wording without emailing anyone, `--email-override you@wisc.edu`
+sends every message to that address instead. Note the share link inside
+is still locked to the roster address, so you can read the email but not
+open the link. For a true end-to-end test, put your own NetID and email
+in a roster row.
+
+Outlook may show a "program is trying to send email" prompt on the first
+send; allow it. `--email` is PowerShell/Outlook only — the `.sh` variant
+prints the links instead.
+
 **Revoking keys.** To reissue a key, or clean up ones minted with the
 wrong team name, remove both halves first — the script skips anyone
 whose alias already exists:
