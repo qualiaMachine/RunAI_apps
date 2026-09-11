@@ -48,6 +48,7 @@ Requires: python 3.9+. No pip installs.
 
 import argparse
 import csv
+import fnmatch
 import json
 import os
 import re
@@ -510,6 +511,10 @@ def main():
                    help="delete these keys from the gateway and emit a "
                         "script that removes their 1Password items. Dry run "
                         "unless --apply.")
+    p.add_argument("--team", action="append", metavar="PATTERN",
+                   help="only rows whose team matches this glob, e.g. "
+                        "'MLM26-*'. Repeatable. Applies to provisioning and "
+                        "to --revoke-roster.")
     p.add_argument("--revoke-roster", action="store_true",
                    help="revoke every key the given roster would create "
                         "(team_netid for each row), for a clean redo. Keys "
@@ -552,11 +557,20 @@ def main():
         except OSError:
             print(EXAMPLE_CSV, end="")
         return 0
+    def filter_teams(rows):
+        if not args.team:
+            return rows
+        kept = [r for r in rows
+                if any(fnmatch.fnmatchcase(r["team"].strip(), pat) for pat in args.team)]
+        if not kept:
+            raise Fatal(f"no roster rows match --team {args.team}")
+        return kept
+
     if args.revoke_roster:
         if not args.roster:
             p.error("--revoke-roster needs the roster CSV")
         args.revoke = [item_title(r["team"].strip(), r["netid"].strip())
-                       for r in read_roster(args.roster)]
+                       for r in filter_teams(read_roster(args.roster))]
 
     if args.list or args.revoke:
         master_key = os.environ.get("LITELLM_MASTER_KEY", "").strip()
@@ -602,7 +616,7 @@ def main():
     if not args.roster:
         p.error("roster CSV required (or --example, --list, --revoke)")
 
-    rows = read_roster(args.roster)
+    rows = filter_teams(read_roster(args.roster))
 
     if not args.use_op:
         master_key = os.environ.get("LITELLM_MASTER_KEY", "").strip()
