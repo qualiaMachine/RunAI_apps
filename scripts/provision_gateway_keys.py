@@ -50,6 +50,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
@@ -304,6 +305,60 @@ def existing_key_aliases(gateway, master_key):
     return out
 
 
+def list_keys(gateway, master_key):
+    """Every key on the gateway as {alias, token, team_id, user_id}."""
+    raw = api(gateway, master_key, "/key/list?return_full_object=true")
+    keys = raw.get("keys", raw) if isinstance(raw, dict) else raw
+    if not isinstance(keys, list):
+        raise Fatal(f"Unexpected /key/list response: {str(raw)[:300]}")
+    out = []
+    for k in keys:
+        if not isinstance(k, dict):
+            continue
+        out.append({
+            "alias": k.get("key_alias") or "",
+            "token": k.get("token") or "",
+            "team_id": k.get("team_id") or "",
+            "user_id": k.get("user_id") or "",
+        })
+    return out
+
+
+def delete_key(gateway, master_key, token):
+    # /key/delete takes the stored (hashed) token as-is; only values that
+    # start with "sk-" get re-hashed server-side.
+    api(gateway, master_key, "/key/delete", {"keys": [token]})
+
+
+def emit_revoke_script(path, aliases, vault):
+    """1Password half of a revoke, for the user to run -- same reason as
+    emit_op_script: op only trusts the terminal as its parent."""
+    win = path.endswith(".ps1")
+    lines = []
+    if win:
+        lines += ["# Run this from PowerShell:  .\\" + os.path.basename(path),
+                  "# Deletes the 1Password item for each revoked key, then",
+                  "# deletes itself. Stops on the first failure.",
+                  "$ErrorActionPreference = 'Stop'",
+                  "function Assert-Ok($what) {",
+                  "  if ($LASTEXITCODE -ne 0) { throw \"FAILED: $what\" }",
+                  "}", ""]
+    else:
+        lines += ["#!/bin/sh", "set -e", ""]
+    for a in aliases:
+        lines.append(f'op item delete "{a}" --vault "{vault}"')
+        if win:
+            lines.append(f'Assert-Ok "delete {a}"')
+    lines.append("")
+    lines.append("Remove-Item -LiteralPath $PSCommandPath -Force" if win
+                 else 'rm -- "$0"')
+    lines.append("")
+    with open(path, "w", encoding="ascii", errors="replace", newline="") as f:
+        f.write(("\r\n" if win else "\n").join(lines))
+    if not win:
+        os.chmod(path, 0o700)
+
+
 def generate_key(gateway, master_key, netid, team_id, rpm, duration, team):
     payload = {
         "key_alias": item_title(team, netid),
@@ -345,6 +400,23 @@ def read_roster(path):
             f"{path} is missing column(s): {', '.join(sorted(missing))}\n"
             f"Expected header: {COLUMNS}"
         )
+    # team and netid become the key alias and the 1Password item title, so
+    # they must be one clean token. Spaces in particular produce aliases
+    # like "ml marathon_bbadger" that then have to be revoked and reminted.
+    ident = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+    bad = []
+    for r in rows:
+        for col in ("netid", "team"):
+            v = (r.get(col) or "").strip()
+            if v and not ident.match(v):
+                fix = re.sub(r"[^a-z0-9._-]+", "-", v.lower()).strip("-")
+                bad.append(f"  {col}={v!r}  ->  try {fix!r}")
+    if bad:
+        raise Fatal(
+            f"{path}: team and netid must be lowercase, no spaces, only "
+            "letters, digits, '.', '_' or '-':\n" + "\n".join(bad)
+        )
+
     for i, r in enumerate(rows, start=2):
         for col in ("netid", "team", "email"):
             if not (r.get(col) or "").strip():
@@ -380,6 +452,12 @@ def main():
                         "default path writes --op-script instead.")
     p.add_argument("--example", action="store_true",
                    help="print an example roster CSV and exit")
+    p.add_argument("--list", action="store_true",
+                   help="print every key alias on the gateway and exit")
+    p.add_argument("--revoke", nargs="+", metavar="ALIAS",
+                   help="delete these keys from the gateway and emit a "
+                        "script that removes their 1Password items. Dry run "
+                        "unless --apply.")
     p.add_argument("--view-once", action="store_true",
                    help="share links die after one view instead of expiring. "
                         "op forbids combining the two, so this drops "
@@ -406,8 +484,49 @@ def main():
         except OSError:
             print(EXAMPLE_CSV, end="")
         return 0
+    if args.list or args.revoke:
+        master_key = os.environ.get("LITELLM_MASTER_KEY", "").strip()
+        if not master_key:
+            raise Fatal(
+                "Set the gateway master key first:\n"
+                "  $env:LITELLM_MASTER_KEY = op read "
+                "'op://BadgerBrain_LiteLLM/LITELLM_MASTER_KEY/credential'"
+            )
+        keys = list_keys(args.gateway, master_key)
+
+        if args.list:
+            width = max((len(k["alias"]) for k in keys), default=5)
+            print(f"{'alias':<{width}}  team_id")
+            for k in sorted(keys, key=lambda k: k["alias"]):
+                print(f"{k['alias'] or '(no alias)':<{width}}  {k['team_id']}")
+            print(f"\n{len(keys)} key(s)")
+            return 0
+
+        by_alias = {k["alias"]: k for k in keys if k["alias"]}
+        missing = [a for a in args.revoke if a not in by_alias]
+        found = [a for a in args.revoke if a in by_alias]
+        if missing:
+            print("Not on the gateway (skipping): " + ", ".join(missing))
+        if not found:
+            print("Nothing to revoke.")
+            return 0
+        print("Will revoke:")
+        for a in found:
+            print(f"  - {a}")
+        if not args.apply:
+            print("\nDry run. Re-run with --apply to delete these.")
+            return 0
+        for a in found:
+            delete_key(args.gateway, master_key, by_alias[a]["token"])
+            print(f"deleted from gateway: {a}")
+        script = "revoke_in_1password.ps1" if os.name == "nt" else "revoke_in_1password.sh"
+        emit_revoke_script(script, found, args.vault)
+        run = f".\\{script}" if os.name == "nt" else f"./{script}"
+        print(f"\nNow run this from your terminal to remove the 1Password items:\n\n    {run}\n")
+        return 0
+
     if not args.roster:
-        p.error("roster CSV required (or --example)")
+        p.error("roster CSV required (or --example, --list, --revoke)")
 
     rows = read_roster(args.roster)
 

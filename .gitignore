@@ -90,3 +90,5 @@ keys.csv
 file_in_1password.ps1
 file_in_1password.sh
 __pycache__/
+revoke_in_1password.ps1
+revoke_in_1password.sh
