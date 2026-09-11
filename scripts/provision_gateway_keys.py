@@ -291,36 +291,37 @@ def create_team(gateway, master_key, alias):
 def existing_key_aliases(gateway, master_key):
     """Set of key aliases already on the gateway, or None if unavailable."""
     try:
-        raw = api(gateway, master_key, "/key/list?return_full_object=true")
+        return {k["alias"] for k in list_keys(gateway, master_key) if k["alias"]}
     except Fatal:
         return None
-    keys = raw.get("keys", raw) if isinstance(raw, dict) else raw
-    if not isinstance(keys, list):
-        return None
-    out = set()
-    for k in keys:
-        alias = k.get("key_alias") if isinstance(k, dict) else None
-        if alias:
-            out.add(alias)
-    return out
 
 
 def list_keys(gateway, master_key):
-    """Every key on the gateway as {alias, token, team_id, user_id}."""
-    raw = api(gateway, master_key, "/key/list?return_full_object=true")
-    keys = raw.get("keys", raw) if isinstance(raw, dict) else raw
-    if not isinstance(keys, list):
-        raise Fatal(f"Unexpected /key/list response: {str(raw)[:300]}")
-    out = []
-    for k in keys:
-        if not isinstance(k, dict):
-            continue
-        out.append({
-            "alias": k.get("key_alias") or "",
-            "token": k.get("token") or "",
-            "team_id": k.get("team_id") or "",
-            "user_id": k.get("user_id") or "",
-        })
+    """Every key on the gateway as {alias, token, team_id, user_id}.
+
+    /key/list is paginated (10 per page by default). Missing that once
+    meant the existing-alias check saw only the first page and tried to
+    remint keys that already existed.
+    """
+    out, page = [], 1
+    while True:
+        raw = api(gateway, master_key,
+                  f"/key/list?return_full_object=true&size=100&page={page}")
+        keys = raw.get("keys", raw) if isinstance(raw, dict) else raw
+        if not isinstance(keys, list):
+            raise Fatal(f"Unexpected /key/list response: {str(raw)[:300]}")
+        for k in keys:
+            if isinstance(k, dict):
+                out.append({
+                    "alias": k.get("key_alias") or "",
+                    "token": k.get("token") or "",
+                    "team_id": k.get("team_id") or "",
+                    "user_id": k.get("user_id") or "",
+                })
+        total_pages = raw.get("total_pages") if isinstance(raw, dict) else None
+        if not keys or total_pages is None or page >= int(total_pages):
+            break
+        page += 1
     return out
 
 
@@ -338,17 +339,15 @@ def emit_revoke_script(path, aliases, vault):
     if win:
         lines += ["# Run this from PowerShell:  .\\" + os.path.basename(path),
                   "# Deletes the 1Password item for each revoked key, then",
-                  "# deletes itself. Stops on the first failure.",
-                  "$ErrorActionPreference = 'Stop'",
-                  "function Assert-Ok($what) {",
-                  "  if ($LASTEXITCODE -ne 0) { throw \"FAILED: $what\" }",
-                  "}", ""]
+                  "# deletes itself. A missing item prints an error and is",
+                  "# skipped -- keys that were never filed have none.", ""]
     else:
         lines += ["#!/bin/sh", "set -e", ""]
+    # No Assert-Ok here on purpose: a key that was minted but never filed
+    # (a crash between generate and emit) has no item, and the delete for
+    # it should print an error and move on rather than stop the script.
     for a in aliases:
         lines.append(f'op item delete "{a}" --vault "{vault}"')
-        if win:
-            lines.append(f'Assert-Ok "delete {a}"')
     lines.append("")
     lines.append("Remove-Item -LiteralPath $PSCommandPath -Force" if win
                  else 'rm -- "$0"')
@@ -609,14 +608,21 @@ def main():
         teams[t] = create_team(args.gateway, master_key, t)
         print(f"created team {t} ({teams[t]})")
 
-    links, pending = [], []
+    links, pending, failed = [], [], []
     for r in todo:
         netid, team = r["netid"].strip(), r["team"].strip()
         title = item_title(team, netid)
-        key = generate_key(
-            args.gateway, master_key, netid, teams[team],
-            (r.get("rpm_limit") or "").strip(), (r.get("duration") or "").strip(), team,
-        )
+        try:
+            key = generate_key(
+                args.gateway, master_key, netid, teams[team],
+                (r.get("rpm_limit") or "").strip(), (r.get("duration") or "").strip(), team,
+            )
+        except Fatal as e:
+            # Keep going: a key's value is returned exactly once, so
+            # aborting here would orphan everything minted so far.
+            failed.append((title, str(e).splitlines()[0]))
+            print(f"FAILED: {title} -- {str(e).splitlines()[0]}")
+            continue
         if not args.use_op:
             pending.append((netid, r["email"].strip(), key, team))
             print(f"minted: {netid}")
@@ -639,6 +645,14 @@ def main():
               "address,")
         print(f"single-view, and expires in {args.expires_in}. Safe to email.")
         return 0
+
+    if failed:
+        print(f"\n{len(failed)} key(s) NOT minted:")
+        for title, why in failed:
+            print(f"  {title}: {why}")
+    if not pending:
+        print("\nNothing was minted, so there is nothing to file in 1Password.")
+        return 1 if failed else 0
 
     script = args.op_script or ("file_in_1password.ps1" if os.name == "nt"
                                 else "file_in_1password.sh")
