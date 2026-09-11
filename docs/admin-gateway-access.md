@@ -151,6 +151,7 @@ Send Mike the NetIDs of everyone who needs access and wait for the rule to
 commit. The `netid` column of your roster is exactly this list:
 
 ```powershell
+cd C:\Users\endemann\Documents\GitHub\RunAI_apps
 (Import-Csv roster.csv).netid -join ", "
 ```
 
@@ -226,6 +227,9 @@ astudent,marathon-team-07,astudent@wisc.edu,,7d
 read` in *your* shell is trusted, so the key is never typed or displayed:
 
 ```powershell
+cd C:\Users\endemann\Documents\GitHub\RunAI_apps
+git pull                                                        # script changes land here
+
 $env:LITELLM_MASTER_KEY = op read "op://BadgerBrain_LiteLLM/LITELLM_MASTER_KEY/credential"
 # bash: export LITELLM_MASTER_KEY=$(op read 'op://BadgerBrain_LiteLLM/LITELLM_MASTER_KEY/credential')
 
