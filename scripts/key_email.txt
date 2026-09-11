@@ -3,13 +3,18 @@ Subject: Your Badger Brain API key
 Hi {netid},
 
 Your API key for the Badger Brain model gateway is ready. It's shared
-through 1Password. Open this link and save the item into your UW-Madison
-1Password account:
+through 1Password:
 
 {link}
 
 The link is locked to your @wisc.edu address and expires in {expires}.
 If it has expired by the time you get to it, reply and I'll send another.
+
+You need a UW-Madison 1Password account to save the item. If you don't
+have one yet, request it at https://profile.wisc.edu/doit-services
+(1Password under Eligible Services > Request Activation), then accept the
+invitation email from accounts@1password.com and sign in with your NetID.
+Details: https://kb.wisc.edu/security/144301
 
 Setup instructions, with Python and R examples:
 https://github.com/qualiaMachine/RunAI_apps/blob/main/docs/gateway-quickstart.md
