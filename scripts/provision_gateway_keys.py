@@ -185,6 +185,14 @@ def emit_op_script(path, rows, vault, gateway, expires, view_once=False,
                   "$ErrorActionPreference = 'Stop'",
                   "function Assert-Ok($what) {",
                   "  if ($LASTEXITCODE -ne 0) { throw \"FAILED: $what\" }",
+                  "}",
+                  "# Remove a leftover item with this title, if any, so a redo",
+                  "# never produces two items with the same name. 'Not found'",
+                  "# is the normal case and is ignored.",
+                  "function Remove-Stale($title, $vault) {",
+                  "  $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'",
+                  "  op item delete $title --vault $vault 2>&1 | Out-Null",
+                  "  $ErrorActionPreference = $prev",
                   "}", ""]
         if email:
             # Outlook COM: sends as the signed-in user, no SMTP credentials,
@@ -214,7 +222,8 @@ def emit_op_script(path, rows, vault, gateway, expires, view_once=False,
         share = (f'op item share "{title}" --vault "{vault}" '
                  f'--emails "{email_addr}" {limit}')
         if win:
-            lines += [create, f'Assert-Ok "create {title}"',
+            lines += [f'Remove-Stale "{title}" "{vault}"',
+                      create, f'Assert-Ok "create {title}"',
                       f'$link = ({share}) | Out-String',
                       f'Assert-Ok "share {title}"',
                       '$link = $link.Trim()']
