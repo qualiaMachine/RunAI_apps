@@ -286,9 +286,10 @@ the 1Password half as a script, for the same reason provisioning does.
 Then fix the roster and re-run provisioning; the dry run should list
 only the people you just revoked.
 
-Team and netid are validated on load: lowercase, no spaces, only
-letters, digits, `.`, `_`, `-`. A row like `ML Marathon` fails with a
-suggested fix (`ml-marathon`) before anything is minted.
+Team and netid are validated on load: no spaces, only letters, digits,
+`.`, `_`, `-`. A row like `ML Marathon` fails with a suggested fix
+(`ML-Marathon`) before anything is minted. Case is kept as written, so
+be consistent — `WaMS` and `wams` are two different teams.
 
 `file_in_1password.ps1` holds live credentials until you run it, at which
 point it deletes itself. If you abandon a run partway, delete it by hand.

@@ -403,18 +403,18 @@ def read_roster(path):
     # team and netid become the key alias and the 1Password item title, so
     # they must be one clean token. Spaces in particular produce aliases
     # like "ml marathon_bbadger" that then have to be revoked and reminted.
-    ident = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+    ident = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
     bad = []
     for r in rows:
         for col in ("netid", "team"):
             v = (r.get(col) or "").strip()
             if v and not ident.match(v):
-                fix = re.sub(r"[^a-z0-9._-]+", "-", v.lower()).strip("-")
+                fix = re.sub(r"[^A-Za-z0-9._-]+", "-", v).strip("-")
                 bad.append(f"  {col}={v!r}  ->  try {fix!r}")
     if bad:
         raise Fatal(
-            f"{path}: team and netid must be lowercase, no spaces, only "
-            "letters, digits, '.', '_' or '-':\n" + "\n".join(bad)
+            f"{path}: team and netid can't contain spaces -- only letters, "
+            "digits, '.', '_' or '-':\n" + "\n".join(bad)
         )
 
     for i, r in enumerate(rows, start=2):
