@@ -198,7 +198,10 @@ def emit_op_script(path, rows, vault, gateway, expires, view_once=False,
         if email:
             # Outlook COM: sends as the signed-in user, no SMTP credentials,
             # copy lands in Sent Items. Outlook must be installed and set up.
-            lines += ["$ol = New-Object -ComObject Outlook.Application", ""]
+            lines += ["$ol = New-Object -ComObject Outlook.Application",
+                      "# Messages sent via COM don't reliably land in Sent Items",
+                      "# unless told where to file themselves. 5 = olFolderSentMail.",
+                      "$sent = $ol.GetNamespace('MAPI').GetDefaultFolder(5)", ""]
     else:
         if email:
             print("NOTE: --email is only implemented for the PowerShell "
@@ -240,6 +243,7 @@ def emit_op_script(path, rows, vault, gateway, expires, view_once=False,
                     f"$m.To = {_ps_single_quoted(to)}",
                     f"$m.Subject = {_ps_single_quoted(subj)}",
                     f"$m.Body = {_ps_single_quoted(body)}.Replace('{{link}}', $link)",
+                    "$m.SaveSentMessageFolder = $sent",
                     "$m.Send()",
                     f'Write-Host "emailed {to}"',
                 ]
